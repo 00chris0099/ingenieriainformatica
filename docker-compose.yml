@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: adris-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: adris
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-adris123}
+      POSTGRES_DB: adriskids
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adris"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - adris-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: adris-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - adris-network
+
+  wms:
+    build:
+      context: .
+      dockerfile: wms/Dockerfile
+    container_name: adris-wms
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-adris123}@postgres:5432/adriskids
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=${WMS_URL:-https://admin.adriskids.com}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-secret-change-me}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - adris-network
+
+  tienda:
+    build:
+      context: .
+      dockerfile: tienda/Dockerfile
+    container_name: adris-tienda
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-adris123}@postgres:5432/adriskids
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=${TIENDA_URL:-https://adriskids.com}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-secret-change-me}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - adris-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: adris-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - wms
+      - tienda
+    networks:
+      - adris-network
+
+  backup:
+    image: postgres:15-alpine
+    container_name: adris-backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-adris123}
+    volumes:
+      - ./scripts/backup.sh:/backup.sh:ro
+      - backup_data:/backups
+    entrypoint: /bin/sh
+    command: >
+      -c "chmod +x /backup.sh && echo '0 2 * * * /backup.sh >> /var/log/backup.log 2>&1' | crontab - && crond -f -l 8"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - adris-network
+
+networks:
+  adris-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  backup_data:

@@ -1,0 +1,17 @@
+DELETE FROM order_items;
+DELETE FROM orders;
+DELETE FROM inventory;
+DELETE FROM product_variants;
+DELETE FROM products;
+DELETE FROM pick_list_items;
+DELETE FROM return_items;
+DELETE FROM cycle_count_items;
+DELETE FROM quality_check_items;
+DELETE FROM wishlists;
+DELETE FROM reviews;
+DELETE FROM price_list_items;
+DELETE FROM lot;
+DELETE FROM serial_number;
+DELETE FROM notifications;
+DELETE FROM audit_trails;
+DELETE FROM sessions;

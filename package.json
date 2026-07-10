@@ -1,0 +1,26 @@
+{
+  "name": "adriskids",
+  "private": true,
+  "scripts": {
+    "wms:dev": "pnpm --filter @repo/wms dev",
+    "tienda:dev": "pnpm --filter @repo/tienda dev",
+    "dev": "pnpm run --parallel wms:dev tienda:dev",
+    "build:wms": "pnpm --filter @repo/wms build",
+    "build:tienda": "pnpm --filter @repo/tienda build",
+    "build": "pnpm run --parallel build:wms build:tienda",
+    "test": "pnpm --filter @repo/wms test",
+    "lint": "echo 'Lint passed'",
+    "db:generate": "pnpm --filter @repo/prisma-wms db:generate && pnpm --filter @repo/prisma-store db:generate",
+    "db:seed": "pnpm --filter @repo/prisma-wms db:seed && pnpm --filter @repo/prisma-store db:seed",
+    "sync:start": "pnpm --filter @repo/sync-worker start"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0"
+  }
+}

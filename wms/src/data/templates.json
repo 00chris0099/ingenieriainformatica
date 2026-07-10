@@ -1,0 +1,154 @@
+{
+  "templates": [
+    {
+      "id": "furniture",
+      "name": "Mueble",
+      "description": "Plantilla para camas, sillas, mesas y otros muebles para bebe",
+      "icon": "bed",
+      "defaults": {
+        "status": "draft",
+        "tags": ["mueble", "bebe"],
+        "weightUnit": "kg",
+        "warrantyDays": 365,
+        "materials": ["Madera"],
+        "dimensions": {
+          "height": null,
+          "width": null,
+          "depth": null
+        }
+      },
+      "categoryAttributes": [
+        { "name": "Color", "type": "select", "options": ["Blanco", "Natural", "Gris", "Rosa", "Azul", "Negro"], "required": true },
+        { "name": "Material", "type": "select", "options": ["Madera de pino", "MDF", "Metal", "Mixto"], "required": true },
+        { "name": "Tamaño", "type": "select", "options": ["Individual", "Doble", "Queen", "King"], "required": false }
+      ],
+      "landingBlocks": [
+        {
+          "type": "hero",
+          "content": {
+            "title": "Producto de alta calidad",
+            "subtitle": "Diseñado para la comodidad de tu bebé",
+            "buttonText": "Ver detalles"
+          },
+          "settings": { "backgroundColor": "#16a34a", "textColor": "#ffffff" }
+        },
+        {
+          "type": "features",
+          "content": {
+            "items": [
+              { "icon": "shield", "title": "Garantía 12 meses", "description": "Calidad garantizada" },
+              { "icon": "truck", "title": "Envío gratis", "description": "En compras mayores a S/ 150" },
+              { "icon": "refresh", "title": "Devolución fácil", "description": "30 días para devolver" }
+            ]
+          },
+          "settings": {}
+        },
+        {
+          "type": "text",
+          "content": {
+            "heading": "Descripción del producto",
+            "body": "Este mueble está diseñado con los más altos estándares de calidad y seguridad para tu bebé."
+          },
+          "settings": {}
+        }
+      ]
+    },
+    {
+      "id": "accessory",
+      "name": "Accesorio",
+      "description": "Plantilla para juguetes, adornos y accesorios para bebé",
+      "icon": "gift",
+      "defaults": {
+        "status": "draft",
+        "tags": ["accesorio", "bebe"],
+        "weightUnit": "g",
+        "warrantyDays": 90,
+        "materials": [],
+        "dimensions": {
+          "height": null,
+          "width": null,
+          "depth": null
+        }
+      },
+      "categoryAttributes": [
+        { "name": "Color", "type": "select", "options": ["Rosa", "Azul", "Blanco", "Natural", "Multicolor"], "required": true },
+        { "name": "Edad", "type": "select", "options": ["0-6 meses", "6-12 meses", "1-2 años", "2-3 años", "3+ años"], "required": true },
+        { "name": "Material", "type": "select", "options": ["Plástico", "Tela", "Madera", "Silicona", "Peluche"], "required": false }
+      ],
+      "landingBlocks": [
+        {
+          "type": "hero",
+          "content": {
+            "title": "Accesorio perfecto para tu bebé",
+            "subtitle": "Diversión y seguridad en cada detalle",
+            "buttonText": "Comprar ahora"
+          },
+          "settings": { "backgroundColor": "#ec4899", "textColor": "#ffffff" }
+        },
+        {
+          "type": "features",
+          "content": {
+            "items": [
+              { "icon": "star", "title": "Materiales seguros", "description": "Libre de BPA y tóxicos" },
+              { "icon": "heart", "title": "Diseño adorable", "description": "Para los más pequeños" },
+              { "icon": "gift", "title": "Perfecto regalo", "description": "Ideal para baby shower" }
+            ]
+          },
+          "settings": {}
+        }
+      ]
+    },
+    {
+      "id": "bundle",
+      "name": "Paquete/Bundle",
+      "description": "Plantilla para paquetes de productos combinados con descuento",
+      "icon": "package",
+      "defaults": {
+        "status": "draft",
+        "tags": ["bundle", "paquete", "oferta"],
+        "weightUnit": "kg",
+        "warrantyDays": 365,
+        "materials": [],
+        "dimensions": {
+          "height": null,
+          "width": null,
+          "depth": null
+        }
+      },
+      "categoryAttributes": [
+        { "name": "Contenido", "type": "text", "options": [], "required": true },
+        { "name": "Edad", "type": "select", "options": ["0-6 meses", "6-12 meses", "1-2 años", "2-3 años"], "required": false }
+      ],
+      "landingBlocks": [
+        {
+          "type": "hero",
+          "content": {
+            "title": "Paquete completo para tu bebé",
+            "subtitle": "Todo lo que necesitas en un solo paquete con descuento",
+            "buttonText": "¡Lo quiero!"
+          },
+          "settings": { "backgroundColor": "#f59e0b", "textColor": "#ffffff" }
+        },
+        {
+          "type": "features",
+          "content": {
+            "items": [
+              { "icon": "percent", "title": "Ahorra más", "description": "Descuento especial en paquete" },
+              { "icon": "package", "title": "Todo incluido", "description": "Productos seleccionados" },
+              { "icon": "truck", "title": "Envío gratis", "description": "En todo el paquete" }
+            ]
+          },
+          "settings": {}
+        },
+        {
+          "type": "text",
+          "content": {
+            "heading": "¿Qué incluye el paquete?",
+            "body": "Este paquete incluye todos los productos que necesitas para tu bebé, con un descuento especial por compra combinada."
+          },
+          "settings": {}
+        }
+      ]
+    }
+  ]
+}

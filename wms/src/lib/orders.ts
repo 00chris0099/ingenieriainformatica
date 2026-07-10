@@ -1,0 +1,15 @@
+export const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ['pending', 'cancelled'],
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['processing', 'cancelled'],
+  processing: ['picking'],
+  picking: ['packing'],
+  packing: ['ready_to_ship'],
+  ready_to_ship: ['shipped'],
+  shipped: ['in_transit'],
+  in_transit: ['delivered'],
+  delivered: [],
+  cancelled: [],
+  returned: ['refunded'],
+  refunded: [],
+};
