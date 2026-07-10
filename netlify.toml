@@ -1,21 +1,9 @@
 [build]
-  # Default: build tienda. Override in Netlify dashboard for WMS site
-  command = """
-    pnpm install --frozen-lockfile &&
-    pnpm --filter @repo/tienda build
-  """
+  command = "pnpm install --frozen-lockfile && pnpm --filter @repo/tienda build"
   publish = "tienda/.next"
 
 [build.environment]
   NODE_VERSION = "18"
-  NPM_FLAGS = "--prefix=/dev/null"
 
-# Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Redirects for SPA routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
