@@ -17,7 +17,7 @@ RUN chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
-CMD ["node", "wms/server.js"]
+CMD ["pnpm", "--filter", "@repo/wms", "start"]
 
 # TIENDA
 FROM base AS tienda
@@ -30,6 +30,6 @@ RUN chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
-CMD ["node", "tienda/server.js"]
+CMD ["pnpm", "--filter", "@repo/tienda", "start"]
 
 FROM ${SERVICE} AS final
