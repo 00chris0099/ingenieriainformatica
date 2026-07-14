@@ -9,8 +9,14 @@ RUN pnpm --filter @repo/tienda build
 
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+
+# Copiar standalone
+RUN cp -r /app/tienda/.next/standalone/* /app/ 2>/dev/null || true
+RUN cp -r /app/tienda/.next/static /app/tienda/.next/static 2>/dev/null || true
+RUN cp -r /app/tienda/public /app/tienda/public 2>/dev/null || true
 RUN chown -R nextjs:nodejs /app
+
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
-CMD ["node", "tienda/server.js"]
+CMD ["node", "server.js"]
