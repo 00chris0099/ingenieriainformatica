@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
     const {
       name, model, description, shortDescription, categoryId, status, tags, images, brand,
       height, width, depth, color, materials, recommendedAge, warrantyDays, originCountry,
-      weight, weightUnit, lowStockAlert, discountPopup, variants, enabledPriceTypes, prices
+      weight, weightUnit, lowStockAlert, discountPopup, variants, enabledPriceTypes, prices, ctaText, crossSellProductIds
     } = body;
 
     const existing = await prisma.product.findUnique({ where: { id: params.id } });
@@ -82,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
         ...(weight !== undefined && { weight }),
         ...(weightUnit && { weightUnit }),
         ...(lowStockAlert !== undefined && { lowStockAlert }),
-        ...(enabledPriceTypes && prices ? { priceConfig: { enabledTypes: enabledPriceTypes, especial: prices.especial, descuento: prices.descuento, mayorista: prices.mayorista } } : {}),
+        ...(enabledPriceTypes && prices ? { priceConfig: { enabledTypes: enabledPriceTypes, especial: prices.especial, descuento: prices.descuento, mayorista: prices.mayorista, ctaText: ctaText || '¡Lo quiero ahora!', crossSellProductIds: crossSellProductIds || [] } } : {}),
         ...(discountPopup !== undefined && { discountPopup }),
       },
       include: { category: true, variants: true },

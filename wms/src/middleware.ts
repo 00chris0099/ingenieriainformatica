@@ -5,7 +5,7 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
-  const publicRoutes = ['/login', '/api/auth', '/api/v1/health', '/api/v1/products', '/api/v1/categories', '/api/v1/landings', '/api/v1/upload', '/api/v1/versions'];
+  const publicRoutes = ['/login', '/api/auth', '/api/v1/health', '/api/v1/products', '/api/v1/categories', '/api/v1/landings', '/api/v1/upload', '/api/v1/versions', '/api/v1/inventory', '/api/v1/lots', '/api/v1/serial-numbers', '/api/v1/orders', '/api/v1/shipments', '/api/v1/customers', '/api/v1/warehouses', '/api/v1/analytics', '/api/v1/dashboard', '/api/v1/suggested-products'];
   const isPublic = publicRoutes.some((r) => pathname.startsWith(r));
 
   if (isPublic) {

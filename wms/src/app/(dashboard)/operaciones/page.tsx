@@ -1,17 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { ShoppingCart, Warehouse, Truck } from 'lucide-react';
+import { ShoppingCart, Warehouse } from 'lucide-react';
 import PedidosPage from '../pedidos/page';
 import InventarioPage from '../inventario/page';
-import LogisticaPage from '../logistica/page';
 
-type Tab = 'pedidos' | 'inventario' | 'envios';
+type Tab = 'pedidos' | 'inventario';
 
 const tabs = [
   { key: 'pedidos' as Tab, label: 'Pedidos', icon: ShoppingCart },
   { key: 'inventario' as Tab, label: 'Inventario', icon: Warehouse },
-  { key: 'envios' as Tab, label: 'Envios', icon: Truck },
 ];
 
 export default function OperacionesPage() {
@@ -21,7 +19,7 @@ export default function OperacionesPage() {
     <div className="space-y-4 pb-20 lg:pb-0">
       <div>
         <h2 className="text-xl font-bold text-white">Operaciones</h2>
-        <p className="text-sm text-gray-400">Pedidos, inventario y logistica</p>
+        <p className="text-sm text-gray-400">Pedidos e inventario</p>
       </div>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -43,7 +41,6 @@ export default function OperacionesPage() {
 
       {activeTab === 'pedidos' && <PedidosPage />}
       {activeTab === 'inventario' && <InventarioPage />}
-      {activeTab === 'envios' && <LogisticaPage />}
     </div>
   );
 }

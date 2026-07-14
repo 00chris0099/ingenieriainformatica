@@ -7,11 +7,12 @@ export default auth((req) => {
 
   // Rutas completamente publicas (no requieren login)
   const publicRoutes = [
-    '/', '/tienda', '/producto', '/carrito', '/checkout', '/pedido',
+    '/', '/tienda', '/producto', '/carrito', '/checkout', '/pedido', '/pago',
     '/login', '/registro',
     '/api/v1/products', '/api/v1/categories', '/api/v1/offers',
     '/api/v1/orders', '/api/v1/payments', '/api/v1/auth',
-    '/api/auth',
+    '/api/v1/landings', '/api/v1/suggested-products', '/api/auth',
+    '/api/v1/abandoned-checkouts', '/api/v1/upload',
   ];
   const isPublic = publicRoutes.some((r) => pathname === r || pathname.startsWith(r + '/'));
 

@@ -10,8 +10,8 @@
     "build": "pnpm run --parallel build:wms build:tienda",
     "test": "pnpm --filter @repo/wms test",
     "lint": "echo 'Lint passed'",
-    "db:generate": "pnpm --filter @repo/prisma-wms db:generate && pnpm --filter @repo/prisma-store db:generate",
-    "db:seed": "pnpm --filter @repo/prisma-wms db:seed && pnpm --filter @repo/prisma-store db:seed",
+    "db:generate": "pnpm --filter @repo/prisma-wms db:generate && pnpm --filter @repo/prisma db:generate",
+    "db:seed": "pnpm --filter @repo/prisma-wms db:seed && pnpm --filter @repo/prisma db:seed",
     "sync:start": "pnpm --filter @repo/sync-worker start"
   },
   "devDependencies": {

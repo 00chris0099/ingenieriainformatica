@@ -181,6 +181,22 @@ export async function PATCH(request: NextRequest, { params }: Props) {
       });
     } catch (e) {}
 
+    // Create in-app notification (fire and forget)
+    try {
+      const statusLabels2: Record<string, string> = {
+        pending: 'Pendiente', confirmed: 'Confirmado', processing: 'Procesando',
+        picking: 'Preparando', packing: 'Empaquetando', ready_to_ship: 'Listo para enviar',
+        shipped: 'Enviado', in_transit: 'En transito', delivered: 'Entregado', cancelled: 'Cancelado',
+      };
+      await prisma.notificationQueue.create({
+        data: {
+          subject: `Pedido ${order.orderNumber} - ${statusLabels2[status] || status}`,
+          body: `Estado cambiado de "${statusLabels2[oldStatus] || oldStatus}" a "${statusLabels2[status] || status}"${shipmentResult?.guideNumber ? ` | Guia: ${shipmentResult.guideNumber}` : ''}`,
+          type: 'status',
+        },
+      });
+    } catch (e) { console.error('Failed to create notification:', e); }
+
     return apiSuccess({
       orderNumber: order.orderNumber,
       oldStatus,

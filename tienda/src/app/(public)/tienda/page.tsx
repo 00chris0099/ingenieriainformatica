@@ -52,6 +52,7 @@ function TiendaContent() {
               image: p.images?.[0] || '',
               category: p.category?.slug || '',
               stock: p.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0,
+              priceConfig: p.priceConfig || null,
             })));
           }
         }
@@ -124,18 +125,31 @@ function TiendaContent() {
                 <div className="p-3 md:p-4">
                   <span className="text-[10px] text-gray-400 uppercase tracking-wider">{product.category}</span>
                   <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mt-0.5">{product.name}</h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    {product.compareAtPrice ? (
-                      <>
-                        <span className="text-brand-600 font-bold text-sm">S/ {product.price}</span>
-                        <span className="text-xs text-gray-400 line-through">S/ {product.compareAtPrice}</span>
-                      </>
-                    ) : (
-                      <span className="text-brand-600 font-bold text-sm">S/ {product.price}</span>
-                    )}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {(() => {
+                      const mainPrice = Number(product.price) || 0;
+                      const comparePrice = product.compareAtPrice ? Number(product.compareAtPrice) : null;
+                      const hasVariantDiscount = comparePrice && comparePrice > mainPrice;
+                      const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
+                      const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
+                      const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
+                      const showStrike = hasVariantDiscount || ((hasDesc || hasEsp) && finalPrice < mainPrice);
+                      const strikePrice = hasVariantDiscount ? comparePrice : mainPrice;
+                      const discountPercent = hasVariantDiscount ? Math.round((1 - mainPrice / comparePrice) * 100) : hasDesc ? product.priceConfig.descuento : 0;
+                      return (
+                        <>
+                          {showStrike && <span className="text-xs text-gray-400 line-through">S/ {strikePrice}</span>}
+                          <span className={`font-bold text-sm ${showStrike ? 'text-pink-600' : 'text-brand-600'}`}>S/ {finalPrice}</span>
+                          {discountPercent > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-medium">-{discountPercent}%</span>}
+                        </>
+                      );
+                    })()}
                   </div>
                   {product.stock <= 5 && product.stock > 0 && (
                     <span className="text-[10px] text-orange-500 font-medium mt-1 block">Ultimas unidades</span>
+                  )}
+                  {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
+                    <span className="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
                   )}
                 </div>
               </Link>

@@ -29,6 +29,7 @@ export interface DiscountPopupConfig {
   title: string;
   description: string;
   discountPercent: number;
+  discountAmount: number | null; // Fixed discount in soles (null = use percent)
   ctaText: string;
   ctaUrl: string;
   imageUrl: string;
@@ -91,6 +92,10 @@ interface ProductFormState {
   // Discount popup
   discountPopup: DiscountPopupConfig;
 
+  // CTA & Cross-sell
+  ctaText: string;
+  crossSellProductIds: string[];
+
   // UI state
   activeTab: string;
   activeView: 'edit' | 'preview';
@@ -113,6 +118,9 @@ interface ProductFormState {
 // ============================================================================
 
 interface ProductFormContextType extends ProductFormState {
+  // Product ID
+  productId?: string;
+
   // Field updates
   updateField: <K extends keyof ProductFormState>(field: K, value: ProductFormState[K]) => void;
   updateDimensions: (dims: Partial<ProductDimensions>) => void;
@@ -138,6 +146,12 @@ interface ProductFormContextType extends ProductFormState {
   // Discount popup
   updateDiscountPopup: (config: Partial<DiscountPopupConfig>) => void;
   toggleDiscountPopup: () => void;
+
+  // CTA & Cross-sell
+  setCtaText: (text: string) => void;
+  setCrossSellProductIds: (ids: string[]) => void;
+  addCrossSellProduct: (id: string) => void;
+  removeCrossSellProduct: (id: string) => void;
 
   // UI
   setActiveTab: (tab: string) => void;
@@ -175,6 +189,7 @@ const defaultDiscountPopup: DiscountPopupConfig = {
   title: 'Oferta especial!',
   description: 'Obtén un descuento exclusivo en este producto',
   discountPercent: 10,
+  discountAmount: null,
   ctaText: 'Comprar ahora',
   ctaUrl: '#',
   imageUrl: '',
@@ -268,6 +283,10 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     // Discount popup
     discountPopup: initialData?.discountPopup || defaultDiscountPopup,
 
+    // CTA & Cross-sell
+    ctaText: initialData?.ctaText || '¡Lo quiero ahora!',
+    crossSellProductIds: initialData?.crossSellProductIds || [],
+
     // UI state
     activeTab: initialData?.activeTab || 'info',
     activeView: initialData?.activeView || 'edit',
@@ -307,11 +326,37 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
   const updatePrices = useCallback((prices: Partial<ProductFormState['prices']>) => {
     setState(prev => {
       const newPrices = { ...prev.prices, ...prices };
-      // Sync main price with first variant if variantPricingMode is 'same'
+
+      // Sync first variant with pricing logic
       let newVariants = prev.variants;
-      if (prev.variantPricingMode === 'same' && prices.main !== undefined && prev.variants.length > 0) {
-        newVariants = prev.variants.map((v, i) => i === 0 ? { ...v, price: prices.main! } : v);
+      if (prev.variantPricingMode === 'same' && prev.variants.length > 0) {
+        newVariants = prev.variants.map((v, i) => {
+          if (i !== 0) return v;
+
+          // Determine base price: especial replaces main when enabled
+          const hasEspecial = prev.enabledPriceTypes.includes('especial') && (newPrices.especial ?? prev.prices.especial) != null;
+          const basePrice = hasEspecial ? Number(newPrices.especial ?? prev.prices.especial) : (newPrices.main ?? v.price);
+
+          // If discount is enabled, compareAtPrice = base, price = base * (1 - descuento%)
+          const hasDescuento = prev.enabledPriceTypes.includes('descuento');
+          const descuentoPct = newPrices.descuento ?? prev.prices.descuento;
+
+          if (hasDescuento && descuentoPct && descuentoPct > 0) {
+            const discountedPrice = Math.round(basePrice * (1 - descuentoPct / 100) * 100) / 100;
+            return { ...v, compareAtPrice: basePrice, price: discountedPrice };
+          }
+
+          // No discount: if especial is enabled, compareAtPrice = main, price = especial
+          if (hasEspecial) {
+            const mainPrice = newPrices.main ?? v.price;
+            return { ...v, compareAtPrice: mainPrice, price: basePrice };
+          }
+
+          // Plain price (no special, no discount)
+          return { ...v, price: newPrices.main ?? v.price, compareAtPrice: null };
+        });
       }
+
       return {
         ...prev,
         prices: newPrices,
@@ -330,19 +375,43 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
 
       const newPrices = { ...prev.prices };
       if (!isEnabled) {
-        if (type === 'especial') newPrices.especial = newPrices.main * 0.9;
+        if (type === 'especial') newPrices.especial = Math.round(prev.prices.main * 0.9 * 100) / 100;
         if (type === 'descuento') newPrices.descuento = 10;
-        if (type === 'mayorista') newPrices.mayorista = newPrices.main * 0.8;
+        if (type === 'mayorista') newPrices.mayorista = Math.round(prev.prices.main * 0.8 * 100) / 100;
       } else {
         if (type === 'especial') newPrices.especial = null;
         if (type === 'descuento') newPrices.descuento = null;
         if (type === 'mayorista') newPrices.mayorista = null;
       }
 
+      // Sync first variant with the new pricing chain
+      let newVariants = prev.variants;
+      if (prev.variantPricingMode === 'same' && prev.variants.length > 0) {
+        newVariants = prev.variants.map((v, i) => {
+          if (i !== 0) return v;
+
+          const hasEspecial = newEnabled.includes('especial') && newPrices.especial != null;
+          const basePrice = hasEspecial ? Number(newPrices.especial) : prev.prices.main;
+
+          const hasDescuento = newEnabled.includes('descuento');
+          if (hasDescuento && newPrices.descuento && newPrices.descuento > 0) {
+            const discountedPrice = Math.round(basePrice * (1 - newPrices.descuento / 100) * 100) / 100;
+            return { ...v, compareAtPrice: basePrice, price: discountedPrice };
+          }
+
+          if (hasEspecial) {
+            return { ...v, compareAtPrice: prev.prices.main, price: basePrice };
+          }
+
+          return { ...v, price: prev.prices.main, compareAtPrice: null };
+        });
+      }
+
       return {
         ...prev,
         enabledPriceTypes: newEnabled,
         prices: newPrices,
+        variants: newVariants,
         isDirty: true,
       };
     });
@@ -545,6 +614,33 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
   }, []);
 
   // ============================================================================
+  // CTA & CROSS-SELL
+  // ============================================================================
+
+  const setCtaText = useCallback((text: string) => {
+    setState(prev => ({ ...prev, ctaText: text, isDirty: true }));
+  }, []);
+
+  const setCrossSellProductIds = useCallback((ids: string[]) => {
+    setState(prev => ({ ...prev, crossSellProductIds: ids, isDirty: true }));
+  }, []);
+
+  const addCrossSellProduct = useCallback((id: string) => {
+    setState(prev => {
+      if (prev.crossSellProductIds.includes(id)) return prev;
+      return { ...prev, crossSellProductIds: [...prev.crossSellProductIds, id], isDirty: true };
+    });
+  }, []);
+
+  const removeCrossSellProduct = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      crossSellProductIds: prev.crossSellProductIds.filter(i => i !== id),
+      isDirty: true,
+    }));
+  }, []);
+
+  // ============================================================================
   // UI
   // ============================================================================
 
@@ -638,6 +734,13 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
             lowStockAlert: state.lowStockAlert,
             discountPopup: state.discountPopup,
             landingBlocks: state.landingBlocks,
+            variants: state.variants,
+            prices: state.prices,
+            enabledPriceTypes: state.enabledPriceTypes,
+            ctaText: state.ctaText,
+            crossSellProductIds: state.crossSellProductIds,
+            images: state.productImages,
+            mainImageIndex: state.mainImageIndex,
           }),
         });
 
@@ -727,6 +830,7 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
 
   const value: ProductFormContextType = {
     ...state,
+    productId,
     updateField,
     updateDimensions,
     updatePrices,
@@ -743,6 +847,10 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     setVariants,
     updateDiscountPopup,
     toggleDiscountPopup,
+    setCtaText,
+    setCrossSellProductIds,
+    addCrossSellProduct,
+    removeCrossSellProduct,
     setLandingBlocks,
     addLandingBlock,
     updateLandingBlock,

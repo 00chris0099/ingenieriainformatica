@@ -8,10 +8,14 @@ import { useState } from 'react';
 
 export default function PricingTab() {
   const { prices, enabledPriceTypes, variantPricingMode, discountPopup, updateField, updatePrices, togglePriceType, updateDiscountPopup, toggleDiscountPopup } = useProductForm();
-  const [showPopupConfig, setShowPopupConfig] = useState(true);
+
+  // Base price for discount calculation: if especial is active, use it; otherwise use main
+  const baseForDiscount = enabledPriceTypes.includes('especial') && prices.especial != null
+    ? prices.especial
+    : prices.main;
 
   const calculatedDiscount = prices.descuento
-    ? (prices.main * (1 - prices.descuento / 100)).toFixed(2)
+    ? (baseForDiscount * (1 - prices.descuento / 100)).toFixed(2)
     : null;
 
   return (
@@ -151,9 +155,11 @@ export default function PricingTab() {
               >
                 <p className="font-bold text-lg">{discountPopup.title}</p>
                 <p className="text-sm opacity-90 mt-1">{discountPopup.description}</p>
-                {discountPopup.discountPercent > 0 && (
+                {(discountPopup.discountAmount != null && discountPopup.discountAmount > 0) ? (
+                  <p className="text-2xl font-bold mt-2">S/ {discountPopup.discountAmount} OFF</p>
+                ) : discountPopup.discountPercent > 0 ? (
                   <p className="text-2xl font-bold mt-2">-{discountPopup.discountPercent}% OFF</p>
-                )}
+                ) : null}
                 <button
                   type="button"
                   className="mt-3 px-4 py-2 bg-white/20 rounded-lg text-sm font-medium"
@@ -187,17 +193,58 @@ export default function PricingTab() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Descuento (%)</label>
-                <input
-                  type="number"
-                  value={discountPopup.discountPercent}
-                  onChange={(e) => updateDiscountPopup({ discountPercent: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  max="100"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
+              {/* Discount Type Toggle */}
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-500 mb-2">Tipo de descuento</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateDiscountPopup({ discountPercent: discountPopup.discountPercent || 10, discountAmount: null })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                      (discountPopup.discountAmount == null) ? 'border-pink-500 bg-pink-500/10 text-pink-400' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    Porcentaje (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateDiscountPopup({ discountAmount: discountPopup.discountAmount || 5, discountPercent: 0 })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                      (discountPopup.discountAmount != null) ? 'border-pink-500 bg-pink-500/10 text-pink-400' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    Monto fijo (S/)
+                  </button>
+                </div>
               </div>
+
+              {/* Discount Value */}
+              {(discountPopup.discountAmount == null) ? (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Descuento (%)</label>
+                  <input
+                    type="number"
+                    value={discountPopup.discountPercent}
+                    onChange={(e) => updateDiscountPopup({ discountPercent: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    max="100"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Descuento fijo (S/)</label>
+                  <input
+                    type="number"
+                    value={discountPopup.discountAmount || ''}
+                    onChange={(e) => updateDiscountPopup({ discountAmount: parseFloat(e.target.value) || null })}
+                    min="0"
+                    step="0.50"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Ej: 5.00"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Texto del boton CTA</label>

@@ -48,7 +48,7 @@ export default function Navbar() {
               <button onClick={() => setCartOpen(true)} className="relative w-10 h-10 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors">
                 <ShoppingBag size={20} />
                 {itemCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-green-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">{itemCount}</span>
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-pink-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">{itemCount}</span>
                 )}
               </button>
 
@@ -96,8 +96,8 @@ export default function Navbar() {
                 {mounted && session ? (
                   <>
                     <div className="flex items-center gap-3 px-3 py-2">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <UserCircle size={16} className="text-green-600" />
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <UserCircle size={16} className="text-blue-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-900 truncate">{session.user?.name}</p>
@@ -109,7 +109,7 @@ export default function Navbar() {
                     </button>
                   </>
                 ) : (
-                  <Link href="/login" className="flex items-center gap-3 py-3 px-3 text-sm font-medium text-green-600 hover:bg-green-50 rounded-xl transition-colors" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href="/login" className="flex items-center gap-3 py-3 px-3 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-xl transition-colors" onClick={() => setMobileMenuOpen(false)}>
                     <User size={18} /> Iniciar sesion
                   </Link>
                 )}
@@ -123,28 +123,28 @@ export default function Navbar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="flex items-center justify-around py-2 px-1 max-w-lg mx-auto">
           <Link href="/" className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all min-w-[56px] ${
-            pathname === '/' ? 'text-green-600 bg-green-50' : 'text-gray-500'
+            pathname === '/' ? 'text-blue-600 bg-blue-50' : 'text-gray-500'
           }`}>
             <Home size={20} strokeWidth={pathname === '/' ? 2.5 : 2} />
             <span>Inicio</span>
           </Link>
           <Link href="/tienda" className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all min-w-[56px] ${
-            pathname === '/tienda' ? 'text-green-600 bg-green-50' : 'text-gray-500'
+            pathname === '/tienda' ? 'text-blue-600 bg-blue-50' : 'text-gray-500'
           }`}>
             <Store size={20} strokeWidth={pathname === '/tienda' ? 2.5 : 2} />
             <span>Tienda</span>
           </Link>
           <button onClick={() => setCartOpen(true)} className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all min-w-[56px] relative ${
-            cartOpen ? 'text-green-600 bg-green-50' : 'text-gray-500'
+            cartOpen ? 'text-blue-600 bg-blue-50' : 'text-gray-500'
           }`}>
             <ShoppingBag size={20} />
             {itemCount > 0 && (
-              <span className="absolute -top-0.5 right-1 w-4 h-4 bg-green-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{itemCount}</span>
+              <span className="absolute -top-0.5 right-1 w-4 h-4 bg-pink-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{itemCount}</span>
             )}
             <span>Carrito</span>
           </button>
           <Link href="/login" className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all min-w-[56px] ${
-            pathname === '/login' ? 'text-green-600 bg-green-50' : 'text-gray-500'
+            pathname === '/login' ? 'text-blue-600 bg-blue-50' : 'text-gray-500'
           }`}>
             <User size={20} strokeWidth={pathname === '/login' ? 2.5 : 2} />
             <span>Cuenta</span>

@@ -80,12 +80,13 @@ export async function POST(request: NextRequest) {
           where: { id: orderId },
           data: {
             paymentStatus: 'paid',
-            status: order.status === 'draft' ? 'confirmed' : order.status,
+            status: 'confirmed',
           },
         });
 
         // RF-13: Deduct stock from inventory for each item
         for (const item of order.items) {
+          if (!item.variantId) continue;
           const inventory = await prisma.inventory.findFirst({
             where: { variantId: item.variantId },
           });

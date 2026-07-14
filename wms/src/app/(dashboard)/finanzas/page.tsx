@@ -70,7 +70,7 @@ export default function FinanzasPage() {
     <div className="space-y-4 pb-20 lg:pb-0">
       <div>
         <h2 className="text-xl font-bold text-white">Finanzas</h2>
-        <p className="text-sm text-gray-400">Resumen financiero (precios con IGV incluido)</p>
+        <p className="text-sm text-gray-400">Resumen financiero</p>
       </div>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -106,7 +106,7 @@ export default function FinanzasPage() {
                     <span>Ingresos Totales</span>
                   </div>
                   <p className="text-2xl font-bold text-green-400">S/ {data.totalRevenue.toLocaleString()}</p>
-                  <p className="text-xs text-gray-500 mt-1">Precios finales (IGV incluido)</p>
+                  <p className="text-xs text-gray-500 mt-1">Precios finales</p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">

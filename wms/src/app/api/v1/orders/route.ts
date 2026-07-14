@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         orderNumber,
         source: source || 'wms',
         customerId: customerId || (await createGuestCustomer()).id,
-        status: 'pending',
+        status: 'confirmed',
         paymentStatus: 'pending',
         currency: 'PEN',
         subtotal,

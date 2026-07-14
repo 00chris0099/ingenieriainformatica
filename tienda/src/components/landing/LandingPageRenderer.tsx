@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface LandingBlock {
   id: string;
@@ -101,27 +101,28 @@ function BlockRenderer({ block }: { block: LandingBlock }) {
 
     case 'image':
       return (
-        <div className="py-8 px-6" style={customStyles} {...animationAttrs}>
-          <div className="max-w-4xl mx-auto" style={{ textAlign: block.content.alignment || 'center' }}>
+        <div style={customStyles} {...animationAttrs}>
+          {block.content.url ? (
             <img
               src={block.content.url}
               alt={block.content.caption || ''}
-              className="rounded-lg shadow-lg"
-              style={{ maxWidth: `${block.content.width || 100}%` }}
+              className="w-full block"
             />
-            {block.content.caption && (
-              <p className="text-sm text-gray-500 mt-2">{block.content.caption}</p>
-            )}
-          </div>
+          ) : (
+            <div className="bg-gray-100 h-48 flex items-center justify-center text-gray-400 text-sm">Sin imagen</div>
+          )}
+          {block.content.caption && (
+            <p className="text-sm text-gray-500 mt-1 px-4 text-center">{block.content.caption}</p>
+          )}
         </div>
       );
 
     case 'gallery':
       return (
-        <div className="py-8 px-6" style={customStyles} {...animationAttrs}>
-          <div className="max-w-4xl mx-auto grid gap-4" style={{ gridTemplateColumns: `repeat(${block.content.columns || 2}, 1fr)` }}>
+        <div style={customStyles} {...animationAttrs}>
+          <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${block.content.columns || 2}, 1fr)` }}>
             {(block.content.images || []).filter(Boolean).map((url: string, i: number) => (
-              <img key={i} src={url} alt="" className="rounded-lg shadow-md w-full h-48 object-cover" />
+              <img key={i} src={url} alt="" className="w-full h-48 object-cover" />
             ))}
           </div>
         </div>
@@ -389,7 +390,6 @@ function getFeatureIcon(icon: string): string {
   return icons[icon] || '✓';
 }
 
-import { useState } from 'react';
 
 export default function LandingPageRenderer({ blocks }: LandingPageRendererProps) {
   if (!blocks || blocks.length === 0) {

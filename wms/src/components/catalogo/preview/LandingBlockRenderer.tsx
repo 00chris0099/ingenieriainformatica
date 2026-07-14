@@ -70,7 +70,7 @@ export default function LandingBlockRenderer({ block }: LandingBlockRendererProp
 
     case 'gallery':
       return (
-        <div className="py-2" style={customStyles}>
+        <div style={customStyles}>
           <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${block.content.columns || 2}, 1fr)` }}>
             {(block.content.images || []).filter(Boolean).map((url: string, i: number) => (
               <img key={i} src={url} alt="" className="w-full h-32 object-cover" />

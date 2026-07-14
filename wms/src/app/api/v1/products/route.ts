@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     const {
       sku: requestedSku, name, model, description, shortDescription, categoryId, status, tags, images,
       height, width, depth, color, materials, recommendedAge, warrantyDays, originCountry,
-      weight, weightUnit, lowStockAlert, discountPopup, variants, enabledPriceTypes, prices
+      weight, weightUnit, lowStockAlert, discountPopup, variants, enabledPriceTypes, prices, ctaText, crossSellProductIds
     } = body;
 
     // Generate slug
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         weight: weight || null,
         weightUnit: weightUnit || 'kg',
         lowStockAlert: lowStockAlert || null,
-        priceConfig: (enabledPriceTypes && prices) ? { enabledTypes: enabledPriceTypes, especial: prices.especial, descuento: prices.descuento, mayorista: prices.mayorista } : null,
+        priceConfig: (enabledPriceTypes && prices) ? { enabledTypes: enabledPriceTypes, especial: prices.especial, descuento: prices.descuento, mayorista: prices.mayorista, ctaText: ctaText || '¡Lo quiero ahora!', crossSellProductIds: crossSellProductIds || [] } : null,
         discountPopup: discountPopup || null,
         variants: variants ? {
           create: variants.map((v: any, i: number) => ({

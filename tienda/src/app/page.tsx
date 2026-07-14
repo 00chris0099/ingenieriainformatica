@@ -3,6 +3,7 @@
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Bed, Armchair, Baby, Palette, Bath, ToyBrick, Truck, Shield, RotateCcw, MessageCircle, Package } from 'lucide-react';
 
@@ -35,8 +36,11 @@ export default function HomePage() {
             name: p.name,
             slug: p.slug,
             price: p.variants?.[0]?.price || 0,
+            compareAtPrice: p.variants?.[0]?.compareAtPrice,
             image: p.images?.[0] || '',
             category: p.category?.name || '',
+            priceConfig: p.priceConfig || null,
+            stock: p.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0,
           })));
         }
       })
@@ -49,17 +53,28 @@ export default function HomePage() {
 
       <main className="flex-1 pb-20 md:pb-0">
         {/* Hero */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 py-20 md:py-32">
-          <div className="max-w-7xl mx-auto px-4 text-center relative">
-            <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight">
+        <section
+          className="relative overflow-hidden flex items-center"
+          style={{
+            minHeight: '500px',
+            backgroundImage: 'url(https://i.ibb.co/kVhw0H2H/Products-decorative-flyer-webpage-2-K-202607111423.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        >
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 via-blue-800/60 to-pink-600/40" />
+          <div className="max-w-7xl mx-auto px-4 text-center relative z-10 py-20 md:py-32">
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight drop-shadow-lg">
               Muebles para bebes
-              <span className="text-green-600"> con amor</span>
+              <span className="text-pink-300"> con amor</span>
             </h1>
-            <p className="mt-4 text-lg text-gray-600 max-w-xl mx-auto">
+            <p className="mt-4 text-lg text-white/90 max-w-xl mx-auto drop-shadow">
               Todo lo que tu bebe necesita: camas, sillas, carritos y decoracion.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/tienda" className="bg-green-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-green-700 transition-all shadow-lg">
+              <Link href="/tienda" className="bg-pink-500 text-white px-8 py-3 rounded-full font-semibold hover:bg-pink-600 transition-all shadow-lg">
                 Ver catalogo
               </Link>
             </div>
@@ -75,12 +90,12 @@ export default function HomePage() {
                 <Link
                   key={cat.slug}
                   href={`/tienda?categoria=${cat.slug}`}
-                  className="group text-center p-6 rounded-2xl border border-gray-100 hover:border-green-200 hover:shadow-lg transition-all duration-300"
+                  className="group text-center p-6 rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-lg transition-all duration-300"
                 >
-                  <div className="w-14 h-14 mx-auto bg-green-50 rounded-2xl flex items-center justify-center group-hover:bg-green-100 transition-all">
-                    <cat.Icon size={28} className="text-green-600" strokeWidth={1.5} />
+                  <div className="w-14 h-14 mx-auto bg-blue-50 rounded-2xl flex items-center justify-center group-hover:bg-blue-100 transition-all">
+                    <cat.Icon size={28} className="text-blue-600" strokeWidth={1.5} />
                   </div>
-                  <h3 className="mt-3 font-semibold text-gray-900 group-hover:text-green-600 transition-colors">{cat.name}</h3>
+                  <h3 className="mt-3 font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{cat.name}</h3>
                   <p className="text-sm text-gray-500">{cat.description}</p>
                 </Link>
               ))}
@@ -111,7 +126,29 @@ export default function HomePage() {
                     </div>
                     <div className="p-4">
                       <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
-                      <p className="text-green-600 font-bold mt-1">S/ {product.price}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {(() => {
+                          const mainPrice = Number(product.price) || 0;
+                          const comparePrice = product.compareAtPrice ? Number(product.compareAtPrice) : null;
+                          const hasVariantDiscount = comparePrice && comparePrice > mainPrice;
+                          const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
+                          const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
+                          const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
+                          const showStrike = hasVariantDiscount || ((hasDesc || hasEsp) && finalPrice < mainPrice);
+                          const strikePrice = hasVariantDiscount ? comparePrice : mainPrice;
+                          const discountPercent = hasVariantDiscount ? Math.round((1 - mainPrice / comparePrice) * 100) : hasDesc ? product.priceConfig.descuento : 0;
+                          return (
+                            <>
+                              {showStrike && <span className="text-xs text-gray-400 line-through">S/ {strikePrice}</span>}
+                              <span className="font-bold text-sm text-pink-600">S/ {finalPrice}</span>
+                              {discountPercent > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-medium">-{discountPercent}%</span>}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      {product.stock <= 5 && product.stock > 0 && (
+                        <span className="text-[10px] text-orange-500 font-medium mt-1 block">Ultimas unidades</span>
+                      )}
                     </div>
                   </Link>
                 ))}
@@ -131,8 +168,8 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {trustBadges.map((badge) => (
                 <div key={badge.title}>
-                  <div className="w-16 h-16 mx-auto bg-green-50 rounded-2xl flex items-center justify-center mb-3">
-                    <badge.Icon size={28} className="text-green-600" strokeWidth={1.5} />
+                  <div className="w-16 h-16 mx-auto bg-pink-50 rounded-2xl flex items-center justify-center mb-3">
+                    <badge.Icon size={28} className="text-blue-600" strokeWidth={1.5} />
                   </div>
                   <h3 className="font-semibold">{badge.title}</h3>
                   <p className="text-sm text-gray-500 mt-1">{badge.desc}</p>

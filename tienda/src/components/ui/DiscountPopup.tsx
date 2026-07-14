@@ -8,6 +8,7 @@ interface DiscountPopupConfig {
   title: string;
   description: string;
   discountPercent: number;
+  discountAmount: number | null; // Fixed discount in soles (null = use percent)
   ctaText: string;
   ctaUrl: string;
   imageUrl: string;
@@ -17,10 +18,11 @@ interface DiscountPopupConfig {
 
 interface DiscountPopupProps {
   config: DiscountPopupConfig;
-  productPrice: number;
+  productPrice: number; // This is the FINAL price (after priceConfig discounts)
   productName: string;
   productImage?: string;
-  onClose: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
 }
 
 export default function DiscountPopup({
@@ -28,42 +30,32 @@ export default function DiscountPopup({
   productPrice,
   productName,
   productImage,
-  onClose,
+  onAccept,
+  onDecline,
 }: DiscountPopupProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Check if user has already seen this popup
-    const storageKey = `discount-popup-seen-${productName}`;
-    const hasSeen = sessionStorage.getItem(storageKey);
-
-    if (!hasSeen && config.enabled) {
+    if (config.enabled) {
       setIsVisible(true);
     }
-  }, [config.enabled, productName]);
-
-  const handleClose = () => {
-    const storageKey = `discount-popup-seen-${productName}`;
-    sessionStorage.setItem(storageKey, 'true');
-    setIsVisible(false);
-    onClose();
-  };
-
-  const handleCTA = () => {
-    handleClose();
-    if (config.ctaUrl && config.ctaUrl !== '#') {
-      window.location.href = config.ctaUrl;
-    }
-  };
+  }, [config.enabled]);
 
   if (!isVisible || !config.enabled) return null;
 
-  const discountedPrice = productPrice * (1 - config.discountPercent / 100);
+  // Calculate discounted price: fixed amount or percentage
+  const hasFixedAmount = config.discountAmount != null && config.discountAmount > 0;
+  const discountedPrice = hasFixedAmount
+    ? Math.max(0, productPrice - config.discountAmount)
+    : productPrice * (1 - config.discountPercent / 100);
+  const discountLabel = hasFixedAmount
+    ? `S/ ${config.discountAmount} OFF`
+    : `-${config.discountPercent}% OFF`;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black/60" onClick={onDecline} />
 
       {/* Popup */}
       <div
@@ -72,7 +64,7 @@ export default function DiscountPopup({
       >
         {/* Close button */}
         <button
-          onClick={handleClose}
+          onClick={onDecline}
           className="absolute top-3 right-3 p-1.5 rounded-full bg-black/20 hover:bg-black/30 transition-colors z-10"
         >
           <X size={16} />
@@ -80,7 +72,7 @@ export default function DiscountPopup({
 
         {/* Discount Badge */}
         <div className="absolute top-3 left-3 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-          <span className="text-sm font-bold">-{config.discountPercent}% OFF</span>
+          <span className="text-sm font-bold">{discountLabel}</span>
         </div>
 
         {/* Content */}
@@ -108,9 +100,9 @@ export default function DiscountPopup({
             <p className="text-3xl font-bold">S/ {discountedPrice.toFixed(2)}</p>
           </div>
 
-          {/* CTA Button */}
+          {/* Accept Button */}
           <button
-            onClick={handleCTA}
+            onClick={() => { setIsVisible(false); onAccept(); }}
             className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all hover:scale-105"
             style={{ backgroundColor: config.textColor, color: config.bgColor }}
           >
@@ -118,12 +110,12 @@ export default function DiscountPopup({
             {config.ctaText}
           </button>
 
-          {/* Close text */}
+          {/* Decline */}
           <button
-            onClick={handleClose}
+            onClick={() => { setIsVisible(false); onDecline(); }}
             className="mt-3 text-sm opacity-70 hover:opacity-100 transition-opacity"
           >
-            No gracias, seguir comprando
+            No gracias
           </button>
         </div>
       </div>

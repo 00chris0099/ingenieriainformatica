@@ -14,6 +14,20 @@ export async function PUT(request: NextRequest, { params }: Props) {
     const body = await request.json();
 
     // Update product with draft data
+    const priceConfigUpdate = (body.enabledPriceTypes && body.prices) || body.ctaText || body.crossSellProductIds ? {
+      priceConfig: {
+        ...(existing.priceConfig as any || {}),
+        ...(body.enabledPriceTypes && body.prices ? {
+          enabledTypes: body.enabledPriceTypes,
+          especial: body.prices.especial,
+          descuento: body.prices.descuento,
+          mayorista: body.prices.mayorista,
+        } : {}),
+        ...(body.ctaText !== undefined && { ctaText: body.ctaText }),
+        ...(body.crossSellProductIds !== undefined && { crossSellProductIds: body.crossSellProductIds }),
+      },
+    } : {};
+
     const updated = await prisma.product.update({
       where: { id: params.id },
       data: {
@@ -38,9 +52,45 @@ export async function PUT(request: NextRequest, { params }: Props) {
         ...(body.weightUnit !== undefined && { weightUnit: body.weightUnit }),
         ...(body.lowStockAlert !== undefined && { lowStockAlert: body.lowStockAlert }),
         ...(body.discountPopup !== undefined && { discountPopup: body.discountPopup }),
+        ...priceConfigUpdate,
       },
       include: { category: true, variants: true },
     });
+
+    // Handle variant updates if provided
+    if (body.variants && Array.isArray(body.variants)) {
+      for (const variant of body.variants) {
+        try {
+          if (variant.id && !variant.id.startsWith('new-') && variant.id.length > 10) {
+            await prisma.productVariant.update({
+              where: { id: variant.id },
+              data: {
+                ...(variant.name !== undefined && { name: variant.name }),
+                ...(variant.price !== undefined && { price: variant.price }),
+                ...(variant.compareAtPrice !== undefined && { compareAtPrice: variant.compareAtPrice }),
+                ...(variant.isActive !== undefined && { isActive: variant.isActive }),
+                ...(variant.images !== undefined && { images: variant.images }),
+                ...(variant.attributes !== undefined && { attributes: variant.attributes }),
+              },
+            });
+          } else {
+            await prisma.productVariant.create({
+              data: {
+                productId: params.id,
+                sku: variant.sku || `${existing.sku}-V${Date.now()}`,
+                name: variant.name || 'Nueva oferta',
+                price: variant.price || 0,
+                compareAtPrice: variant.compareAtPrice || null,
+                isActive: variant.isActive !== false,
+                images: variant.images || [],
+                attributes: variant.attributes || {},
+                sortOrder: body.variants.indexOf(variant),
+              },
+            });
+          }
+        } catch {}
+      }
+    }
 
     return apiSuccess({
       id: updated.id,

@@ -99,8 +99,7 @@ export default function NuevoPedidoPage() {
   };
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.18;
-  const total = subtotal + tax;
+  const total = subtotal;
 
   const handleSubmit = async () => {
     if (!selectedCustomer || items.length === 0) return;
@@ -250,10 +249,6 @@ export default function NuevoPedidoPage() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Subtotal</span>
               <span className="text-white">S/ {subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">IGV (18%)</span>
-              <span className="text-white">S/ {tax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-base font-bold">
               <span className="text-white">Total</span>

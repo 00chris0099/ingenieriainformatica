@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
-import { cached, invalidateCache } from '@/lib/cache';
 
 interface Props { params: { id: string } }
 
@@ -11,7 +10,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
     if (!notification) return apiError('Notification not found', 404);
     const updated = await prisma.notificationQueue.update({
       where: { id: params.id },
-      data: { status: 'read' },
+      data: { isRead: true },
     });
     return apiSuccess(updated);
   } catch (error) { return handleApiError(error, 'notification-read'); }

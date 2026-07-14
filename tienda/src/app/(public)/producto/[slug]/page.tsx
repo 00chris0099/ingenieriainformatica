@@ -2,21 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useCartStore } from '@/store/cartStore';
-import { Star, ChevronRight, Minus, Plus, Loader2, ShoppingCart, Heart, Share2, ChevronDown, Package } from 'lucide-react';
-import CheckoutModal from '@/components/checkout/CheckoutModal';
-import LandingPageRenderer from '@/components/landing/LandingPageRenderer';
+import { ChevronRight, Loader2, Package } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const CheckoutModal = dynamic(() => import('@/components/checkout/CheckoutModal'), { ssr: false });
+const LandingPageRenderer = dynamic(() => import('@/components/landing/LandingPageRenderer'), { ssr: false });
 
 export default function ProductDetailPage({ params }: { params: { slug: string } }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState<any>(null);
   const [landingBlocks, setLandingBlocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [openFAQ, setOpenFAQ] = useState<number | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const addItem = useCartStore((s) => s.addItem);
+  const [selectedOffer, setSelectedOffer] = useState<any>(null);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -40,6 +38,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               stock: p.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0,
               category: p.category?.name || '',
               images: p.images || [],
+              ctaText: priceConfig?.ctaText || '¡Lo quiero ahora!',
+              crossSellProductIds: priceConfig?.crossSellProductIds || [],
               height: p.height,
               width: p.width,
               depth: p.depth,
@@ -55,12 +55,18 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               discountPopup: p.discountPopup || null,
             });
 
+            // Set default selected offer (first active variant)
+            const activeVariants = (p.variants || []).filter((v: any) => v.isActive !== false);
+            if (activeVariants.length > 0) {
+              setSelectedOffer(activeVariants[0]);
+            }
+
             // Fetch landing page blocks
             try {
-              const landingRes = await fetch(`/landings/${p.slug}.json`);
+              const landingRes = await fetch(`/api/v1/landings/${p.slug}`);
               if (landingRes.ok) {
                 const landingData = await landingRes.json();
-                setLandingBlocks(landingData.blocks || []);
+                setLandingBlocks(landingData.data?.blocks || []);
               }
             } catch {}
           }
@@ -70,21 +76,6 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     }
     fetchProduct();
   }, [params.slug]);
-
-  const handleAddToCart = () => {
-    if (!product) return;
-    const variant = product.variants[0];
-    for (let i = 0; i < quantity; i++) {
-      addItem({
-        variantId: variant?.id || `${product.slug}-std`,
-        productId: product.id,
-        name: product.name,
-        slug: product.slug,
-        price: product.price,
-        image: product.images[0] || '',
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -106,9 +97,6 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       </div>
     );
   }
-
-  const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
-  const discountPercent = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -162,43 +150,36 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           </div>
 
           {/* Product Info */}
-          <div className="pb-24 md:pb-0">
+          <div>
             {product.brand && <p className="text-sm text-gray-500 uppercase tracking-wide mb-1">{product.brand}</p>}
             <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-3">{product.name}</h1>
 
             {/* Price */}
             <div className="mb-4">
-              <div className="flex items-baseline gap-3">
-                {hasDiscount && <span className="text-lg text-gray-400 line-through">S/ {product.compareAtPrice}</span>}
-                <span className="text-3xl font-bold text-green-600">S/ {product.price}</span>
-                {hasDiscount && <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs font-bold rounded-full">-{discountPercent}%</span>}
+              <div className="flex items-baseline gap-3 flex-wrap">
+                {(() => {
+                  const mainPrice = product.price || 0;
+                  const comparePrice = product.compareAtPrice;
+                  const hasVariantDiscount = comparePrice && Number(comparePrice) > Number(mainPrice);
+                  const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
+                  const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
+                  const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
+                  const showStrike = hasVariantDiscount || ((hasDesc || hasEsp) && finalPrice < mainPrice);
+                  const strikePrice = hasVariantDiscount ? comparePrice : mainPrice;
+                  const discountPercent = hasVariantDiscount ? Math.round((1 - Number(mainPrice) / Number(comparePrice)) * 100) : hasDesc ? product.priceConfig.descuento : 0;
+                  return (
+                    <>
+                      {showStrike && <span className="text-lg text-gray-400 line-through">S/ {strikePrice}</span>}
+                      <span className="text-3xl font-bold text-pink-600">S/ {finalPrice}</span>
+                      {discountPercent > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-bold rounded-full">-{discountPercent}% OFF</span>}
+                    </>
+                  );
+                })()}
               </div>
-              {/* Price config (especial / descuento / mayorista) */}
-              {product.priceConfig?.enabledTypes?.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {product.priceConfig.enabledTypes.includes('especial') && product.priceConfig.especial && (
-                    <span className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-lg font-medium">Precio especial: S/ {product.priceConfig.especial}</span>
-                  )}
-                  {product.priceConfig.enabledTypes.includes('descuento') && product.priceConfig.descuento && (
-                    <span className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-lg font-medium">{product.priceConfig.descuento}% OFF</span>
-                  )}
-                  {product.priceConfig.enabledTypes.includes('mayorista') && product.priceConfig.mayorista && (
-                    <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
-                  )}
-                </div>
+              {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
+                <span className="inline-block mt-2 text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
               )}
             </div>
-
-            {/* Discount Popup Banner */}
-            {product.discountPopup?.enabled && (
-              <div className="mb-4 rounded-xl p-4 text-center" style={{ backgroundColor: product.discountPopup.bgColor, color: product.discountPopup.textColor }}>
-                <p className="font-bold text-lg">{product.discountPopup.title}</p>
-                <p className="text-sm opacity-90 mt-1">{product.discountPopup.description}</p>
-                {product.discountPopup.discountPercent > 0 && (
-                  <p className="text-2xl font-bold mt-2">-{product.discountPopup.discountPercent}% OFF</p>
-                )}
-              </div>
-            )}
 
             {/* Description */}
             {product.description && (
@@ -207,23 +188,20 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               </div>
             )}
 
-            {/* Quantity + Add to Cart */}
-            <div className="flex gap-3 mb-4">
-              <div className="flex items-center border border-gray-200 rounded-xl">
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-3 hover:bg-gray-50"><Minus size={16} /></button>
-                <span className="px-4 text-sm font-medium">{quantity}</span>
-                <button onClick={() => setQuantity(quantity + 1)} className="p-3 hover:bg-gray-50"><Plus size={16} /></button>
-              </div>
-              <button onClick={handleAddToCart} className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors">
-                <ShoppingCart size={18} /> Agregar al carrito
-              </button>
-              <button className="p-3 border border-gray-200 rounded-xl hover:bg-gray-50"><Heart size={18} className="text-gray-400" /></button>
-            </div>
-
-            {/* Share */}
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Share2 size={14} /> Compartir
-            </div>
+            {/* CTA Button */}
+            <style>{`
+              @keyframes cta-combined {
+                0%, 100% { transform: scale(1); box-shadow: 0 0 5px rgba(34,197,94,0.3); }
+                50% { transform: scale(1.03); box-shadow: 0 0 20px rgba(34,197,94,0.6); }
+              }
+            `}</style>
+            <button
+              onClick={() => setCheckoutOpen(true)}
+              className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold text-base hover:bg-green-700 transition-colors mb-4"
+              style={{ animation: 'cta-combined 2s ease-in-out infinite' }}
+            >
+              {product.ctaText || '¡Lo quiero ahora!'}
+            </button>
 
             {/* Product Details */}
             <div className="mt-8 space-y-4 border-t pt-6">
@@ -257,51 +235,28 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             </div>
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="mt-8 md:mt-12 border-t border-gray-100 pt-8">
-          <div className="flex gap-8 border-b border-gray-200">
-            {(['description', 'specs', 'reviews'] as const).map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === tab ? 'text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                {tab === 'description' ? 'Descripcion' : tab === 'specs' ? 'Especificaciones' : 'Opiniones (0)'}
-                {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600" />}
-              </button>
-            ))}
-          </div>
-          <div className="py-6">
-            {activeTab === 'description' && (
-              <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                {product.description || 'Sin descripcion disponible'}
-              </div>
-            )}
-            {activeTab === 'specs' && (
-              <div className="text-sm text-gray-500">
-                {product.height || product.width ? (
-                  <p>Ver especificaciones en la seccion de arriba.</p>
-                ) : (
-                  <p>Sin especificaciones disponibles.</p>
-                )}
-              </div>
-            )}
-            {activeTab === 'reviews' && (
-              <div className="text-center py-8 text-gray-500">
-                <p className="text-sm">No hay resenas aun.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Landing Page Blocks */}
-        {landingBlocks.length > 0 && (
-          <div className="mt-8 md:mt-12 border-t border-gray-100 pt-8">
-            <LandingPageRenderer blocks={landingBlocks} />
-          </div>
-        )}
       </main>
 
+      {/* Landing Page Blocks - outside main for full-width */}
+      {landingBlocks.length > 0 && (
+        <div className="mt-8 md:mt-12 border-t border-gray-100">
+          <LandingPageRenderer blocks={landingBlocks} />
+        </div>
+      )}
+
       {/* Checkout Modal */}
-      {checkoutOpen && <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />}
+      {checkoutOpen && (
+        <>
+          {console.log('Product passed to CheckoutModal:', product)}
+          {console.log('Selected offer passed to CheckoutModal:', selectedOffer)}
+          <CheckoutModal
+            open={checkoutOpen}
+            onClose={() => setCheckoutOpen(false)}
+            product={product}
+            selectedOffer={selectedOffer}
+          />
+        </>
+      )}
     </div>
   );
 }

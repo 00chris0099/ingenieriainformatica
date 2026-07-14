@@ -13,10 +13,14 @@ const labels = {
 };
 
 export default function PriceSection({ type }: PriceSectionProps) {
-  const { prices, updatePrices } = useProductForm();
+  const { prices, enabledPriceTypes, updatePrices } = useProductForm();
 
   if (type === 'descuento') {
-    const discountedPrice = prices.main * (1 - (prices.descuento || 0) / 100);
+    // If especial is active, discount applies to especial price; otherwise to main
+    const basePrice = enabledPriceTypes.includes('especial') && prices.especial != null
+      ? prices.especial
+      : prices.main;
+    const discountedPrice = basePrice * (1 - (prices.descuento || 0) / 100);
     return (
       <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -39,10 +43,13 @@ export default function PriceSection({ type }: PriceSectionProps) {
             </div>
           </div>
           <div className="flex-1 text-right">
-            <p className="text-xs text-gray-500 mb-1">Precio con descuento</p>
+            <p className="text-xs text-gray-500 mb-1">Precio final con descuento</p>
             <p className="text-lg font-bold text-green-400">
               S/ {discountedPrice.toFixed(2)}
             </p>
+            {enabledPriceTypes.includes('especial') && prices.especial != null && (
+              <p className="text-[10px] text-gray-500 mt-0.5">Sobre precio especial: S/ {prices.especial}</p>
+            )}
           </div>
         </div>
       </div>
@@ -67,6 +74,11 @@ export default function PriceSection({ type }: PriceSectionProps) {
           placeholder="0.00"
         />
       </div>
+      {type === 'especial' && enabledPriceTypes.includes('descuento') && prices.descuento != null && prices.descuento > 0 && (
+        <p className="text-[10px] text-green-400">
+          Con el {prices.descuento}% de descuento, el precio final sera: S/ {(prices.especial || 0) * (1 - prices.descuento / 100) * 100 / 100}
+        </p>
+      )}
     </div>
   );
 }

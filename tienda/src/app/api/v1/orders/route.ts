@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!rateCheck.allowed) return apiError('Too many requests', 429);
 
     const body = await request.json();
-    const { items, customer, shipping, paymentMethod } = body;
+    const { items, customer, shipping, paymentMethod, suggestedProducts } = body;
 
     // Validate items array
     if (!items?.length) return apiError('No items in order', 400);
@@ -36,10 +36,11 @@ export async function POST(request: NextRequest) {
     }
 
     const subtotal = items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
-    if (subtotal > 50000) return apiError('Order total exceeds limit', 400);
+    const suggestedTotal = suggestedProducts?.reduce((sum: number, item: any) => sum + item.price, 0) || 0;
+    if (subtotal + suggestedTotal > 50000) return apiError('Order total exceeds limit', 400);
 
     const shippingAmount = subtotal >= 150 ? 0 : 10;
-    const total = subtotal + shippingAmount;
+    const total = subtotal + shippingAmount + suggestedTotal;
 
     // Generate order number with random suffix to avoid race conditions
     const now = new Date();
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
       data: {
         orderNumber,
         customerId,
-        status: 'pending',
+        status: 'confirmed',
         paymentStatus: 'pending',
         paymentMethod: paymentMethod || 'yape',
         currency: 'PEN',
@@ -84,17 +85,18 @@ export async function POST(request: NextRequest) {
         shippingAmount,
         total,
         shippingAddress: shipping || {},
+        internalNotes: suggestedProducts?.length ? JSON.stringify({ suggestedProducts }) : null,
         placedAt: now,
         items: {
           create: items.map((item: any) => {
-            if (!item.variantId) {
+            if (!item.variantId && !item.isSuggested) {
               throw new Error(`Item "${item.name}" is missing variantId`);
             }
             return {
-              variantId: item.variantId,
+              variantId: item.isSuggested ? null : item.variantId,
               productName: item.name,
               variantName: item.name,
-              sku: item.sku || 'N/A',
+              sku: item.sku || (item.isSuggested ? `suggested-${Date.now()}` : 'N/A'),
               quantity: item.quantity,
               unitPrice: item.price,
               total: item.price * item.quantity,
@@ -105,12 +107,21 @@ export async function POST(request: NextRequest) {
       include: { items: true },
     });
 
-    // Send confirmation email (fire and forget)
-    try {
-      const { sendEmail, orderConfirmationEmail } = await import('@/lib/notifications/email');
-      if (customer?.email) {
+    // Fire and forget: email + telegram + WMS notification
+    // Return response immediately, don't wait for these
+    const orderResponse = {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      total: Number(order.total),
+      status: order.status,
+    };
+
+    // Send confirmation email (non-blocking)
+    const customerEmail = customer?.email;
+    if (customerEmail) {
+      import('@/lib/notifications/email').then(({ sendEmail, orderConfirmationEmail }) => {
         sendEmail({
-          to: customer.email,
+          to: customerEmail,
           subject: `Pedido ${order.orderNumber} confirmado - ADRISU KIDS`,
           html: orderConfirmationEmail({
             orderNumber: order.orderNumber,
@@ -120,12 +131,11 @@ export async function POST(request: NextRequest) {
             shippingAddress: shipping,
           }),
         });
-      }
-    } catch (e) { console.error('Failed to send confirmation email:', e); }
+      }).catch(() => {});
+    }
 
-    // Notify admin via Telegram (fire and forget)
-    try {
-      const { sendTelegramMessage, newOrderNotification } = await import('@/lib/notifications/telegram');
+    // Notify admin via Telegram (non-blocking)
+    import('@/lib/notifications/telegram').then(({ sendTelegramMessage, newOrderNotification }) => {
       sendTelegramMessage({
         text: newOrderNotification({
           orderNumber: order.orderNumber,
@@ -135,14 +145,18 @@ export async function POST(request: NextRequest) {
           paymentMethod: paymentMethod || 'yape',
         }),
       });
-    } catch (e) { console.error('Failed to send Telegram notification:', e); }
+    }).catch(() => {});
 
-    return apiSuccess({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      total: Number(order.total),
-      status: order.status,
-    }, 201);
+    // Create WMS notification (non-blocking)
+    prisma.notificationQueue.create({
+      data: {
+        subject: `Nuevo pedido ${order.orderNumber}`,
+        body: `${customer.name} - S/ ${total.toFixed(2)} - ${items.length} productos - ${paymentMethod === 'contraentrega' ? 'Contraentrega' : 'MercadoPago'}`,
+        type: 'order',
+      },
+    }).catch(() => {});
+
+    return apiSuccess(orderResponse, 201);
   } catch (error) {
     return handleApiError(error, 'store-order-create');
   }
@@ -155,11 +169,17 @@ export async function GET(request: NextRequest) {
     if (!orderNumber) return apiError('Order number required', 400);
 
     // Validate order number format
-    if (!/^ADR-\d{8}-\d{5}$/.test(orderNumber)) return apiError('Invalid order number format', 400);
+    if (!/^ADR-\d{8}-[A-Z0-9]{5}$/.test(orderNumber)) return apiError('Invalid order number format', 400);
 
     const order = await prisma.order.findUnique({
       where: { orderNumber },
-      include: { items: true, customer: true },
+      include: {
+        items: true,
+        customer: true,
+        shipments: { orderBy: { createdAt: 'desc' }, take: 1 },
+        payments: { orderBy: { createdAt: 'desc' }, take: 1 },
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+      },
     });
 
     if (!order) return apiError('Order not found', 404);

@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CheckCircle, ShoppingCart, Package, Truck, CreditCard, MapPin, Phone, ShieldCheck, MessageCircle, ChevronDown, Plus, Minus, X } from 'lucide-react';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
-import DiscountPopup from '@/components/ui/DiscountPopup';
+import SuggestedProducts from '@/components/checkout/SuggestedProducts';
 import { isValidPeruPhone, isValidEmail } from '@/lib/ubigeo';
 
 /**
@@ -111,49 +111,12 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [offers, setOffers] = useState<any[]>([]);
   const [selectedOffers, setSelectedOffers] = useState<string[]>([]);
+  const [selectedSuggestedProducts, setSelectedSuggestedProducts] = useState<any[]>([]);
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
     department: '', province: '', district: '', address: '', reference: '',
-    paymentMethod: 'contraentrega' as 'mercadopago' | 'contraentrega',
+    paymentMethod: 'contraentrega' as string,
   });
-
-  // Discount popup state
-  const [showDiscountPopup, setShowDiscountPopup] = useState(false);
-  const [discountConfig, setDiscountConfig] = useState<any>(null);
-
-  // Load discount popup config from first item in cart
-  useEffect(() => {
-    if (items.length > 0) {
-      const firstItem = items[0];
-      // In real app, fetch product discount config from API
-      // For now, use a default config
-      setDiscountConfig({
-        enabled: true,
-        title: 'Oferta especial!',
-        description: 'Obtén un descuento exclusivo en este producto',
-        discountPercent: 10,
-        ctaText: 'Comprar ahora',
-        ctaUrl: '/tienda',
-        imageUrl: firstItem.image || '',
-        bgColor: '#16a34a',
-        textColor: '#ffffff',
-      });
-    }
-  }, [items]);
-
-  // Show popup when user leaves checkout (beforeunload)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const storageKey = 'discount-popup-seen-checkout';
-      if (!sessionStorage.getItem(storageKey) && items.length > 0) {
-        sessionStorage.setItem(storageKey, 'true');
-        setShowDiscountPopup(true);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [items]);
 
   // RF-27: Track abandoned checkout
   useAbandonedCheckout(form, items, total());
@@ -161,6 +124,20 @@ export default function CheckoutPage() {
   useEffect(() => {
     fetch('/api/v1/offers').then(r => r.json()).then(d => setOffers(d.data || [])).catch(() => {});
   }, []);
+
+  // Get unique product IDs from cart items
+  const productIds = [...new Set(items.map(item => item.productId).filter(Boolean))];
+
+  // Handle suggested products
+  const handleSelectSuggested = (product: any) => {
+    setSelectedSuggestedProducts(prev => [...prev, product]);
+  };
+
+  const handleDeselectSuggested = (productId: string) => {
+    setSelectedSuggestedProducts(prev => prev.filter(p => p.id !== productId));
+  };
+
+  const suggestedTotal = selectedSuggestedProducts.reduce((sum, p) => sum + p.price, 0);
 
   const validate = (): boolean => {
     const e: FormErrors = {};
@@ -184,15 +161,19 @@ export default function CheckoutPage() {
         const o = offers.find((of: any) => of.id === oid);
         return sum + (o ? (total() * o.discountPercent / 100) : 0);
       }, 0);
-      const finalTotal = total() + (total() >= 150 ? 0 : 10) - offerDiscount;
+      const finalTotal = total() + (total() >= 150 ? 0 : 10) - offerDiscount + suggestedTotal;
 
       const orderRes = await fetch('/api/v1/orders', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, variantId: i.variantId, sku: i.variantId })),
+          items: [
+            ...items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, variantId: i.variantId, sku: i.variantId })),
+            ...selectedSuggestedProducts.map((p) => ({ name: p.name, price: p.price, quantity: 1, variantId: p.id, sku: `suggested-${p.id}`, isSuggested: true })),
+          ],
           customer: { name: form.name, email: form.email, phone: form.phone },
           shipping: { department: form.department, province: form.province, district: form.district, address: form.address, reference: form.reference },
           paymentMethod: form.paymentMethod,
+          suggestedProducts: selectedSuggestedProducts,
         }),
       });
       if (!orderRes.ok) throw new Error('Error');
@@ -206,9 +187,11 @@ export default function CheckoutPage() {
         });
         if (mpRes.ok) {
           const mpData = await mpRes.json();
-          clearCart();
-          const url = mpData.data?.sandboxUrl || mpData.data?.checkoutUrl;
-          if (url) { window.location.href = url; return; }
+          if (mpData.success && mpData.data) {
+            clearCart();
+            const url = mpData.data.sandboxUrl || mpData.data.checkoutUrl;
+            if (url && typeof url === 'string' && url.startsWith('http')) { window.location.href = url; return; }
+          }
         }
       }
 
@@ -224,7 +207,7 @@ export default function CheckoutPage() {
     const o = offers.find((of: any) => of.id === oid);
     return sum + (o ? (subtotal * o.discountPercent / 100) : 0);
   }, 0);
-  const finalTotal = subtotal + shipping - offerDiscount;
+  const finalTotal = subtotal + shipping - offerDiscount + suggestedTotal;
   const departments = Object.keys(UBIGEO);
   const provinces = form.department ? Object.keys(UBIGEO[form.department] || {}) : [];
   const districts = (form.department && form.province) ? (UBIGEO[form.department]?.[form.province] || []) : [];
@@ -266,7 +249,12 @@ export default function CheckoutPage() {
                     <img src={item.image} alt="" className="w-14 h-14 rounded-xl object-cover" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-gray-500">S/ {item.price} c/u</p>
+                      <div className="flex items-center gap-2">
+                        {item.compareAtPrice && Number(item.compareAtPrice) > item.price && (
+                          <span className="text-xs text-gray-400 line-through">S/ {item.compareAtPrice}</span>
+                        )}
+                        <p className="text-xs text-gray-500">S/ {item.price} c/u</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)} className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center"><Minus size={12} /></button>
@@ -368,38 +356,37 @@ export default function CheckoutPage() {
               <p className="text-sm text-gray-500">Completa los datos de envio para continuar con tu pedido.</p>
             </div>
 
-            {/* Section 5: Payment Method */}
-            <div className="bg-white rounded-2xl p-5 border border-gray-100">
-              <h2 className="font-semibold flex items-center gap-2 mb-3"><CreditCard size={18} className="text-green-600" /> Metodo de pago</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setForm({ ...form, paymentMethod: 'contraentrega' })} className={`p-4 border-2 rounded-xl text-center transition-all ${form.paymentMethod === 'contraentrega' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <Truck size={24} className="mx-auto text-green-600 mb-1" />
-                  <p className="text-sm font-medium">Pago contraentrega</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Paga al recibir</p>
-                </button>
-                <button onClick={() => setForm({ ...form, paymentMethod: 'mercadopago' })} className={`p-4 border-2 rounded-xl text-center transition-all ${form.paymentMethod === 'mercadopago' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <CreditCard size={24} className="mx-auto text-blue-600 mb-1" />
-                  <p className="text-sm font-medium">Pago seguro</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Tarjeta / Yape / Plin</p>
-                </button>
-              </div>
+            {/* Section 4.5: Suggested Products */}
+            <SuggestedProducts
+              productIds={productIds}
+              selectedProducts={selectedSuggestedProducts}
+              onSelect={handleSelectSuggested}
+              onDeselect={handleDeselectSuggested}
+            />
 
-              {form.paymentMethod === 'contraentrega' && (
-                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                  <p className="text-sm text-amber-800 font-medium flex items-center gap-2"><Phone size={14} /> Pago contraentrega</p>
-                  <p className="text-xs text-amber-700 mt-1">Tu pedido sera confirmado y coordinado para entrega. Contactanos para mas detalles.</p>
-                  <a href={`https://wa.me/51999111222?text=Hola, quiero confirmar mi pedido de AdriSu Kids`} target="_blank" rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-green-700 transition-colors">
-                    <MessageCircle size={14} /> Contactar por WhatsApp
-                  </a>
-                </div>
-              )}
+            {/* Section 5: Info */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-sm text-amber-800 font-medium flex items-center gap-2"><Phone size={14} /> Pago contraentrega</p>
+                <p className="text-xs text-amber-700 mt-1">Tu pedido sera confirmado y coordinado para entrega.</p>
+              </div>
             </div>
 
-            {/* Section 6: Confirm Button */}
-            <button onClick={handleSubmit} disabled={loading}
-              className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
-              {loading ? <><Loader2 size={20} className="animate-spin" /> Procesando...</> : `Confirmar pedido - S/ ${finalTotal}`}
+            {/* Section 6: Confirm Button - Redirige a WhatsApp */}
+            <button onClick={() => {
+              if (items.length === 0) { alert('Tu carrito esta vacio'); return; }
+              if (!validate()) return;
+
+              const itemsList = items.map(i => `- ${i.name} x${i.quantity} = S/ ${(i.price * i.quantity).toFixed(2)}`).join('%0A');
+              const suggestedList = selectedSuggestedProducts.length > 0
+                ? '%0A📦 *Productos sugeridos:*%0A' + selectedSuggestedProducts.map(p => `- ${p.name} = S/ ${p.price.toFixed(2)}`).join('%0A')
+                : '';
+              const msg = `🛒 *Nuevo Pedido - AdriSu Kids*%0A%0A👤 *Cliente:* ${encodeURIComponent(form.name)}%0A📱 *Celular:* ${form.phone}%0A📧 *Email:* ${encodeURIComponent(form.email || 'No proporcionado')}%0A%0A📦 *Productos:*%0A${itemsList}${suggestedList}%0A%0A💰 *Resumen:*%0A- Subtotal: S/ ${subtotal.toFixed(2)}%0A- Envio (aproximadamente): S/ ${shipping.toFixed(2)}%0A${offerDiscount > 0 ? `- Descuento: -S/ ${offerDiscount.toFixed(2)}%0A` : ''}${suggestedTotal > 0 ? `- Sugeridos: +S/ ${suggestedTotal.toFixed(2)}%0A` : ''}- *TOTAL: S/ ${finalTotal.toFixed(2)}*%0A%0A📍 *Direccion de envio:*%0A${encodeURIComponent(form.department)} - ${encodeURIComponent(form.province)} - ${encodeURIComponent(form.district)}%0A${encodeURIComponent(form.address)}%0ARef: ${encodeURIComponent(form.reference || 'Sin referencia')}`;
+              window.open(`https://wa.me/51951308866?text=${msg}`, '_blank');
+              clearCart();
+            }} disabled={loading}
+              className="w-full py-4 rounded-xl font-bold text-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+              {loading ? <><Loader2 size={20} className="animate-spin" /> Procesando...</> : 'Realizar pedido'}
             </button>
           </div>
 
@@ -409,8 +396,14 @@ export default function CheckoutPage() {
               <h3 className="font-semibold">Resumen</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>S/ {subtotal}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Envio</span><span>{shipping === 0 ? 'Gratis' : `S/ ${shipping}`}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Envio (aproximadamente)</span><span>{shipping === 0 ? 'Gratis' : `S/ ${shipping}`}</span></div>
                 {offerDiscount > 0 && <div className="flex justify-between text-green-600"><span>Descuento ofertas</span><span>-S/ {offerDiscount.toFixed(2)}</span></div>}
+                {suggestedTotal > 0 && (
+                  <div className="flex justify-between text-blue-600">
+                    <span>Productos sugeridos ({selectedSuggestedProducts.length})</span>
+                    <span>+S/ {suggestedTotal.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>Total</span><span className="text-green-600">S/ {finalTotal.toFixed(2)}</span></div>
               </div>
               {subtotal < 150 && <p className="text-xs text-gray-400 text-center">Envio gratis en compras mayores a S/ 150</p>}
@@ -419,16 +412,6 @@ export default function CheckoutPage() {
         </div>
       </main>
 
-      {/* Discount Popup */}
-      {discountConfig && (
-        <DiscountPopup
-          config={discountConfig}
-          productPrice={items[0]?.price || 0}
-          productName={items[0]?.name || ''}
-          productImage={items[0]?.image}
-          onClose={() => setShowDiscountPopup(false)}
-        />
-      )}
     </div>
   );
 }

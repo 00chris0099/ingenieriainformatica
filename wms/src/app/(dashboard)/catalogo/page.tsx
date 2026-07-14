@@ -171,6 +171,8 @@ export default function CatalogoPage() {
         mayorista: product.priceConfig?.mayorista ?? null,
       },
       enabledPriceTypes: product.priceConfig?.enabledTypes || [],
+      ctaText: product.priceConfig?.ctaText || '¡Lo quiero ahora!',
+      crossSellProductIds: product.priceConfig?.crossSellProductIds || [],
       variants: (product.variants || []).map((v: any) => ({
         id: v.id,
         sku: v.sku,
@@ -250,7 +252,22 @@ export default function CatalogoPage() {
                       className="text-gray-500 hover:text-white p-1 shrink-0"><MoreVertical size={16} /></button>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-brand-400 font-bold text-sm">S/ {product.variants?.[0]?.price || 0}</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const mainPrice = Number(product.variants?.[0]?.price) || 0;
+                        const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
+                        const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
+                        const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
+                        const showStrike = (hasDesc || hasEsp) && finalPrice < mainPrice;
+                        return (
+                          <>
+                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {mainPrice}</span>}
+                            <span className={`font-bold text-sm ${showStrike ? 'text-green-400' : 'text-brand-400'}`}>S/ {finalPrice}</span>
+                            {hasDesc && <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-md font-medium">-{product.priceConfig.descuento}%</span>}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                         product.totalStock > 10 ? 'bg-green-500/20 text-green-400' :
@@ -260,6 +277,9 @@ export default function CatalogoPage() {
                       <StatusBadge status={product.status} />
                     </div>
                   </div>
+                  {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
+                    <span className="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-md font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
+                  )}
                 </div>
               </div>
               {showMenu === product.id && (
@@ -308,12 +328,32 @@ export default function CatalogoPage() {
                     <div className="flex items-center gap-3">
                       <img src={product.images?.[0] || ''}
                         alt="" className="w-10 h-10 rounded-lg object-cover bg-gray-800" />
-                      <span className="text-sm font-medium text-white">{product.name}</span>
+                      <span className="text-sm font-medium text-white truncate">{product.name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-400 font-mono">{product.sku}</td>
                   <td className="px-4 py-3 text-sm text-gray-400">{product.category || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-brand-400 text-right font-medium">S/ {product.variants?.[0]?.price || 0}</td>
+                  <td className="px-4 py-3 text-right">
+                    {(() => {
+                      const mainPrice = Number(product.variants?.[0]?.price) || 0;
+                      const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
+                      const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
+                      const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
+                      const showStrike = (hasDesc || hasEsp) && finalPrice < mainPrice;
+                      return (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {mainPrice}</span>}
+                            <span className={`text-sm font-medium ${showStrike ? 'text-green-400' : 'text-brand-400'}`}>S/ {finalPrice}</span>
+                            {hasDesc && <span className="text-[10px] px-1 py-0.5 bg-orange-500/20 text-orange-400 rounded font-medium">-{product.priceConfig.descuento}%</span>}
+                          </div>
+                          {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
+                            <span className="text-[10px] text-blue-400">May: S/ {product.priceConfig.mayorista}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <span className={`text-sm font-medium ${product.totalStock > 10 ? 'text-green-400' : product.totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{product.totalStock}</span>
                   </td>

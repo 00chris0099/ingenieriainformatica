@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Warehouse,
   Truck, BarChart3, Shield, Settings, Menu, X, ChevronRight,
@@ -177,14 +178,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
             <h1 className="text-base font-semibold text-white">{currentLabel}</h1>
           </div>
-          {/* Desktop: collapse toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
-          >
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            {/* Desktop: collapse toggle */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+          </div>
         </header>
 
         {/* Page Content */}
