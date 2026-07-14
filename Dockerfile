@@ -8,7 +8,7 @@ COPY . .
 
 # WMS
 FROM base AS wms
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 RUN pnpm --filter @repo/prisma-wms db:generate
 RUN pnpm --filter @repo/wms build
 ENV NODE_ENV=production
@@ -17,7 +17,7 @@ CMD ["pnpm", "--filter", "@repo/wms", "start"]
 
 # TIENDA
 FROM base AS tienda
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 RUN pnpm --filter @repo/prisma db:generate
 RUN pnpm --filter @repo/tienda build
 ENV NODE_ENV=production
