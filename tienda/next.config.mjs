@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.amazonaws.com' },
@@ -9,10 +10,6 @@ const nextConfig = {
   },
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    cpus: 1,
-    workerThreads: false,
-  },
 };
 
 export default nextConfig;

@@ -7,14 +7,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: adris
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-adris123}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Mineria99*}
       POSTGRES_DB: adriskids
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U adris"]
+      test: ["CMD-SHELL", "pg_isready -U adris -d adriskids"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,6 +35,23 @@ services:
     networks:
       - adris-network
 
+  db-init:
+    image: postgres:15-alpine
+    container_name: adris-db-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-Mineria99*}
+    volumes:
+      - ./scripts/init-db.sh:/init-db.sh
+      - ./packages/prisma:/app/packages/prisma
+      - ./packages/prisma-wms:/app/packages/prisma-wms
+    entrypoint: /bin/sh
+    command: /init-db.sh
+    networks:
+      - adris-network
+
   wms:
     build:
       context: .
@@ -45,21 +62,23 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-adris123}@postgres:5432/adriskids
+      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-Mineria99*}@postgres:5432/adriskids
       - REDIS_URL=redis://redis:6379
-      - NEXTAUTH_URL=${WMS_URL:-https://admin.adriskids.com}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-secret-change-me}
+      - NEXTAUTH_URL=${WMS_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-adriskids-wms-secret-2024}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks:
       - adris-network
 
@@ -73,55 +92,28 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-adris123}@postgres:5432/adriskids
+      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-Mineria99*}@postgres:5432/adriskids
       - REDIS_URL=redis://redis:6379
-      - NEXTAUTH_URL=${TIENDA_URL:-https://adriskids.com}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-secret-change-me}
+      - NEXTAUTH_URL=${TIENDA_URL:-http://localhost:3001}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-adriskids-wms-secret-2024}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-}
+      - MERCADOPAGO_PUBLIC_KEY=${MERCADOPAGO_PUBLIC_KEY:-}
+      - IMGBB_API_KEY=${IMGBB_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@adriskids.com}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - adris-network
-
-  nginx:
-    image: nginx:alpine
-    container_name: adris-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infrastructure/nginx/certs:/etc/nginx/certs:ro
-    depends_on:
-      - wms
-      - tienda
-    networks:
-      - adris-network
-
-  backup:
-    image: postgres:15-alpine
-    container_name: adris-backup
-    restart: unless-stopped
-    environment:
-      PGPASSWORD: ${DB_PASSWORD:-adris123}
-    volumes:
-      - ./scripts/backup.sh:/backup.sh:ro
-      - backup_data:/backups
-    entrypoint: /bin/sh
-    command: >
-      -c "chmod +x /backup.sh && echo '0 2 * * * /backup.sh >> /var/log/backup.log 2>&1' | crontab - && crond -f -l 8"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     networks:
       - adris-network
 
@@ -131,4 +123,3 @@ networks:
 
 volumes:
   postgres_data:
-  backup_data:

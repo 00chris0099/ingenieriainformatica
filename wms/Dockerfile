@@ -5,7 +5,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
 COPY packages/prisma-wms/package.json ./packages/prisma-wms/
-COPY packages/prisma-store/package.json ./packages/prisma-store/
+COPY packages/prisma/package.json ./packages/prisma/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/utils/package.json ./packages/utils/
 RUN corepack enable pnpm && pnpm install --frozen-lockfile
@@ -13,7 +13,7 @@ RUN corepack enable pnpm && pnpm install --frozen-lockfile
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/prisma-wms/node_modules ./packages/prisma-wms/node_modules
-COPY --from=deps /app/packages/prisma-store/node_modules ./packages/prisma-store/node_modules
+COPY --from=deps /app/packages/prisma/node_modules ./packages/prisma/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 COPY --from=deps /app/packages/utils/node_modules ./packages/utils/node_modules
 COPY . .
