@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-const WMS_URL = process.env.WMS_INTERNAL_URL || process.env.NEXT_PUBLIC_WMS_URL || 'http://localhost:3000';
+const WMS_URL = process.env.WMS_INTERNAL_URL || process.env.NEXT_PUBLIC_WMS_URL || 'https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host';
 
 interface Props { params: { slug: string } }
 
@@ -21,7 +21,6 @@ export async function GET(_request: NextRequest, { params }: Props) {
       return Response.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Transform WMS format to tienda format
     const product = {
       id: p.id,
       sku: p.sku,

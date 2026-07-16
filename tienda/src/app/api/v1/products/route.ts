@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const WMS_URL = process.env.WMS_INTERNAL_URL || process.env.NEXT_PUBLIC_WMS_URL || 'http://localhost:3000';
+const WMS_URL = process.env.WMS_INTERNAL_URL || process.env.NEXT_PUBLIC_WMS_URL || 'https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json();
 
-    // Transform WMS product format to tienda format
     const products = (data.data?.items || data.data || []).map((p: any) => ({
       id: p.id,
       sku: p.sku,
@@ -68,7 +67,6 @@ export async function GET(request: NextRequest) {
       updatedAt: p.updatedAt,
     }));
 
-    // Filter only active products for the store
     const activeProducts = products.filter((p: any) => p.status === 'active');
 
     return Response.json({

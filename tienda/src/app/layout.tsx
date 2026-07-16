@@ -5,6 +5,7 @@ import SessionProvider from '@/components/providers/SessionProvider';
 import ExitIntentPopup from '@/components/ui/ExitIntentPopup';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_TIENDA_URL || 'https://tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host'),
   title: {
     default: 'AdriSu Kids - Muebles para Bebes | Tienda Online Peru',
     template: '%s | AdriSu Kids',
