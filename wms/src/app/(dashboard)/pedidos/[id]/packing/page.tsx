@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, CheckCircle, Package, Truck, Printer } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle, Package, Truck, Printer, FileText } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 
 export default function PackingPage() {
@@ -13,6 +13,7 @@ export default function PackingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifiedItems, setVerifiedItems] = useState<Record<string, boolean>>({});
+  const [showGuiaModal, setShowGuiaModal] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     if (!orderId) { setLoading(false); return; }
@@ -21,7 +22,6 @@ export default function PackingPage() {
       if (res.ok) {
         const data = await res.json();
         setOrder(data.data);
-        // Initialize verified items
         const initial: Record<string, boolean> = {};
         data.data.items?.forEach((item: any) => {
           initial[item.id] = false;
@@ -43,6 +43,43 @@ export default function PackingPage() {
 
   const allVerified = order?.items?.every((item: any) => verifiedItems[item.id]);
   const verifiedCount = Object.values(verifiedItems).filter(Boolean).length;
+
+  const handlePrintLabel = async () => {
+    if (!orderId) return;
+    try {
+      const res = await fetch(`/api/v1/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'shipping',
+          orderId: orderId,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Open ZPL in new window for printing
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(`
+            <html><head><title>Etiqueta - ${order.orderNumber}</title></head>
+            <body>
+              <h3>Etiqueta de Envio - ${order.orderNumber}</h3>
+              <pre style="font-family: monospace; font-size: 12px; border: 1px solid #ccc; padding: 10px;">${data.data?.zpl || 'ZPL no generado'}</pre>
+              <p><small>Imprimir en impresora termica Zebra</small></p>
+              <script>window.print();</script>
+            </body></html>
+          `);
+          printWindow.document.close();
+        }
+      }
+    } catch (error) {
+      alert('Error al generar etiqueta');
+    }
+  };
+
+  const handleGenerateGuia = () => {
+    setShowGuiaModal(true);
+  };
 
   const handleComplete = async () => {
     if (!orderId) return;
@@ -70,9 +107,7 @@ export default function PackingPage() {
 
   if (!order) {
     return (
-      <div className="text-center py-20 text-gray-500">
-        Pedido no encontrado
-      </div>
+      <div className="text-center py-20 text-gray-500">Pedido no encontrado</div>
     );
   }
 
@@ -153,11 +188,17 @@ export default function PackingPage() {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">Acciones</h3>
         <div className="space-y-2">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors">
+          <button
+            onClick={handlePrintLabel}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
             <Printer size={16} /> Imprimir Etiqueta de Envio
           </button>
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Package size={16} /> Generar Guia de Remision
+          <button
+            onClick={handleGenerateGuia}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
+            <FileText size={16} /> Generar Guia de Remision
           </button>
         </div>
       </div>
@@ -171,6 +212,120 @@ export default function PackingPage() {
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
         {allVerified ? 'Marcar como Listo para Envio' : `Faltan ${(order.items?.length || 0) - verifiedCount} items por verificar`}
       </button>
+
+      {/* Guia de Remision Modal */}
+      {showGuiaModal && (
+        <GuiaRemisionModal
+          order={order}
+          onClose={() => setShowGuiaModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function GuiaRemisionModal({ order, onClose }: { order: any; onClose: () => void }) {
+  const [form, setForm] = useState({
+    carrier: '',
+    carrierRuc: '',
+    plateNumber: '',
+    originAddress: 'Av. Industrial 123, Lima',
+    destAddress: typeof order.shippingAddress === 'object'
+      ? `${order.shippingAddress.street || ''}, ${order.shippingAddress.district || ''}`
+      : order.shippingAddress || '',
+    reason: 'Venta',
+  });
+  const [generating, setGenerating] = useState(false);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/v1/labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'guia_remision',
+          orderId: order.id,
+          ...form,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(`
+            <html><head><title>Guia de Remision - ${order.orderNumber}</title></head>
+            <body>
+              <h3>Guia de Remision - ${order.orderNumber}</h3>
+              <pre style="font-family: monospace; font-size: 11px; border: 1px solid #ccc; padding: 10px; white-space: pre-wrap;">${data.data?.zpl || 'ZPL no generado'}</pre>
+              <p><small>Transportista: ${form.carrier} | Placa: ${form.plateNumber}</small></p>
+              <script>window.print();</script>
+            </body></html>
+          `);
+          printWindow.document.close();
+        }
+        onClose();
+      }
+    } catch (error) {
+      alert('Error al generar guia');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+        <h2 className="text-xl font-bold mb-4">Guia de Remision</h2>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Transportista</label>
+              <input value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })}
+                placeholder="Nombre del transportista"
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">RUC Transportista</label>
+              <input value={form.carrierRuc} onChange={(e) => setForm({ ...form, carrierRuc: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Placa Vehiculo</label>
+            <input value={form.plateNumber} onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Direccion Partida</label>
+            <input value={form.originAddress} onChange={(e) => setForm({ ...form, originAddress: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Direccion Llegada</label>
+            <input value={form.destAddress} onChange={(e) => setForm({ ...form, destAddress: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Motivo</label>
+            <select value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2">
+              <option value="Venta">Venta</option>
+              <option value="Venta sujeta a devolucion">Venta sujeta a devolucion</option>
+              <option value="Consignacion">Consignacion</option>
+              <option value="Traslado entre almacenes">Traslado entre almacenes</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+          <button onClick={handleGenerate} disabled={generating || !form.carrier}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {generating ? 'Generando...' : 'Generar Guia'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

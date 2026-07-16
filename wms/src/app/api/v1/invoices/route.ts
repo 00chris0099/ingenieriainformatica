@@ -2,23 +2,30 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
+import { createInvoice, isConfigured } from '@/lib/billing/nubefact';
+import { calcularIGVPorItem } from '@/lib/billing/igv';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = getSearchParam(searchParams, 'status');
+    const type = getSearchParam(searchParams, 'type');
     const { page, limit, offset } = parsePagination(searchParams);
 
-    const result = await cached(`invoices:${page}:${limit}:${status}`, () =>
+    const where: any = {};
+    if (status) where.status = status;
+    if (type) where.documentType = type;
+
+    const result = await cached(`invoices:${page}:${limit}:${status}:${type}`, () =>
       prisma.invoice.findMany({
-        where: status ? { status: status as any } : {},
+        where,
         include: { customer: true, order: true, items: true },
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,
       }).then(async (invoices) => ({
         invoices,
-        total: await prisma.invoice.count({ where: status ? { status: status as any } : {} }),
+        total: await prisma.invoice.count({ where }),
       })),
       30
     );
@@ -26,7 +33,9 @@ export async function GET(request: NextRequest) {
     const mapped = result.invoices.map((inv) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
-      customerName: inv.customer.fullName,
+      documentType: inv.documentType || 'FACTURA',
+      customerName: inv.customer?.fullName || 'Sin cliente',
+      customerDoc: inv.customer?.documentNumber || '',
       orderNumber: inv.order?.orderNumber || null,
       status: inv.status,
       currency: inv.currency,
@@ -34,6 +43,9 @@ export async function GET(request: NextRequest) {
       taxAmount: Number(inv.taxAmount),
       total: Number(inv.total),
       amountPaid: Number(inv.amountPaid),
+      nubefactId: (inv as any).nubefactId || null,
+      pdfUrl: (inv as any).pdfUrl || null,
+      xmlUrl: (inv as any).xmlUrl || null,
       dueDate: inv.dueDate,
       paidAt: inv.paidAt,
       createdAt: inv.createdAt,
@@ -48,40 +60,44 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customerId, orderId, items, taxAmount, dueDate, notes } = body;
+    const { customerId, orderId, documentType, items, notes } = body;
 
-    if (!customerId || !items?.length) return apiError('customerId and items are required', 400);
+    if (!items?.length) return apiError('items are required', 400);
 
-    const subtotal = items.reduce((sum: number, item: any) => sum + item.unitPrice * item.quantity, 0);
-    const total = subtotal + (taxAmount || 0);
+    const customer = customerId ? await prisma.customer.findUnique({ where: { id: customerId } }) : null;
+
+    const igvCalc = calcularIGVPorItem(items);
 
     const count = await prisma.invoice.count();
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const invoiceNumber = `FAC-${dateStr}-${String(count + 1).padStart(5, '0')}`;
+    const year = now.getFullYear();
+    const consecutive = String(count + 1).padStart(8, '0');
+    const invoiceNumber = `${documentType === 'BOLETA' ? 'B001' : 'F001'}-${consecutive}`;
 
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
-        customerId,
+        documentType: documentType || 'FACTURA',
+        customerId: customerId || null,
         orderId: orderId || null,
         status: 'draft',
         currency: 'PEN',
-        subtotal,
-        taxAmount: taxAmount || 0,
-        total,
+        subtotal: igvCalc.baseImponible,
+        taxAmount: igvCalc.igv,
+        total: igvCalc.total,
         amountPaid: 0,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        notes: notes || null,
         items: {
           create: items.map((item: any) => ({
-            description: item.description,
+            description: item.description || item.name,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            total: item.unitPrice * item.quantity,
+            discount: item.discount || 0,
+            total: item.unitPrice * item.quantity - (item.discount || 0),
           })),
         },
       },
-      include: { items: true },
+      include: { items: true, customer: true },
     });
 
     await invalidateCache('invoices:*');

@@ -66,6 +66,16 @@ services:
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_URL=${WMS_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-adriskids-wms-secret-2024}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-}
+      - MERCADOPAGO_PUBLIC_KEY=${MERCADOPAGO_PUBLIC_KEY:-}
+      - IMGBB_API_KEY=${IMGBB_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@adriskids.com}
+      - NUBEFACT_TOKEN=${NUBEFACT_TOKEN:-}
+      - NUBEFACT_URL=${NUBEFACT_URL:-https://demo.nubefact.com/api/v1}
+      - SUNAT_RUC=${SUNAT_RUC:-}
+      - SUNAT_USER=${SUNAT_USER:-}
+      - SUNAT_PASSWORD=${SUNAT_PASSWORD:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
@@ -114,6 +124,22 @@ services:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
+    networks:
+      - adris-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: adris-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - wms
+      - tienda
     networks:
       - adris-network
 

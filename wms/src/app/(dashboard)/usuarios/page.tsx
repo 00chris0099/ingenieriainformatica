@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, Loader2, Plus, Shield, Settings, Edit, CheckCircle, XCircle } from 'lucide-react';
+import { Users, Search, Loader2, Plus, Shield, Settings, Edit, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 
 type Tab = 'users' | 'settings';
@@ -21,6 +21,8 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -41,6 +43,16 @@ export default function UsuariosPage() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  function handleEdit(user: any) {
+    setEditingUser(user);
+    setShowModal(true);
+  }
+
+  function handleNew() {
+    setEditingUser(null);
+    setShowModal(true);
+  }
+
   const tabs = [
     { key: 'users' as Tab, label: 'Usuarios', icon: Users },
     { key: 'settings' as Tab, label: 'Configuracion', icon: Settings },
@@ -53,14 +65,13 @@ export default function UsuariosPage() {
         description={`${users.length} usuarios registrados`}
         actions={
           activeTab === 'users' && (
-            <button className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-brand-700">
+            <button onClick={handleNew} className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-brand-700">
               <Plus size={18} /> Nuevo Usuario
             </button>
           )
         }
       />
 
-      {/* Tabs */}
       <div className="flex gap-2">
         {tabs.map((tab) => (
           <button
@@ -78,7 +89,6 @@ export default function UsuariosPage() {
         ))}
       </div>
 
-      {/* Users Tab */}
       {activeTab === 'users' && (
         <>
           <div className="relative">
@@ -123,7 +133,7 @@ export default function UsuariosPage() {
                         ) : (
                           <XCircle size={14} className="text-red-400" />
                         )}
-                        <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+                        <button onClick={() => handleEdit(user)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
                           <Edit size={14} />
                         </button>
                       </div>
@@ -132,16 +142,13 @@ export default function UsuariosPage() {
                 );
               })}
               {users.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  No hay usuarios
-                </div>
+                <div className="text-center py-12 text-gray-500">No hay usuarios</div>
               )}
             </div>
           )}
         </>
       )}
 
-      {/* Settings Tab */}
       {activeTab === 'settings' && (
         <div className="space-y-4">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -153,56 +160,109 @@ export default function UsuariosPage() {
                     <Shield size={16} className="text-gray-400" />
                     <span className="text-sm text-white">{config.label}</span>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${config.color}`}>
-                    {key}
-                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${config.color}`}>{key}</span>
                 </div>
               ))}
             </div>
           </div>
-
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h3 className="text-sm font-medium text-gray-300 mb-4">Configuracion General</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Nombre del Negocio</label>
-                <input
-                  type="text"
-                  defaultValue="ADRISU KIDS"
-                  className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">RUC</label>
-                <input
-                  type="text"
-                  defaultValue="10730431746"
-                  className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Direccion</label>
-                <input
-                  type="text"
-                  defaultValue="Av. Industrial 123, Lima"
-                  className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Moneda</label>
-                <select className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="PEN">Soles (PEN)</option>
-                  <option value="USD">Dolares (USD)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <button className="w-full px-4 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-700 transition-colors">
-            Guardar Configuracion
-          </button>
         </div>
       )}
+
+      {showModal && (
+        <UserModal
+          user={editingUser}
+          onClose={() => { setShowModal(false); setEditingUser(null); }}
+          onSaved={() => { setShowModal(false); setEditingUser(null); fetchUsers(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserModal({ user, onClose, onSaved }: { user: any; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    fullName: user?.fullName || '',
+    email: user?.email || '',
+    password: '',
+    role: user?.role || 'warehouse_staff',
+    phone: user?.phone || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const url = user ? `/api/v1/users/${user.id}` : '/api/v1/users';
+      const method = user ? 'PATCH' : 'POST';
+      const body: any = { ...form };
+      if (!body.password && user) delete body.password;
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        onSaved();
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.error || 'No se pudo guardar'}`);
+      }
+    } catch (error) {
+      alert('Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 className="text-xl font-bold mb-4">{user ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Nombre completo</label>
+            <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">{user ? 'Nueva contraseña (opcional)' : 'Contraseña'}</label>
+            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Rol</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2">
+              <option value="super_admin">Super Admin</option>
+              <option value="admin">Admin</option>
+              <option value="warehouse_manager">Gerente de Almacen</option>
+              <option value="warehouse_staff">Personal de Almacen</option>
+              <option value="sales_manager">Gerente de Ventas</option>
+              <option value="sales_rep">Ventas</option>
+              <option value="readonly">Solo Lectura</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Telefono</label>
+            <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

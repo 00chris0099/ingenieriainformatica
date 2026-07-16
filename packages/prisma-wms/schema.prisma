@@ -1107,3 +1107,30 @@ model SuggestedProduct {
 
   @@map("suggested_products")
 }
+
+// ============================================================================
+// BLOG POSTS
+// ============================================================================
+
+model BlogPost {
+  id              String   @id @default(uuid()) @db.Uuid
+  title           String
+  slug            String   @unique
+  content         String   @db.Text
+  excerpt         String?
+  coverImage      String?  @map("cover_image")
+  authorId        String?  @map("author_id") @db.Uuid
+  publishedAt     DateTime? @map("published_at")
+  tags            String[]
+  category        String?
+  metaTitle       String?  @map("meta_title")
+  metaDescription String?  @map("meta_description")
+  isPublished     Boolean  @default(false) @map("is_published")
+  viewCount       Int      @default(0) @map("view_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  author User? @relation(fields: [authorId], references: [id])
+
+  @@map("blog_posts")
+}

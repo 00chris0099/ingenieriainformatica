@@ -107,8 +107,7 @@ export async function POST(request: NextRequest) {
       include: { items: true },
     });
 
-    // Fire and forget: email + telegram + WMS notification
-    // Return response immediately, don't wait for these
+    // Fire and forget: email + WMS notification
     const orderResponse = {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -133,19 +132,6 @@ export async function POST(request: NextRequest) {
         });
       }).catch(() => {});
     }
-
-    // Notify admin via Telegram (non-blocking)
-    import('@/lib/notifications/telegram').then(({ sendTelegramMessage, newOrderNotification }) => {
-      sendTelegramMessage({
-        text: newOrderNotification({
-          orderNumber: order.orderNumber,
-          customerName: customer.name,
-          total: total,
-          items: items.map((item: any) => ({ name: item.name, quantity: item.quantity })),
-          paymentMethod: paymentMethod || 'yape',
-        }),
-      });
-    }).catch(() => {});
 
     // Create WMS notification (non-blocking)
     prisma.notificationQueue.create({
