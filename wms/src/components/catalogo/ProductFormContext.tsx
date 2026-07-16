@@ -68,7 +68,6 @@ interface ProductFormState {
 
   // Pricing (simple, on Product directly)
   price: number;
-  compareAtPrice: number | null;
   discountPercent: number;
   costPrice: number | null;
   barcode: string;
@@ -239,7 +238,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
 
     // Pricing
     price: initialData?.price ?? 0,
-    compareAtPrice: initialData?.compareAtPrice ?? null,
     discountPercent: initialData?.discountPercent ?? 0,
     costPrice: initialData?.costPrice ?? null,
     barcode: initialData?.barcode || '',
@@ -564,7 +562,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
             stock: state.stock,
             lowStockAlert: state.lowStockAlert,
             price: state.price,
-            compareAtPrice: state.compareAtPrice,
             discountPercent: state.discountPercent,
             costPrice: state.costPrice,
             barcode: state.barcode,

@@ -132,18 +132,6 @@ export default function CheckoutModal({ open, onClose, product }: CheckoutModalP
     });
   };
 
-  // Price logic: always apply product-level priceConfig discount for the main offer
-  const getOfferFinalPrice = (rawPrice: number, isMainOffer: boolean) => {
-    const num = Number(rawPrice) || 0;
-    if (isMainOffer && product?.priceConfig) {
-      const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
-      if (hasEsp) return Number(product.priceConfig.especial);
-      const hasDesc = product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
-      if (hasDesc) return Math.round(num * (1 - product.priceConfig.descuento / 100) * 100) / 100;
-    }
-    return num;
-  };
-
   // Extra popup discount - supports percent OR fixed soles amount
   const applyExtraDiscount = (price: number, isSuggested: boolean = false) => {
     const num = Number(price) || 0;
@@ -155,6 +143,14 @@ export default function CheckoutModal({ open, onClose, product }: CheckoutModalP
     return Math.round(num * (1 - extraDiscountPercent / 100) * 100) / 100;
   };
 
+  // Calculate final price using product.discountPercent directly
+  const getFinalPrice = (rawPrice: number, discountPct: number) => {
+    const num = Number(rawPrice) || 0;
+    const pct = Number(discountPct) || 0;
+    if (pct > 0) return Math.round(num * (1 - pct / 100) * 100) / 100;
+    return num;
+  };
+
   if (!open || !product) return null;
 
   const departments = Object.keys(UBIGEO);
@@ -163,18 +159,18 @@ export default function CheckoutModal({ open, onClose, product }: CheckoutModalP
 
   // Calculate prices - use product directly
   const rawProductPrice = Number(product?.price) || 0;
-  const productFinalPrice = applyExtraDiscount(getOfferFinalPrice(rawProductPrice, true));
-  const extraItemsTotal = extraItems.reduce((sum, item) => sum + applyExtraDiscount(getOfferFinalPrice(Number(item.price) || 0, false)), 0);
+  const productFinalPrice = applyExtraDiscount(getFinalPrice(rawProductPrice, product?.discountPercent));
+  const extraItemsTotal = extraItems.reduce((sum, item) => sum + applyExtraDiscount(getFinalPrice(Number(item.price) || 0, item.discountPercent || 0)), 0);
   const suggestedTotal = selectedSuggested.reduce((sum, p) => sum + applyExtraDiscount(p.price, true), 0);
   const allItems = [
     { ...product, price: productFinalPrice, quantity: 1, type: 'main' as const },
-    ...extraItems.map(e => ({ ...e, price: applyExtraDiscount(getOfferFinalPrice(Number(e.price) || 0, false)), quantity: 1, type: 'extra' as const })),
+    ...extraItems.map(e => ({ ...e, price: applyExtraDiscount(getFinalPrice(Number(e.price) || 0, e.discountPercent || 0)), quantity: 1, type: 'extra' as const })),
   ];
 
   const subtotal = productFinalPrice + extraItemsTotal + suggestedTotal;
   const shipping = subtotal >= 150 ? 0 : 10;
   const total = subtotal + shipping;
-  const hasProductDiscount = product?.priceConfig?.enabledTypes?.includes('descuento') && product?.priceConfig?.descuento > 0;
+  const hasProductDiscount = product?.discountPercent > 0;
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -351,16 +347,16 @@ export default function CheckoutModal({ open, onClose, product }: CheckoutModalP
                 <div className="flex items-center gap-2 mt-1.5">
                   {(() => {
                     const rawP = Number(product?.price) || 0;
-                    const finalP = getOfferFinalPrice(rawP, true);
-                    const hasDiscount = rawP > finalP;
-                    const discountPct = product?.discountPercent || (hasDiscount ? Math.round((1 - finalP / rawP) * 100) : 0);
-                    const showStrike = discountPct > 0 && finalP < rawP;
+                    const discPct = product?.discountPercent || 0;
+                    const finalP = getFinalPrice(rawP, discPct);
+                    const hasDiscount = discPct > 0 && finalP < rawP;
+                    const showStrike = hasDiscount;
                     return (
                       <>
                         {showStrike && <span className="text-sm text-gray-400 line-through">S/ {rawP}</span>}
                         <span className="text-lg font-bold text-pink-600">S/ {finalP}</span>
-                        {discountPct > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold">-{discountPct}%</span>
+                        {discPct > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold">-{discPct}%</span>
                         )}
                       </>
                     );
@@ -515,10 +511,10 @@ export default function CheckoutModal({ open, onClose, product }: CheckoutModalP
               {/* Show main product original price strikethrough */}
               {(() => {
                 const rawP = Number(product?.price) || 0;
-                const finalP = getOfferFinalPrice(rawP, true);
-                const hasDiscount = rawP > finalP;
-                const discPct = product?.discountPercent || (hasDiscount ? Math.round((1 - finalP / rawP) * 100) : 0);
-                const showStrike = discPct > 0 && finalP < rawP;
+                const discPct = product?.discountPercent || 0;
+                const finalP = getFinalPrice(rawP, discPct);
+                const hasDiscount = discPct > 0 && finalP < rawP;
+                const showStrike = hasDiscount;
                 return (
                   <>
                     {showStrike && (

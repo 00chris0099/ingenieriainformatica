@@ -1,14 +1,25 @@
 'use client';
 
 import { useProductForm } from '../ProductFormContext';
-import { Gift, Eye } from 'lucide-react';
+import { Gift, Eye, Tag } from 'lucide-react';
 
 export default function PricingTab() {
-  const { price, compareAtPrice, discountPercent, costPrice, stock, discountPopup, updateField, toggleDiscountPopup, updateDiscountPopup } = useProductForm();
+  const { price, discountPercent, costPrice, stock, discountPopup, tags, updateField, toggleDiscountPopup, updateDiscountPopup } = useProductForm();
 
   const effectivePrice = discountPercent > 0
     ? Math.round(price * (1 - discountPercent / 100) * 100) / 100
     : price;
+
+  const PREDEFINED_TAGS = ['Nuevo', 'El mas vendido', 'Oferta', 'Ultimas unidades', 'Agotado'];
+
+  const toggleTag = (tag: string) => {
+    const current = tags || [];
+    if (current.includes(tag)) {
+      updateField('tags', current.filter((t: string) => t !== tag));
+    } else {
+      updateField('tags', [...current, tag]);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -29,24 +40,6 @@ export default function PricingTab() {
         </div>
       </div>
 
-      {/* Compare at Price */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-300">Comparar con precio (S/)</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">S/</span>
-          <input
-            type="number"
-            value={compareAtPrice ?? ''}
-            onChange={(e) => updateField('compareAtPrice', e.target.value ? parseFloat(e.target.value) : null)}
-            min="0"
-            step="0.01"
-            className="w-full pl-8 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="0.00"
-          />
-        </div>
-        <p className="text-xs text-gray-500">Precio tachado mostrado al cliente (opcional)</p>
-      </div>
-
       {/* Discount Percent */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-300">Descuento (%)</label>
@@ -64,9 +57,11 @@ export default function PricingTab() {
           />
         </div>
         {discountPercent > 0 && (
-          <p className="text-sm text-green-400">
-            Precio final: S/ {effectivePrice.toFixed(2)}
-          </p>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-sm text-gray-400 line-through">S/ {price.toFixed(2)}</span>
+            <span className="text-lg font-bold text-green-400">S/ {effectivePrice.toFixed(2)}</span>
+            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-bold rounded-full">-{discountPercent}% OFF</span>
+          </div>
         )}
       </div>
 
@@ -89,6 +84,61 @@ export default function PricingTab() {
           <p className="text-xs text-gray-500">
             Margen: {((price - costPrice) / price * 100).toFixed(1)}%
           </p>
+        )}
+      </div>
+
+      {/* Visual Tags */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-300 flex items-center gap-2">
+          <Tag size={14} />
+          Etiquetas visuales
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {PREDEFINED_TAGS.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggleTag(tag)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                (tags || []).includes(tag)
+                  ? 'border-brand-500 bg-brand-500/20 text-brand-400'
+                  : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-2">
+          <input
+            type="text"
+            id="customTag"
+            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            placeholder="Etiqueta personalizada..."
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const input = document.getElementById('customTag') as HTMLInputElement;
+              if (input?.value.trim()) {
+                toggleTag(input.value.trim());
+                input.value = '';
+              }
+            }}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-white"
+          >
+            Agregar
+          </button>
+        </div>
+        {(tags || []).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {(tags || []).map((tag: string) => (
+              <span key={tag} className="px-2 py-0.5 bg-brand-500/20 text-brand-400 text-xs rounded-full flex items-center gap-1">
+                {tag}
+                <button type="button" onClick={() => toggleTag(tag)} className="hover:text-white">&times;</button>
+              </span>
+            ))}
+          </div>
         )}
       </div>
 
@@ -165,7 +215,7 @@ export default function PricingTab() {
                   value={discountPopup.description}
                   onChange={(e) => updateDiscountPopup({ description: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  placeholder="Obtén un descuento exclusivo"
+                  placeholder="Obten un descuento exclusivo"
                 />
               </div>
 

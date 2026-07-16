@@ -24,7 +24,6 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           const data = await res.json();
           if (data.data) {
             const p = data.data;
-            const priceConfig = p.priceConfig || null;
             setProduct({
               id: p.id,
               name: p.name,
@@ -39,8 +38,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               stock: p.stock || 0,
               category: p.category?.name || '',
               images: p.images || [],
-              ctaText: priceConfig?.ctaText || '¡Lo quiero ahora!',
-              crossSellProductIds: priceConfig?.crossSellProductIds || [],
+              ctaText: p.ctaText || '¡Lo quiero ahora!',
+              crossSellProductIds: p.crossSellProductIds || [],
               height: p.height,
               width: p.width,
               depth: p.depth,
@@ -51,7 +50,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               originCountry: p.originCountry || '',
               weight: p.weight,
               weightUnit: p.weightUnit || 'kg',
-              priceConfig,
+              tags: p.tags || [],
               discountPopup: p.discountPopup || null,
             });
 
@@ -165,8 +164,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                   );
                 })()}
               </div>
-              {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
-                <span className="inline-block mt-2 text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
+              {product.tags && product.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {product.tags.map((tag: string) => (
+                    <span key={tag} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-lg font-medium">{tag}</span>
+                  ))}
+                </div>
               )}
             </div>
 

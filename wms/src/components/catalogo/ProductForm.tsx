@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, Loader2, Eye, EyeOff, Info, Tag, Layout, History, Copy, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Eye, EyeOff, Info, Tag, Layout, History, Copy, FileText, CheckCircle, AlertCircle, Package } from 'lucide-react';
 import { ProductFormProvider, useProductForm } from './ProductFormContext';
 import InfoTab from './tabs/InfoTab';
 import PricingTab from './tabs/PricingTab';
 import LandingPageTab from './tabs/LandingPageTab';
+import SuggestedProductsTab from './tabs/SuggestedProductsTab';
 import ProductPreview from './preview/ProductPreview';
 import VersionHistoryPanel from './ui/VersionHistoryPanel';
 import TemplateSelector from './ui/TemplateSelector';
@@ -18,12 +19,6 @@ interface ProductFormProps {
   onCancel: () => void;
   mode: 'create' | 'edit';
 }
-
-const tabs = [
-  { key: 'info', label: 'Info', icon: Info },
-  { key: 'pricing', label: 'Pricing', icon: Tag },
-  { key: 'landing', label: 'Landing Page', icon: Layout },
-];
 
 function getTimeAgo(date: Date): string {
   const now = new Date();
@@ -46,6 +41,13 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
   const [duplicating, setDuplicating] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const tabs = [
+    { key: 'info', label: 'Info', icon: Info },
+    { key: 'pricing', label: 'Pricing', icon: Tag },
+    { key: 'landing', label: 'Landing Page', icon: Layout },
+    ...(mode === 'edit' ? [{ key: 'suggested', label: 'Sugeridos', icon: Package }] : []),
+  ];
 
   const handleApplyTemplate = (template: any) => {
     // Apply template defaults
@@ -118,7 +120,6 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
         stock: form.stock,
         lowStockAlert: form.lowStockAlert,
         price: form.price,
-        compareAtPrice: form.compareAtPrice,
         discountPercent: form.discountPercent,
         costPrice: form.costPrice,
         barcode: form.barcode,
@@ -304,6 +305,7 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
             {form.activeTab === 'info' && <InfoTab categories={categories} />}
             {form.activeTab === 'pricing' && <PricingTab />}
             {form.activeTab === 'landing' && <LandingPageTab slug={form.name?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ''} />}
+            {form.activeTab === 'suggested' && <SuggestedProductsTab productId={productId || ''} />}
           </div>
         </div>
 

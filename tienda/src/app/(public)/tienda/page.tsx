@@ -72,7 +72,7 @@ function TiendaContent() {
               image: p.images?.[0] || '',
               category: p.category?.slug || '',
               stock: p.stock || 0,
-              priceConfig: p.priceConfig || null,
+              tags: p.tags || [],
             })));
           }
         }
@@ -170,8 +170,12 @@ function TiendaContent() {
                   {product.stock <= 5 && product.stock > 0 && (
                     <span className="text-[10px] text-orange-500 font-medium mt-1 block">Ultimas unidades</span>
                   )}
-                  {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
-                    <span className="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
+                  {product.tags && product.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {product.tags.slice(0, 3).map((tag: string) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">{tag}</span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </Link>

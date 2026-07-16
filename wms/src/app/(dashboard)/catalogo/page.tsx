@@ -157,10 +157,10 @@ export default function CatalogoPage() {
       stock: product.stock ?? 0,
       lowStockAlert: product.lowStockAlert || null,
       price: product.price ?? 0,
-      compareAtPrice: product.compareAtPrice ?? null,
       discountPercent: product.discountPercent ?? 0,
       costPrice: product.costPrice ?? null,
       barcode: product.barcode || '',
+      tags: product.tags || [],
       discountPopup: product.discountPopup || {
         enabled: false,
         title: 'Oferta especial!',
