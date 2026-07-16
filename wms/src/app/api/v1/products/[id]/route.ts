@@ -9,8 +9,11 @@ interface Props {
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: params.id },
+    const identifier = params.id;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    const product = await prisma.product.findFirst({
+      where: isUuid ? { id: identifier } : { slug: identifier },
       include: {
         category: true,
         variants: {
