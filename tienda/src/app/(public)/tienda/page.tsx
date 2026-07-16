@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState, useEffect, Suspense } from 'react';
 import { Loader2, Search, Package } from 'lucide-react';
+import { expandSearch } from '@/lib/search-synonyms';
 
 const defaultCategories = [
   { name: 'Todos', slug: '' },
@@ -79,12 +80,16 @@ function TiendaContent() {
     fetchProducts();
   }, [activeCategory, search]);
 
-  // Client-side filtering and sorting
+  // Client-side filtering and sorting with synonyms
   let filtered = products;
   if (activeCategory) filtered = filtered.filter((p) => p.category === activeCategory);
   if (search) {
+    const terms = expandSearch(search);
     const q = search.toLowerCase();
-    filtered = filtered.filter((p) => p.name.toLowerCase().includes(q));
+    filtered = filtered.filter((p) => {
+      const name = p.name.toLowerCase();
+      return terms.some((t) => name.includes(t)) || name.includes(q);
+    });
   }
 
   switch (sortBy) {

@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import SanitizedHTML from '@/components/ui/SanitizedHTML';
 
 async function getPost(slug: string) {
   try {
@@ -63,7 +64,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       )}
 
       <div className="prose prose-green max-w-none">
-        <div dangerouslySetInnerHTML={{ __html: post.content }} />
+        <SanitizedHTML html={post.content} />
       </div>
 
       {post.tags?.length > 0 && (
