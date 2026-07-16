@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
-import { cached, invalidateCache } from '@/lib/cache';
+import { invalidateCache } from '@/lib/cache';
 
 /**
  * RF-13: Auto stock deduction after successful payment
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Determine order ID from external_reference
-      const orderId = paymentData?.external_reference || body.external_reference;
+      const orderId: string | undefined = paymentData?.external_reference ?? body.external_reference ?? undefined;
 
       if (!orderId) {
         console.log(`[MP Webhook] No order ID found for payment ${paymentId}`);
@@ -61,42 +61,32 @@ export async function POST(request: NextRequest) {
           where: { id: orderId },
           data: {
             paymentStatus: 'paid',
-            status: order.status === 'draft' ? 'confirmed' : order.status,
+            status: order.status === 'pending' ? 'confirmed' : order.status,
           },
         });
 
-        // RF-13: Deduct stock from inventory for each item
+        // RF-13: Deduct stock from product for each item
         for (const item of order.items) {
-          // Find inventory record for this variant in the order's warehouse
-          const inventory = await prisma.inventory.findFirst({
-            where: {
-              variantId: item.variantId,
-              warehouseId: order.warehouseId || undefined,
-            },
+          if (!item.productId) continue;
+
+          const product = await prisma.product.findUnique({
+            where: { id: item.productId },
           });
 
-          if (inventory) {
-            // Calculate new quantities
-            const newQuantity = Math.max(0, inventory.quantity - item.quantity);
-            const newReserved = Math.max(0, inventory.reservedQuantity - item.quantity);
-            const newAvailable = Math.max(0, inventory.availableQuantity - item.quantity);
+          if (product) {
+            const newStock = Math.max(0, (product.stock || 0) - item.quantity);
 
-            // Update inventory
-            await prisma.inventory.update({
-              where: { id: inventory.id },
-              data: {
-                quantity: newQuantity,
-                reservedQuantity: newReserved,
-                availableQuantity: newAvailable,
-              },
+            await prisma.product.update({
+              where: { id: item.productId },
+              data: { stock: newStock },
             });
 
-            console.log(`[RF-13] Stock deducted: ${item.sku} x${item.quantity} (was ${inventory.quantity}, now ${newQuantity})`);
+            console.log(`[RF-13] Stock deducted: ${item.sku} x${item.quantity} (was ${product.stock}, now ${newStock})`);
           }
         }
 
         // Invalidate cache
-        await invalidateCache('inventory');
+        await invalidateCache('products:*');
         await invalidateCache('orders');
 
         console.log(`[MP Webhook] Payment ${paymentId} approved for order ${order.orderNumber}`);

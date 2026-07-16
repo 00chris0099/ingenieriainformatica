@@ -2,18 +2,17 @@
 
 import { useProductForm } from '../ProductFormContext';
 import ImageGallery from './ImageGallery';
-import VariantSelector from './VariantSelector';
 import StickyCTA from './StickyCTA';
 import LandingBlockRenderer from './LandingBlockRenderer';
 import CheckoutPreview from './CheckoutPreview';
 import { Heart, Home, Search, User, ShoppingBag } from 'lucide-react';
 
 export default function MobilePreview() {
-  const { name, brand, description, shortDescription, prices, enabledPriceTypes, variants, productImages, landingBlocks, ctaText } = useProductForm();
+  const { name, brand, description, shortDescription, price, compareAtPrice, discountPercent, productImages, landingBlocks, ctaText } = useProductForm();
 
-  const displayImages = productImages.length > 0 ? productImages : (variants[0]?.images || []);
-  const hasDiscount = enabledPriceTypes.includes('descuento') && prices.descuento;
-  const discountedPrice = hasDiscount ? prices.main * (1 - prices.descuento / 100) : null;
+  const displayImages = productImages;
+  const hasDiscount = discountPercent > 0;
+  const discountedPrice = hasDiscount ? Math.round(price * (1 - discountPercent / 100) * 100) / 100 : null;
 
   return (
     <div className="max-w-[280px] mx-auto">
@@ -66,43 +65,19 @@ export default function MobilePreview() {
             {/* Price */}
             <div className="space-y-0.5">
               <div className="flex items-baseline gap-2 flex-wrap">
-                {hasDiscount && discountedPrice && (
-                  <span className="text-xs text-gray-400 line-through">S/ {prices.main.toFixed(2)}</span>
+                {(compareAtPrice && compareAtPrice > price) && (
+                  <span className="text-xs text-gray-400 line-through">S/ {compareAtPrice.toFixed(2)}</span>
                 )}
                 <span className="text-lg font-bold text-green-600">
-                  S/ {(hasDiscount && discountedPrice ? discountedPrice : prices.main).toFixed(2)}
+                  S/ {price.toFixed(2)}
                 </span>
                 {hasDiscount && (
                   <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[9px] font-bold rounded">
-                    -{prices.descuento}%
+                    -{discountPercent}%
                   </span>
                 )}
               </div>
-              {enabledPriceTypes.includes('mayorista') && prices.mayorista && (
-                <p className="text-[10px] text-blue-600 font-medium">Mayorista: S/ {prices.mayorista.toFixed(2)}</p>
-              )}
             </div>
-
-            {/* Variant Selector */}
-            <VariantSelector />
-
-            {/* Offers */}
-            {variants.filter(v => v.isActive).length > 1 && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-medium text-gray-700">Elige tu oferta:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {variants.filter(v => v.isActive).map((v, i) => (
-                    <div key={v.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[9px] cursor-pointer ${i === 0 ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                      {v.images?.[0] && <img src={v.images[0]} alt="" className="w-5 h-5 rounded object-cover" />}
-                      <div>
-                        <p className="font-medium text-gray-900">{v.name}</p>
-                        <p className="text-green-600 font-bold">S/ {v.price}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* CTA Button */}
             <style>{`

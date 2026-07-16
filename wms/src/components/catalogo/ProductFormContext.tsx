@@ -6,17 +6,6 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 // TYPES
 // ============================================================================
 
-export interface Variant {
-  id: string;
-  sku: string;
-  name: string;
-  price: number;
-  compareAtPrice: number | null;
-  isActive: boolean;
-  images: string[];
-  attributes?: Record<string, any>;
-}
-
 export interface LandingPageBlock {
   id: string;
   type: 'hero' | 'text' | 'image' | 'gallery' | 'video' | 'features' | 'cta' | 'testimonials' | 'faq' | 'columns' | 'divider' | 'spacing' | 'contact' | 'countdown' | 'tabs' | 'accordion';
@@ -55,7 +44,7 @@ interface ProductFormState {
   status: string;
   tags: string[];
 
-  // Product images (separate from variant images)
+  // Product images
   productImages: string[];
   mainImageIndex: number;
 
@@ -74,20 +63,15 @@ interface ProductFormState {
   weightUnit: string;
 
   // Stock
+  stock: number;
   lowStockAlert: number | null;
 
-  // Pricing
-  prices: {
-    main: number;
-    especial: number | null;
-    descuento: number | null;
-    mayorista: number | null;
-  };
-  enabledPriceTypes: ('especial' | 'descuento' | 'mayorista')[];
-
-  // Variants
-  variants: Variant[];
-  variantPricingMode: 'same' | 'individual';
+  // Pricing (simple, on Product directly)
+  price: number;
+  compareAtPrice: number | null;
+  discountPercent: number;
+  costPrice: number | null;
+  barcode: string;
 
   // Discount popup
   discountPopup: DiscountPopupConfig;
@@ -124,8 +108,6 @@ interface ProductFormContextType extends ProductFormState {
   // Field updates
   updateField: <K extends keyof ProductFormState>(field: K, value: ProductFormState[K]) => void;
   updateDimensions: (dims: Partial<ProductDimensions>) => void;
-  updatePrices: (prices: Partial<ProductFormState['prices']>) => void;
-  togglePriceType: (type: 'especial' | 'descuento' | 'mayorista') => void;
 
   // Materials
   addMaterial: (material: string) => void;
@@ -136,12 +118,6 @@ interface ProductFormContextType extends ProductFormState {
   removeProductImage: (index: number) => void;
   setMainImage: (index: number) => void;
   moveProductImage: (from: number, to: number) => void;
-
-  // Variants
-  addVariant: () => void;
-  updateVariant: (id: string, data: Partial<Variant>) => void;
-  removeVariant: (id: string) => void;
-  setVariants: (variants: Variant[]) => void;
 
   // Discount popup
   updateDiscountPopup: (config: Partial<DiscountPopupConfig>) => void;
@@ -216,18 +192,6 @@ export function useProductForm() {
 }
 
 // ============================================================================
-// HELPERS
-// ============================================================================
-
-function generateId() {
-  return 'new-' + Math.random().toString(36).substring(2, 9);
-}
-
-function generateSku(parentSku: string, index: number) {
-  return `${parentSku}-V${index + 1}`;
-}
-
-// ============================================================================
 // PROVIDER
 // ============================================================================
 
@@ -270,15 +234,15 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     weightUnit: initialData?.weightUnit || 'kg',
 
     // Stock
+    stock: initialData?.stock ?? 0,
     lowStockAlert: initialData?.lowStockAlert ?? null,
 
     // Pricing
-    prices: initialData?.prices || { main: 0, especial: null, descuento: null, mayorista: null },
-    enabledPriceTypes: initialData?.enabledPriceTypes || [],
-
-    // Variants
-    variants: initialData?.variants || [],
-    variantPricingMode: initialData?.variantPricingMode || 'same',
+    price: initialData?.price ?? 0,
+    compareAtPrice: initialData?.compareAtPrice ?? null,
+    discountPercent: initialData?.discountPercent ?? 0,
+    costPrice: initialData?.costPrice ?? null,
+    barcode: initialData?.barcode || '',
 
     // Discount popup
     discountPopup: initialData?.discountPopup || defaultDiscountPopup,
@@ -321,100 +285,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
       dimensions: { ...prev.dimensions, ...dims },
       isDirty: true,
     }));
-  }, []);
-
-  const updatePrices = useCallback((prices: Partial<ProductFormState['prices']>) => {
-    setState(prev => {
-      const newPrices = { ...prev.prices, ...prices };
-
-      // Sync first variant with pricing logic
-      let newVariants = prev.variants;
-      if (prev.variantPricingMode === 'same' && prev.variants.length > 0) {
-        newVariants = prev.variants.map((v, i) => {
-          if (i !== 0) return v;
-
-          // Determine base price: especial replaces main when enabled
-          const hasEspecial = prev.enabledPriceTypes.includes('especial') && (newPrices.especial ?? prev.prices.especial) != null;
-          const basePrice = hasEspecial ? Number(newPrices.especial ?? prev.prices.especial) : (newPrices.main ?? v.price);
-
-          // If discount is enabled, compareAtPrice = base, price = base * (1 - descuento%)
-          const hasDescuento = prev.enabledPriceTypes.includes('descuento');
-          const descuentoPct = newPrices.descuento ?? prev.prices.descuento;
-
-          if (hasDescuento && descuentoPct && descuentoPct > 0) {
-            const discountedPrice = Math.round(basePrice * (1 - descuentoPct / 100) * 100) / 100;
-            return { ...v, compareAtPrice: basePrice, price: discountedPrice };
-          }
-
-          // No discount: if especial is enabled, compareAtPrice = main, price = especial
-          if (hasEspecial) {
-            const mainPrice = newPrices.main ?? v.price;
-            return { ...v, compareAtPrice: mainPrice, price: basePrice };
-          }
-
-          // Plain price (no special, no discount)
-          return { ...v, price: newPrices.main ?? v.price, compareAtPrice: null };
-        });
-      }
-
-      return {
-        ...prev,
-        prices: newPrices,
-        variants: newVariants,
-        isDirty: true,
-      };
-    });
-  }, []);
-
-  const togglePriceType = useCallback((type: 'especial' | 'descuento' | 'mayorista') => {
-    setState(prev => {
-      const isEnabled = prev.enabledPriceTypes.includes(type);
-      const newEnabled = isEnabled
-        ? prev.enabledPriceTypes.filter(t => t !== type)
-        : [...prev.enabledPriceTypes, type];
-
-      const newPrices = { ...prev.prices };
-      if (!isEnabled) {
-        if (type === 'especial') newPrices.especial = Math.round(prev.prices.main * 0.9 * 100) / 100;
-        if (type === 'descuento') newPrices.descuento = 10;
-        if (type === 'mayorista') newPrices.mayorista = Math.round(prev.prices.main * 0.8 * 100) / 100;
-      } else {
-        if (type === 'especial') newPrices.especial = null;
-        if (type === 'descuento') newPrices.descuento = null;
-        if (type === 'mayorista') newPrices.mayorista = null;
-      }
-
-      // Sync first variant with the new pricing chain
-      let newVariants = prev.variants;
-      if (prev.variantPricingMode === 'same' && prev.variants.length > 0) {
-        newVariants = prev.variants.map((v, i) => {
-          if (i !== 0) return v;
-
-          const hasEspecial = newEnabled.includes('especial') && newPrices.especial != null;
-          const basePrice = hasEspecial ? Number(newPrices.especial) : prev.prices.main;
-
-          const hasDescuento = newEnabled.includes('descuento');
-          if (hasDescuento && newPrices.descuento && newPrices.descuento > 0) {
-            const discountedPrice = Math.round(basePrice * (1 - newPrices.descuento / 100) * 100) / 100;
-            return { ...v, compareAtPrice: basePrice, price: discountedPrice };
-          }
-
-          if (hasEspecial) {
-            return { ...v, compareAtPrice: prev.prices.main, price: basePrice };
-          }
-
-          return { ...v, price: prev.prices.main, compareAtPrice: null };
-        });
-      }
-
-      return {
-        ...prev,
-        enabledPriceTypes: newEnabled,
-        prices: newPrices,
-        variants: newVariants,
-        isDirty: true,
-      };
-    });
   }, []);
 
   // ============================================================================
@@ -500,46 +370,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
   }, []);
 
   // ============================================================================
-  // VARIANTS
-  // ============================================================================
-
-  const addVariant = useCallback(() => {
-    setState(prev => {
-      const newVariant: Variant = {
-        id: generateId(),
-        sku: generateSku(prev.sku || 'PROD', prev.variants.length),
-        name: prev.variants.length === 0 ? 'Default' : `Variante ${prev.variants.length + 1}`,
-        price: prev.prices.main,
-        compareAtPrice: null,
-        isActive: true,
-        images: [],
-        attributes: {},
-      };
-      return { ...prev, variants: [...prev.variants, newVariant], isDirty: true };
-    });
-  }, []);
-
-  const updateVariant = useCallback((id: string, data: Partial<Variant>) => {
-    setState(prev => ({
-      ...prev,
-      variants: prev.variants.map(v => v.id === id ? { ...v, ...data } : v),
-      isDirty: true,
-    }));
-  }, []);
-
-  const removeVariant = useCallback((id: string) => {
-    setState(prev => ({
-      ...prev,
-      variants: prev.variants.filter(v => v.id !== id),
-      isDirty: true,
-    }));
-  }, []);
-
-  const setVariants = useCallback((variants: Variant[]) => {
-    setState(prev => ({ ...prev, variants, isDirty: true }));
-  }, []);
-
-  // ============================================================================
   // LANDING PAGE BLOCKS
   // ============================================================================
 
@@ -582,7 +412,7 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
       if (!block) return prev;
       const newBlock = {
         ...block,
-        id: generateId(),
+        id: 'new-' + Math.random().toString(36).substring(2, 9),
         content: { ...block.content },
         settings: { ...block.settings },
       };
@@ -690,12 +520,12 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
   const triggerAutoSave = useCallback(async (prodId: string) => {
     if (!state.isDirty) return;
 
-    // Check if data actually changed
     const currentData = JSON.stringify({
       name: state.name,
       description: state.description,
-      prices: state.prices,
-      variants: state.variants,
+      price: state.price,
+      stock: state.stock,
+      discountPercent: state.discountPercent,
     });
 
     if (currentData === lastSavedDataRef.current) return;
@@ -731,12 +561,15 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
             originCountry: state.originCountry,
             weight: state.weight,
             weightUnit: state.weightUnit,
+            stock: state.stock,
             lowStockAlert: state.lowStockAlert,
+            price: state.price,
+            compareAtPrice: state.compareAtPrice,
+            discountPercent: state.discountPercent,
+            costPrice: state.costPrice,
+            barcode: state.barcode,
             discountPopup: state.discountPopup,
             landingBlocks: state.landingBlocks,
-            variants: state.variants,
-            prices: state.prices,
-            enabledPriceTypes: state.enabledPriceTypes,
             ctaText: state.ctaText,
             crossSellProductIds: state.crossSellProductIds,
             images: state.productImages,
@@ -753,7 +586,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
             isDirty: false,
           }));
 
-          // Reset status after 3 seconds
           setTimeout(() => {
             setState(prev => ({ ...prev, autoSaveStatus: 'idle' }));
           }, 3000);
@@ -765,7 +597,6 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
       }
     };
 
-    // Retry with exponential backoff
     while (retries < maxRetries) {
       const success = await attemptSave();
       if (success) return;
@@ -792,7 +623,7 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
         if (productId) {
           triggerAutoSave(productId);
         }
-      }, 30000); // 30 seconds debounce
+      }, 30000);
     }
 
     return () => {
@@ -833,18 +664,12 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     productId,
     updateField,
     updateDimensions,
-    updatePrices,
-    togglePriceType,
     addMaterial,
     removeMaterial,
     addProductImage,
     removeProductImage,
     setMainImage,
     moveProductImage,
-    addVariant,
-    updateVariant,
-    removeVariant,
-    setVariants,
     updateDiscountPopup,
     toggleDiscountPopup,
     setCtaText,

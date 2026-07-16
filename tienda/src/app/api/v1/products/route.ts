@@ -25,47 +25,45 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json();
 
-    const products = (data.data?.items || data.data || []).map((p: any) => ({
-      id: p.id,
-      sku: p.sku,
-      name: p.name,
-      slug: p.slug,
-      description: p.description || '',
-      shortDescription: p.shortDescription || '',
-      brand: p.brand || '',
-      status: p.status || 'active',
-      tags: p.tags || [],
-      images: p.images || [],
-      height: p.height,
-      width: p.width,
-      depth: p.depth,
-      color: p.color || '',
-      materials: p.materials || [],
-      recommendedAge: p.recommendedAge || '',
-      warrantyDays: p.warrantyDays,
-      originCountry: p.originCountry || '',
-      weight: p.weight,
-      weightUnit: p.weightUnit || 'kg',
-      lowStockAlert: p.lowStockAlert,
-      priceConfig: p.priceConfig || null,
-      discountPopup: p.discountPopup || null,
-      category: p.category ? { name: p.category.name, slug: p.category.slug } : null,
-      categoryId: p.categoryId,
-      variants: (p.variants || []).map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
-        name: v.name,
-        attributes: v.attributes || {},
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
-        stock: v.stock || 0,
-        isActive: v.isActive !== false,
-        images: v.images || [],
-        lowStockAlert: v.lowStockAlert,
-      })),
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-    }));
+    const products = (data.data?.items || data.data || []).map((p: any) => {
+      const basePrice = Number(p.price) || 0;
+      const discount = p.discountPercent ? Number(p.discountPercent) : 0;
+      const finalPrice = discount > 0 ? Math.round(basePrice * (1 - discount / 100) * 100) / 100 : basePrice;
+
+      return {
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        slug: p.slug,
+        description: p.description || '',
+        shortDescription: p.shortDescription || '',
+        brand: p.brand || '',
+        status: p.status || 'active',
+        tags: p.tags || [],
+        images: p.images || [],
+        height: p.height,
+        width: p.width,
+        depth: p.depth,
+        color: p.color || '',
+        materials: p.materials || [],
+        recommendedAge: p.recommendedAge || '',
+        warrantyDays: p.warrantyDays,
+        originCountry: p.originCountry || '',
+        weight: p.weight,
+        weightUnit: p.weightUnit || 'kg',
+        lowStockAlert: p.lowStockAlert,
+        price: basePrice,
+        compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
+        finalPrice,
+        discountPercent: discount,
+        stock: p.stock || 0,
+        barcode: p.barcode,
+        category: p.category ? { name: p.category.name, slug: p.category.slug } : null,
+        categoryId: p.categoryId,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      };
+    });
 
     const activeProducts = products.filter((p: any) => p.status === 'active');
 

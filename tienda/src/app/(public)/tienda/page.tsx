@@ -65,11 +65,13 @@ function TiendaContent() {
               id: p.id,
               name: p.name,
               slug: p.slug,
-              price: p.variants?.[0]?.price || 0,
-              compareAtPrice: p.variants?.[0]?.compareAtPrice,
+              price: p.price || 0,
+              compareAtPrice: p.compareAtPrice || null,
+              finalPrice: p.finalPrice || p.price || 0,
+              discountPercent: p.discountPercent || 0,
               image: p.images?.[0] || '',
               category: p.category?.slug || '',
-              stock: p.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0,
+              stock: p.stock || 0,
               priceConfig: p.priceConfig || null,
             })));
           }
@@ -150,19 +152,14 @@ function TiendaContent() {
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {(() => {
                       const mainPrice = Number(product.price) || 0;
-                      const comparePrice = product.compareAtPrice ? Number(product.compareAtPrice) : null;
-                      const hasVariantDiscount = comparePrice && comparePrice > mainPrice;
-                      const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
-                      const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
-                      const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
-                      const showStrike = hasVariantDiscount || ((hasDesc || hasEsp) && finalPrice < mainPrice);
-                      const strikePrice = hasVariantDiscount ? comparePrice : mainPrice;
-                      const discountPercent = hasVariantDiscount ? Math.round((1 - mainPrice / comparePrice) * 100) : hasDesc ? product.priceConfig.descuento : 0;
+                      const fp = Number(product.finalPrice) || mainPrice;
+                      const discPct = product.discountPercent || 0;
+                      const showStrike = discPct > 0 && fp < mainPrice;
                       return (
                         <>
-                          {showStrike && <span className="text-xs text-gray-400 line-through">S/ {strikePrice}</span>}
-                          <span className={`font-bold text-sm ${showStrike ? 'text-pink-600' : 'text-brand-600'}`}>S/ {finalPrice}</span>
-                          {discountPercent > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-medium">-{discountPercent}%</span>}
+                          {showStrike && <span className="text-xs text-gray-400 line-through">S/ {mainPrice}</span>}
+                          <span className={`font-bold text-sm ${showStrike ? 'text-pink-600' : 'text-brand-600'}`}>S/ {fp}</span>
+                          {discPct > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-medium">-{discPct}%</span>}
                         </>
                       );
                     })()}

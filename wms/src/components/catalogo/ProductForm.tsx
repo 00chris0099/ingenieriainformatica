@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, Loader2, Eye, EyeOff, Info, Tag, Package, Image, Layout, History, Copy, FileText, CheckCircle, AlertCircle, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Eye, EyeOff, Info, Tag, Layout, History, Copy, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { ProductFormProvider, useProductForm } from './ProductFormContext';
 import InfoTab from './tabs/InfoTab';
 import PricingTab from './tabs/PricingTab';
-import VariantsTab from './tabs/VariantsTab';
 import LandingPageTab from './tabs/LandingPageTab';
-import OffersTab from './tabs/OffersTab';
 import ProductPreview from './preview/ProductPreview';
 import VersionHistoryPanel from './ui/VersionHistoryPanel';
 import TemplateSelector from './ui/TemplateSelector';
@@ -24,8 +22,6 @@ interface ProductFormProps {
 const tabs = [
   { key: 'info', label: 'Info', icon: Info },
   { key: 'pricing', label: 'Pricing', icon: Tag },
-  { key: 'variants', label: 'Variantes', icon: Package },
-  { key: 'offers', label: 'Ofertas', icon: ShoppingCart },
   { key: 'landing', label: 'Landing Page', icon: Layout },
 ];
 
@@ -98,23 +94,6 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
-      // Fix inverted prices in variants before saving
-      const fixedVariants = form.variants.map(v => {
-        const price = Number(v.price) || 0;
-        const compare = v.compareAtPrice ? Number(v.compareAtPrice) : null;
-        
-        // If compareAtPrice exists but is <= price, it's inverted - swap them
-        if (compare && compare <= price && compare > 0) {
-          console.log('[Save] Fixing inverted prices for variant:', v.name);
-          return { ...v, price: compare, compareAtPrice: price };
-        }
-        // If compareAtPrice equals price, remove it (no discount)
-        if (compare && compare === price) {
-          return { ...v, compareAtPrice: null };
-        }
-        return v;
-      });
-
       const savedData = {
         sku: form.sku || undefined,
         name: form.name,
@@ -136,23 +115,16 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
         originCountry: form.originCountry,
         weight: form.weight,
         weightUnit: form.weightUnit,
+        stock: form.stock,
         lowStockAlert: form.lowStockAlert,
+        price: form.price,
+        compareAtPrice: form.compareAtPrice,
+        discountPercent: form.discountPercent,
+        costPrice: form.costPrice,
+        barcode: form.barcode,
         discountPopup: form.discountPopup,
         images: form.productImages,
         mainImageIndex: form.mainImageIndex,
-        variants: fixedVariants.map(v => ({
-          id: v.id,
-          sku: v.sku,
-          name: v.name,
-          price: v.price,
-          compareAtPrice: v.compareAtPrice,
-          isActive: v.isActive,
-          lowStockAlert: v.lowStockAlert,
-          images: v.images,
-          attributes: v.attributes,
-        })),
-        prices: form.prices,
-        enabledPriceTypes: form.enabledPriceTypes,
         ctaText: form.ctaText,
         crossSellProductIds: form.crossSellProductIds,
       };
@@ -331,8 +303,6 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
           <div className="p-3 md:p-6">
             {form.activeTab === 'info' && <InfoTab categories={categories} />}
             {form.activeTab === 'pricing' && <PricingTab />}
-            {form.activeTab === 'variants' && <VariantsTab />}
-            {form.activeTab === 'offers' && <OffersTab />}
             {form.activeTab === 'landing' && <LandingPageTab slug={form.name?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ''} />}
           </div>
         </div>

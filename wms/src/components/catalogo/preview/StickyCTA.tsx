@@ -5,12 +5,11 @@ import { ShoppingCart, Minus, Plus, Heart } from 'lucide-react';
 import { useProductForm } from '../ProductFormContext';
 
 export default function StickyCTA() {
-  const { name, prices, enabledPriceTypes, variants } = useProductForm();
+  const { name, price, discountPercent } = useProductForm();
   const [quantity, setQuantity] = useState(1);
 
-  const hasDiscount = enabledPriceTypes.includes('descuento') && prices.descuento;
-  const discountedPrice = hasDiscount ? prices.main * (1 - prices.descuento / 100) : null;
-  const displayPrice = hasDiscount && discountedPrice ? discountedPrice : prices.main;
+  const hasDiscount = discountPercent > 0;
+  const displayPrice = hasDiscount ? Math.round(price * (1 - discountPercent / 100) * 100) / 100 : price;
   const total = displayPrice * quantity;
 
   return (

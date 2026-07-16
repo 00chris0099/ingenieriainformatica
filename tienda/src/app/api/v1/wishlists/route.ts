@@ -17,11 +17,7 @@ export async function GET(request: NextRequest) {
     const wishlists = await prisma.wishlist.findMany({
       where: { customerId: session.user.id },
       include: {
-        variant: {
-          include: {
-            product: { select: { id: true, name: true, slug: true, images: true } },
-          },
-        },
+        product: { select: { id: true, name: true, slug: true, images: true, price: true, compareAtPrice: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -42,18 +38,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { variantId } = body;
+    const { productId } = body;
 
-    if (!variantId) {
-      return NextResponse.json({ error: 'variantId required' }, { status: 400 });
+    if (!productId) {
+      return NextResponse.json({ error: 'productId required' }, { status: 400 });
     }
 
     // Check if already in wishlist
     const existing = await prisma.wishlist.findUnique({
       where: {
-        customerId_variantId: {
+        customerId_productId: {
           customerId: session.user.id,
-          variantId,
+          productId,
         },
       },
     });
@@ -65,7 +61,7 @@ export async function POST(request: NextRequest) {
     const wishlist = await prisma.wishlist.create({
       data: {
         customerId: session.user.id,
-        variantId,
+        productId,
       },
     });
 
@@ -85,16 +81,16 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const variantId = searchParams.get('variantId');
+    const productId = searchParams.get('productId');
 
-    if (!variantId) {
-      return NextResponse.json({ error: 'variantId required' }, { status: 400 });
+    if (!productId) {
+      return NextResponse.json({ error: 'productId required' }, { status: 400 });
     }
 
     await prisma.wishlist.deleteMany({
       where: {
         customerId: session.user.id,
-        variantId,
+        productId,
       },
     });
 

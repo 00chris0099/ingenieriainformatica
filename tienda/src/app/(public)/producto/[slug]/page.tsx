@@ -14,7 +14,6 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [landingBlocks, setLandingBlocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [selectedOffer, setSelectedOffer] = useState<any>(null);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -30,12 +29,14 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               id: p.id,
               name: p.name,
               slug: p.slug,
-              price: p.variants?.[0]?.price || 0,
-              compareAtPrice: p.variants?.[0]?.compareAtPrice || null,
+              price: p.price || 0,
+              compareAtPrice: p.compareAtPrice || null,
+              finalPrice: p.finalPrice || p.price || 0,
+              discountPercent: p.discountPercent || 0,
               description: p.description || '',
               shortDescription: p.shortDescription || '',
               brand: p.brand || '',
-              stock: p.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0,
+              stock: p.stock || 0,
               category: p.category?.name || '',
               images: p.images || [],
               ctaText: priceConfig?.ctaText || '¡Lo quiero ahora!',
@@ -50,16 +51,9 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               originCountry: p.originCountry || '',
               weight: p.weight,
               weightUnit: p.weightUnit || 'kg',
-              variants: p.variants || [],
               priceConfig,
               discountPopup: p.discountPopup || null,
             });
-
-            // Set default selected offer (first active variant)
-            const activeVariants = (p.variants || []).filter((v: any) => v.isActive !== false);
-            if (activeVariants.length > 0) {
-              setSelectedOffer(activeVariants[0]);
-            }
 
             // Fetch landing page blocks
             try {
@@ -158,20 +152,15 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             <div className="mb-4">
               <div className="flex items-baseline gap-3 flex-wrap">
                 {(() => {
-                  const mainPrice = product.price || 0;
-                  const comparePrice = product.compareAtPrice;
-                  const hasVariantDiscount = comparePrice && Number(comparePrice) > Number(mainPrice);
-                  const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
-                  const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
-                  const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
-                  const showStrike = hasVariantDiscount || ((hasDesc || hasEsp) && finalPrice < mainPrice);
-                  const strikePrice = hasVariantDiscount ? comparePrice : mainPrice;
-                  const discountPercent = hasVariantDiscount ? Math.round((1 - Number(mainPrice) / Number(comparePrice)) * 100) : hasDesc ? product.priceConfig.descuento : 0;
+                  const mainPrice = Number(product.price) || 0;
+                  const fp = Number(product.finalPrice) || mainPrice;
+                  const discPct = product.discountPercent || 0;
+                  const showStrike = discPct > 0 && fp < mainPrice;
                   return (
                     <>
-                      {showStrike && <span className="text-lg text-gray-400 line-through">S/ {strikePrice}</span>}
-                      <span className="text-3xl font-bold text-pink-600">S/ {finalPrice}</span>
-                      {discountPercent > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-bold rounded-full">-{discountPercent}% OFF</span>}
+                      {showStrike && <span className="text-lg text-gray-400 line-through">S/ {mainPrice}</span>}
+                      <span className="text-3xl font-bold text-pink-600">S/ {fp}</span>
+                      {discPct > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-bold rounded-full">-{discPct}% OFF</span>}
                     </>
                   );
                 })()}
@@ -248,12 +237,10 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       {checkoutOpen && (
         <>
           {console.log('Product passed to CheckoutModal:', product)}
-          {console.log('Selected offer passed to CheckoutModal:', selectedOffer)}
           <CheckoutModal
             open={checkoutOpen}
             onClose={() => setCheckoutOpen(false)}
             product={product}
-            selectedOffer={selectedOffer}
           />
         </>
       )}

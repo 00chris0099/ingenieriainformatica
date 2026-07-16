@@ -9,7 +9,7 @@ export async function GET(_request: NextRequest, { params }: Props) {
   try {
     const warehouse = await prisma.warehouse.findUnique({
       where: { id: params.id },
-      include: { locations: true, _count: { select: { inventory: true } } },
+      include: { locations: true },
     });
     if (!warehouse) return apiError('Warehouse not found', 404);
     return apiSuccess(warehouse);

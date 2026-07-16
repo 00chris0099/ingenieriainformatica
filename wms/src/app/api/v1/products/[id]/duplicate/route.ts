@@ -11,7 +11,6 @@ export async function POST(_request: NextRequest, { params }: Props) {
   try {
     const original = await prisma.product.findUnique({
       where: { id: params.id },
-      include: { variants: true },
     });
 
     if (!original) return apiError('Product not found', 404);
@@ -49,24 +48,14 @@ export async function POST(_request: NextRequest, { params }: Props) {
         weight: original.weight,
         weightUnit: original.weightUnit,
         lowStockAlert: original.lowStockAlert,
-        discountPopup: original.discountPopup,
-        variants: {
-          create: original.variants.map((v, i) => ({
-            sku: `${newSku}-V${i + 1}`,
-            name: v.name,
-            attributes: v.attributes,
-            price: v.price,
-            compareAtPrice: v.compareAtPrice,
-            costPrice: v.costPrice,
-            barcode: v.barcode,
-            images: [...v.images],
-            isActive: v.isActive,
-            lowStockAlert: v.lowStockAlert,
-            sortOrder: v.sortOrder,
-          })),
-        },
+        price: original.price,
+        stock: original.stock,
+        discountPercent: original.discountPercent,
+        compareAtPrice: original.compareAtPrice,
+        costPrice: original.costPrice,
+        barcode: original.barcode,
       },
-      include: { category: true, variants: true },
+      include: { category: true },
     });
 
     await invalidateCache('products:*');

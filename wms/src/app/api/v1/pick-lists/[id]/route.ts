@@ -19,7 +19,7 @@ export async function GET(
         assignee: { select: { id: true, fullName: true } },
         items: {
           include: {
-            variant: { select: { id: true, sku: true, name: true } },
+            product: { select: { id: true, sku: true, name: true } },
           },
         },
       },

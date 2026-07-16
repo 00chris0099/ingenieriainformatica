@@ -1,119 +1,95 @@
 'use client';
 
 import { useProductForm } from '../ProductFormContext';
-import ToggleButton from '../ui/ToggleButton';
-import PriceSection from '../ui/PriceSection';
-import { Tag, Percent, ShoppingBag, Gift, ChevronDown, ChevronUp, Eye } from 'lucide-react';
-import { useState } from 'react';
+import { Gift, Eye } from 'lucide-react';
 
 export default function PricingTab() {
-  const { prices, enabledPriceTypes, variantPricingMode, discountPopup, updateField, updatePrices, togglePriceType, updateDiscountPopup, toggleDiscountPopup } = useProductForm();
+  const { price, compareAtPrice, discountPercent, costPrice, stock, discountPopup, updateField, toggleDiscountPopup, updateDiscountPopup } = useProductForm();
 
-  // Base price for discount calculation: if especial is active, use it; otherwise use main
-  const baseForDiscount = enabledPriceTypes.includes('especial') && prices.especial != null
-    ? prices.especial
-    : prices.main;
-
-  const calculatedDiscount = prices.descuento
-    ? (baseForDiscount * (1 - prices.descuento / 100)).toFixed(2)
-    : null;
+  const effectivePrice = discountPercent > 0
+    ? Math.round(price * (1 - discountPercent / 100) * 100) / 100
+    : price;
 
   return (
     <div className="space-y-6">
-      {/* Precio Final */}
+      {/* Price */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-300">Precio Final (S/) *</label>
+        <label className="block text-sm font-medium text-gray-300">Precio (S/) *</label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">S/</span>
           <input
             type="number"
-            value={prices.main || ''}
-            onChange={(e) => updatePrices({ main: parseFloat(e.target.value) || 0 })}
+            value={price || ''}
+            onChange={(e) => updateField('price', parseFloat(e.target.value) || 0)}
             min="0"
             step="0.01"
             className="w-full pl-8 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
             placeholder="0.00"
           />
         </div>
-        {calculatedDiscount && (
+      </div>
+
+      {/* Compare at Price */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-300">Comparar con precio (S/)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">S/</span>
+          <input
+            type="number"
+            value={compareAtPrice ?? ''}
+            onChange={(e) => updateField('compareAtPrice', e.target.value ? parseFloat(e.target.value) : null)}
+            min="0"
+            step="0.01"
+            className="w-full pl-8 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            placeholder="0.00"
+          />
+        </div>
+        <p className="text-xs text-gray-500">Precio tachado mostrado al cliente (opcional)</p>
+      </div>
+
+      {/* Discount Percent */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-300">Descuento (%)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+          <input
+            type="number"
+            value={discountPercent || ''}
+            onChange={(e) => updateField('discountPercent', parseFloat(e.target.value) || 0)}
+            min="0"
+            max="100"
+            step="1"
+            className="w-full pl-8 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            placeholder="0"
+          />
+        </div>
+        {discountPercent > 0 && (
           <p className="text-sm text-green-400">
-            Precio con descuento: S/ {calculatedDiscount}
+            Precio final: S/ {effectivePrice.toFixed(2)}
           </p>
         )}
       </div>
 
-      {/* Toggle Price Types */}
-      <div className="space-y-3">
-        <label className="block text-sm font-medium text-gray-300">Tipos de precio adicionales</label>
-        <div className="flex flex-wrap gap-2">
-          <ToggleButton
-            label="Especial"
-            isActive={enabledPriceTypes.includes('especial')}
-            onToggle={() => togglePriceType('especial')}
-            icon={<Tag size={14} />}
-            variant="success"
-          />
-          <ToggleButton
-            label="Descuento"
-            isActive={enabledPriceTypes.includes('descuento')}
-            onToggle={() => togglePriceType('descuento')}
-            icon={<Percent size={14} />}
-            variant="warning"
-          />
-          <ToggleButton
-            label="Mayorista"
-            isActive={enabledPriceTypes.includes('mayorista')}
-            onToggle={() => togglePriceType('mayorista')}
-            icon={<ShoppingBag size={14} />}
-          />
-        </div>
-      </div>
-
-      {/* Active Price Sections */}
-      <div className="space-y-3">
-        {enabledPriceTypes.includes('especial') && (
-          <PriceSection type="especial" />
-        )}
-        {enabledPriceTypes.includes('descuento') && (
-          <PriceSection type="descuento" />
-        )}
-        {enabledPriceTypes.includes('mayorista') && (
-          <PriceSection type="mayorista" />
-        )}
-      </div>
-
-      {/* Variant Pricing Mode */}
+      {/* Cost Price */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-300">Precio por variantes</label>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => updateField('variantPricingMode', 'same')}
-            className={`flex-1 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-              variantPricingMode === 'same'
-                ? 'border-brand-500 bg-brand-500/10 text-brand-400'
-                : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
-            }`}
-          >
-            Usar precio del producto
-          </button>
-          <button
-            type="button"
-            onClick={() => updateField('variantPricingMode', 'individual')}
-            className={`flex-1 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-              variantPricingMode === 'individual'
-                ? 'border-brand-500 bg-brand-500/10 text-brand-400'
-                : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
-            }`}
-          >
-            Precio individual por variante
-          </button>
+        <label className="block text-sm font-medium text-gray-300">Costo (S/)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">S/</span>
+          <input
+            type="number"
+            value={costPrice ?? ''}
+            onChange={(e) => updateField('costPrice', e.target.value ? parseFloat(e.target.value) : null)}
+            min="0"
+            step="0.01"
+            className="w-full pl-8 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            placeholder="0.00"
+          />
         </div>
-        <p className="text-xs text-gray-500">
-          {variantPricingMode === 'same'
-            ? 'Todas las variantes usaran el precio principal'
-            : 'Cada variante tendra su propio precio editable'}
-        </p>
+        {costPrice != null && costPrice > 0 && price > 0 && (
+          <p className="text-xs text-gray-500">
+            Margen: {((price - costPrice) / price * 100).toFixed(1)}%
+          </p>
+        )}
       </div>
 
       {/* Discount Popup Configuration */}

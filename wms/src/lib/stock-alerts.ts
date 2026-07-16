@@ -3,7 +3,6 @@ import { prisma } from '@repo/prisma';
 export async function sendStockAlert(data: {
   productName: string;
   productSku: string;
-  variantName: string;
   currentStock: number;
   threshold: number;
 }): Promise<boolean> {
@@ -13,7 +12,7 @@ export async function sendStockAlert(data: {
     await prisma.notificationQueue.create({
       data: {
         subject: `Alerta Stock ${status}: ${data.productName}`,
-        body: `SKU: ${data.productSku} | Variante: ${data.variantName} | Stock: ${data.currentStock} | Umbral: ${data.threshold}`,
+        body: `SKU: ${data.productSku} | Stock: ${data.currentStock} | Umbral: ${data.threshold}`,
         type: 'stock_alert',
       },
     });
@@ -24,25 +23,20 @@ export async function sendStockAlert(data: {
   }
 }
 
-export async function checkAndAlertStock(variant: {
+export async function checkAndAlertStock(product: {
   id: string;
   name: string;
   sku: string;
   stock: number;
   lowStockAlert: number | null;
-  product: {
-    name: string;
-    sku: string;
-  };
 }): Promise<void> {
-  if (!variant.lowStockAlert) return;
-  if (variant.stock > variant.lowStockAlert) return;
+  if (!product.lowStockAlert) return;
+  if (product.stock > product.lowStockAlert) return;
 
   await sendStockAlert({
-    productName: variant.product.name,
-    productSku: variant.product.sku,
-    variantName: variant.name,
-    currentStock: variant.stock,
-    threshold: variant.lowStockAlert,
+    productName: product.name,
+    productSku: product.sku,
+    currentStock: product.stock,
+    threshold: product.lowStockAlert,
   });
 }

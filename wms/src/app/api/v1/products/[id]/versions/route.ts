@@ -29,7 +29,6 @@ export async function POST(request: NextRequest, { params }: Props) {
   try {
     const product = await prisma.product.findUnique({
       where: { id: params.id },
-      include: { variants: true },
     });
     if (!product) return apiError('Product not found', 404);
 
@@ -46,12 +45,10 @@ export async function POST(request: NextRequest, { params }: Props) {
     // Create snapshot
     const snapshot = {
       ...product,
-      variants: product.variants.map(v => ({
-        ...v,
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
-        costPrice: v.costPrice ? Number(v.costPrice) : null,
-      })),
+      price: Number(product.price),
+      stock: product.stock,
+      compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
+      costPrice: product.costPrice ? Number(product.costPrice) : null,
     };
 
     // Calculate diff from previous version
@@ -69,7 +66,7 @@ export async function POST(request: NextRequest, { params }: Props) {
       }
 
       // Compare numeric fields
-      const numericFields = ['weight', 'height', 'width', 'depth', 'warrantyDays', 'lowStockAlert'];
+      const numericFields = ['weight', 'height', 'width', 'depth', 'warrantyDays', 'lowStockAlert', 'price', 'stock'];
       for (const field of numericFields) {
         if (snapshot[field] !== prevSnapshot[field]) {
           changes.push(`${field}: ${prevSnapshot[field]} → ${snapshot[field]}`);
@@ -84,13 +81,6 @@ export async function POST(request: NextRequest, { params }: Props) {
         if (prev !== curr) {
           changes.push(`${field} updated`);
         }
-      }
-
-      // Compare variants
-      const prevVariants = prevSnapshot.variants?.length || 0;
-      const currVariants = snapshot.variants?.length || 0;
-      if (prevVariants !== currVariants) {
-        changes.push(`variants: ${prevVariants} → ${currVariants}`);
       }
 
       diff = changes.length > 0 ? { changes, timestamp: new Date().toISOString() } : null;

@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const product = await getProduct(params.slug);
   if (!product) return { title: 'Producto no encontrado' };
 
-  const price = product.variants?.[0]?.price || 0;
+  const price = product.price || 0;
   const image = product.images?.[0] || '';
 
   return {

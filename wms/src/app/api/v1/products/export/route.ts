@@ -17,10 +17,6 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         category: true,
-        variants: {
-          include: { inventory: true },
-          orderBy: { sortOrder: 'asc' },
-        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -47,15 +43,11 @@ export async function GET(request: NextRequest) {
       weightUnit: p.weightUnit || 'kg',
       lowStockAlert: p.lowStockAlert || '',
       images: p.images.join(', '),
-      variants: p.variants.map((v) => ({
-        sku: v.sku,
-        name: v.name,
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : '',
-        stock: v.inventory.reduce((sum, inv) => sum + inv.quantity, 0),
-        attributes: JSON.stringify(v.attributes),
-        images: v.images.join(', '),
-      })),
+      price: Number(p.price || 0),
+      stock: p.stock || 0,
+      discountPercent: p.discountPercent || 0,
+      compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : '',
+      barcode: p.barcode || '',
     }));
 
     if (format === 'csv') {
@@ -82,7 +74,9 @@ export async function GET(request: NextRequest) {
         weightUnit: p.weightUnit,
         lowStockAlert: p.lowStockAlert,
         images: p.images,
-        variantCount: p.variants.length,
+        price: p.price,
+        stock: p.stock,
+        discountPercent: p.discountPercent,
       }));
 
       const headers = Object.keys(flatData[0] || {});

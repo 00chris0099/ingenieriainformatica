@@ -4,27 +4,27 @@ import { apiSuccess, handleApiError } from '@/lib/api';
 
 export async function GET(request: NextRequest) {
   try {
-    const variants = await prisma.productVariant.findMany({
-      where: { isActive: true },
+    const products = await prisma.product.findMany({
+      where: { status: { not: 'archived' } },
       include: {
-        product: { select: { name: true, sku: true } },
+        category: { select: { name: true } },
         orderItems: {
-          where: { order: { status: { in: ['paid', 'delivered', 'completed'] } } },
+          where: { order: { paymentStatus: 'paid' } },
           select: { unitPrice: true, quantity: true, total: true },
         },
       },
     });
 
-    const data = variants
-      .map((v) => {
-        const revenue = v.orderItems.reduce((sum, i) => sum + Number(i.total || i.unitPrice * i.quantity), 0);
-        const unitsSold = v.orderItems.reduce((sum, i) => sum + i.quantity, 0);
-        const cost = Number(v.cost || v.price || 0) * unitsSold * 0.6;
+    const data = products
+      .map((p) => {
+        const revenue = p.orderItems.reduce((sum, i) => sum + Number(i.total || Number(i.unitPrice) * i.quantity), 0);
+        const unitsSold = p.orderItems.reduce((sum, i) => sum + i.quantity, 0);
+        const cost = Number(p.costPrice || p.price || 0) * unitsSold;
         const margin = revenue - cost;
         return {
-          name: v.product.name,
-          sku: v.product.sku,
-          variant: v.name,
+          name: p.name,
+          sku: p.sku,
+          category: p.category?.name || 'Sin categoria',
           revenue,
           cost,
           margin,

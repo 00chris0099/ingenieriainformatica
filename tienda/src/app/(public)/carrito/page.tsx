@@ -35,21 +35,21 @@ export default function CarritoPage() {
 
         <div className="space-y-4">
           {items.map((item) => (
-            <div key={item.variantId} className="bg-white border border-gray-100 rounded-2xl p-4 flex gap-4">
+            <div key={item.productId} className="bg-white border border-gray-100 rounded-2xl p-4 flex gap-4">
               <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" />
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                <p className="text-sm text-gray-500">{item.size && `Talla: ${item.size}`}{item.size && item.color && ' | '}{item.color && `Color: ${item.color}`}</p>
+                <p className="text-sm text-gray-500">SKU: {item.sku || '-'}</p>
                 <p className="text-brand-600 font-bold mt-1">S/ {item.price}</p>
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                    <button onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                       className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"><Minus size={14} /></button>
                     <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                    <button onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                       className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"><Plus size={14} /></button>
                   </div>
-                  <button onClick={() => removeItem(item.variantId)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                  <button onClick={() => removeItem(item.productId)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                 </div>
               </div>
             </div>

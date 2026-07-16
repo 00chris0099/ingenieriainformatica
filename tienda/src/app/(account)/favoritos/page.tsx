@@ -9,18 +9,14 @@ import { useCartStore } from '@/store/cartStore';
 
 interface WishlistItem {
   id: string;
-  variantId: string;
-  variant: {
+  productId: string;
+  product: {
     id: string;
-    sku: string;
     name: string;
+    slug: string;
+    images: string[];
     price: number;
-    product: {
-      id: string;
-      name: string;
-      slug: string;
-      images: string[];
-    };
+    compareAtPrice: number | null;
   };
 }
 
@@ -48,11 +44,11 @@ export default function FavoritosPage() {
     }
   };
 
-  const removeFromWishlist = async (variantId: string) => {
-    setRemoving(variantId);
+  const removeFromWishlist = async (productId: string) => {
+    setRemoving(productId);
     try {
-      await fetch(`/api/v1/wishlists?variantId=${variantId}`, { method: 'DELETE' });
-      setWishlist(wishlist.filter(item => item.variantId !== variantId));
+      await fetch(`/api/v1/wishlists?productId=${productId}`, { method: 'DELETE' });
+      setWishlist(wishlist.filter(item => item.productId !== productId));
     } catch (err) {
       console.error(err);
     }
@@ -61,12 +57,12 @@ export default function FavoritosPage() {
 
   const addToCart = (item: WishlistItem) => {
     addItem({
-      variantId: item.variantId,
-      productId: item.variant.product.id,
-      name: `${item.variant.product.name} - ${item.variant.name}`,
-      slug: item.variant.product.slug,
-      price: Number(item.variant.price),
-      image: item.variant.product.images?.[0] || '',
+      productId: item.product.id,
+      name: item.product.name,
+      slug: item.product.slug,
+      price: Number(item.product.price),
+      compareAtPrice: item.product.compareAtPrice ? Number(item.product.compareAtPrice) : undefined,
+      image: item.product.images?.[0] || '',
     });
   };
 
@@ -96,21 +92,20 @@ export default function FavoritosPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {wishlist.map((item) => (
               <div key={item.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-shadow">
-                <Link href={`/producto/${item.variant.product.slug}`}>
+                <Link href={`/producto/${item.product.slug}`}>
                   <img
-                    src={item.variant.product.images?.[0] || ''}
-                    alt={item.variant.product.name}
+                    src={item.product.images?.[0] || ''}
+                    alt={item.product.name}
                     className="w-full aspect-square object-cover"
                   />
                 </Link>
                 <div className="p-4">
-                  <Link href={`/producto/${item.variant.product.slug}`}>
+                  <Link href={`/producto/${item.product.slug}`}>
                     <h3 className="font-semibold text-gray-900 hover:text-green-600 transition-colors">
-                      {item.variant.product.name}
+                      {item.product.name}
                     </h3>
                   </Link>
-                  <p className="text-sm text-gray-500 mt-1">{item.variant.name}</p>
-                  <p className="text-lg font-bold text-green-600 mt-2">S/ {Number(item.variant.price).toFixed(2)}</p>
+                  <p className="text-lg font-bold text-green-600 mt-2">S/ {Number(item.product.price).toFixed(2)}</p>
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => addToCart(item)}
@@ -119,11 +114,11 @@ export default function FavoritosPage() {
                       <ShoppingCart size={14} /> Agregar al carrito
                     </button>
                     <button
-                      onClick={() => removeFromWishlist(item.variantId)}
-                      disabled={removing === item.variantId}
+                      onClick={() => removeFromWishlist(item.productId)}
+                      disabled={removing === item.productId}
                       className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
                     >
-                      {removing === item.variantId ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                      {removing === item.productId ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                     </button>
                   </div>
                 </div>

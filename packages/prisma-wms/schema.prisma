@@ -213,58 +213,37 @@ model Product {
   weight           Decimal?      @db.Decimal(10, 2)
   weightUnit       String?       @default("kg") @map("weight_unit")
 
+  // Precio y stock
+  price            Decimal       @default(0) @db.Decimal(10, 2)
+  compareAtPrice   Decimal?      @map("compare_at_price") @db.Decimal(10, 2)
+  costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
+  stock            Int           @default(0)
+  discountPercent  Decimal?      @map("discount_percent") @db.Decimal(5, 2)
+  barcode          String?
+
   // Stock
   lowStockAlert    Int?          @map("low_stock_alert")
-
-  // Configuracion de precios adicionales
-  priceConfig      Json?         @map("price_config")
-
-  // Popup de descuento
-  discountPopup    Json?         @map("discount_popup")
 
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
   publishedAt      DateTime?     @map("published_at")
 
   category  Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  variants  ProductVariant[]
   versions  ProductVersion[]
   suggestedProducts SuggestedProduct[]
+  orderItems OrderItem[]
+  pickListItems PickListItem[]
+  returnItems ReturnItem[]
+  cycleCountItems CycleCountItem[]
+  lots       Lot[]
+  serialNumbers SerialNumber[]
+  qcItems    QualityCheckItem[]
+  wishlists  Wishlist[]
+  priceListItems PriceListItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  goodsReceiptItems GoodsReceiptItem[]
 
   @@map("products")
-}
-
-model ProductVariant {
-  id             String   @id @default(uuid()) @db.Uuid
-  productId      String   @map("product_id") @db.Uuid
-  sku            String   @unique
-  name           String
-  attributes     Json     @default("{}")
-  price          Decimal  @db.Decimal(10, 2)
-  compareAtPrice Decimal? @map("compare_at_price") @db.Decimal(10, 2)
-  costPrice      Decimal? @map("cost_price") @db.Decimal(10, 2)
-  barcode        String?
-  imageUrl       String?  @map("image_url")
-  images         String[] @default([])                       // URLs de imgBB, max 5 por variante
-  isActive       Boolean  @default(true) @map("is_active")
-  lowStockAlert  Int?     @map("low_stock_alert")            // Umbral de alerta por variante
-  sortOrder      Int      @default(0) @map("sort_order")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  product       Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
-  inventory     Inventory[]
-  orderItems    OrderItem[]
-  priceListItems PriceListItem[]
-  pickListItems PickListItem[]
-  returnItems   ReturnItem[]
-  cycleCountItems CycleCountItem[]
-  lots          Lot[]
-  serialNumbers SerialNumber[]
-  qcItems       QualityCheckItem[]
-  wishlists     Wishlist[]
-
-  @@map("product_variants")
 }
 
 // ============================================================================
@@ -292,26 +271,6 @@ model ProductVersion {
 // INVENTORY / WMS
 // ============================================================================
 
-model Inventory {
-  id               String   @id @default(uuid()) @db.Uuid
-  variantId        String   @map("variant_id") @db.Uuid
-  warehouseId      String   @map("warehouse_id") @db.Uuid
-  quantity         Int      @default(0)
-  reservedQuantity Int      @default(0) @map("reserved_quantity")
-  availableQuantity Int     @default(0) @map("available_quantity")
-  reorderPoint     Int      @default(10) @map("reorder_point")
-  reorderQuantity  Int      @default(50) @map("reorder_quantity")
-  lastCountedAt    DateTime? @map("last_counted_at")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  warehouse Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-
-  @@unique([variantId, warehouseId])
-  @@map("inventory")
-}
-
 model Warehouse {
   id          String   @id @default(uuid()) @db.Uuid
   name        String
@@ -327,7 +286,6 @@ model Warehouse {
 
   manager        User?               @relation("Manager", fields: [managerId], references: [id], onDelete: SetNull)
   locations      WarehouseLocation[]
-  inventory      Inventory[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
   shipments      Shipment[]
@@ -387,15 +345,15 @@ model PriceList {
 model PriceListItem {
   id          String   @id @default(uuid()) @db.Uuid
   priceListId String   @map("price_list_id") @db.Uuid
-  variantId   String   @map("variant_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
   price       Decimal  @db.Decimal(10, 2)
   minQuantity Int      @default(1) @map("min_quantity")
   createdAt   DateTime @default(now()) @map("created_at")
 
   priceList PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([priceListId, variantId, minQuantity])
+  @@unique([priceListId, productId, minQuantity])
   @@map("price_list_items")
 }
 
@@ -470,9 +428,8 @@ model Order {
 model OrderItem {
   id         String  @id @default(uuid()) @db.Uuid
   orderId    String  @map("order_id") @db.Uuid
-  variantId  String? @map("variant_id") @db.Uuid
+  productId  String? @map("product_id") @db.Uuid
   productName String @map("product_name")
-  variantName String @map("variant_name")
   sku        String
   quantity   Int
   unitPrice  Decimal @db.Decimal(10, 2) @map("unit_price")
@@ -481,8 +438,8 @@ model OrderItem {
   total      Decimal @db.Decimal(12, 2)
   createdAt  DateTime @default(now()) @map("created_at")
 
-  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@map("order_items")
 }
@@ -601,7 +558,7 @@ model PurchaseOrder {
 model PurchaseOrderItem {
   id              String   @id @default(uuid()) @db.Uuid
   purchaseOrderId String   @map("purchase_order_id") @db.Uuid
-  variantId       String   @map("variant_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
   sku             String
   quantity        Int
   receivedQuantity Int    @default(0) @map("received_quantity")
@@ -610,6 +567,7 @@ model PurchaseOrderItem {
   createdAt       DateTime @default(now()) @map("created_at")
 
   purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("purchase_order_items")
 }
@@ -639,7 +597,7 @@ model GoodsReceipt {
 model GoodsReceiptItem {
   id               String   @id @default(uuid()) @db.Uuid
   goodsReceiptId   String   @map("goods_receipt_id") @db.Uuid
-  variantId        String   @map("variant_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
   expectedQuantity Int      @map("expected_quantity")
   receivedQuantity Int      @map("received_quantity")
   condition        String   @default("good")
@@ -647,6 +605,7 @@ model GoodsReceiptItem {
   createdAt        DateTime @default(now()) @map("created_at")
 
   goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("goods_receipt_items")
 }
@@ -781,7 +740,7 @@ model PickListItem {
   id            String   @id @default(uuid()) @db.Uuid
   pickListId    String   @map("pick_list_id") @db.Uuid
   orderId       String   @map("order_id") @db.Uuid
-  variantId     String   @map("variant_id") @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
   sku           String
   productName   String   @map("product_name")
   locationCode  String?  @map("location_code")
@@ -791,8 +750,8 @@ model PickListItem {
   scannedAt     DateTime? @map("scanned_at")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  pickList PickList     @relation(fields: [pickListId], references: [id], onDelete: Cascade)
-  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  pickList PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("pick_list_items")
 }
@@ -826,7 +785,7 @@ model Return {
 model ReturnItem {
   id          String   @id @default(uuid()) @db.Uuid
   returnId    String   @map("return_id") @db.Uuid
-  variantId   String   @map("variant_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
   sku         String
   productName String   @map("product_name")
   quantity    Int
@@ -835,8 +794,8 @@ model ReturnItem {
   notes       String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  return  Return        @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  return  Return  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("return_items")
 }
@@ -869,7 +828,7 @@ model CycleCount {
 model CycleCountItem {
   id              String   @id @default(uuid()) @db.Uuid
   cycleCountId    String   @map("cycle_count_id") @db.Uuid
-  variantId       String   @map("variant_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
   warehouseId     String   @map("warehouse_id") @db.Uuid
   locationCode    String?  @map("location_code")
   sku             String
@@ -882,8 +841,8 @@ model CycleCountItem {
   adjustedAt      DateTime? @map("adjusted_at")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  cycleCount CycleCount     @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
-  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  cycleCount CycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("cycle_count_items")
 }
@@ -895,7 +854,7 @@ model CycleCountItem {
 model Lot {
   id              String    @id @default(uuid()) @db.Uuid
   lotNumber       String    @unique @map("lot_number")
-  variantId       String    @map("variant_id") @db.Uuid
+  productId       String    @map("product_id") @db.Uuid
   warehouseId     String    @map("warehouse_id") @db.Uuid
   quantity        Int       @default(0)
   reservedQty     Int       @default(0) @map("reserved_qty")
@@ -908,7 +867,7 @@ model Lot {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
   warehouse Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   movements LotMovement[]
 
@@ -938,7 +897,7 @@ model LotMovement {
 model SerialNumber {
   id            String   @id @default(uuid()) @db.Uuid
   serialNumber  String   @unique @map("serial_number")
-  variantId     String   @map("variant_id") @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
   warehouseId   String   @map("warehouse_id") @db.Uuid
   locationCode  String?  @map("location_code")
   status        String   @default("available") // available, reserved, sold, returned, damaged
@@ -949,7 +908,7 @@ model SerialNumber {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
   warehouse Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
 
   @@map("serial_numbers")
@@ -993,7 +952,7 @@ model QualityCheck {
 model QualityCheckItem {
   id            String   @id @default(uuid()) @db.Uuid
   qcId          String   @map("qc_id") @db.Uuid
-  variantId     String   @map("variant_id") @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
   quantity      Int
   passedQty     Int      @default(0) @map("passed_qty")
   failedQty     Int      @default(0) @map("failed_qty")
@@ -1002,8 +961,8 @@ model QualityCheckItem {
   disposition   String?  // accept, reject, rework, return
   createdAt     DateTime @default(now()) @map("created_at")
 
-  qc      QualityCheck    @relation(fields: [qcId], references: [id], onDelete: Cascade)
-  variant ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  qc      QualityCheck @relation(fields: [qcId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("quality_check_items")
 }
@@ -1018,7 +977,7 @@ model AbandonedCheckout {
   email           String?
   phone           String?
   name            String?
-  items           Json     @default("[]") // array of {variantId, sku, name, price, quantity}
+  items           Json     @default("[]") // array of {productId, sku, name, price, quantity}
   subtotal        Decimal  @default(0) @db.Decimal(12, 2)
   total           Decimal  @default(0) @db.Decimal(12, 2)
   shippingAddress Json     @default("{}") @map("shipping_address")
@@ -1041,13 +1000,13 @@ model AbandonedCheckout {
 model Wishlist {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  variantId String   @map("variant_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
 
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, variantId])
+  @@unique([userId, productId])
   @@map("wishlists")
 }
 

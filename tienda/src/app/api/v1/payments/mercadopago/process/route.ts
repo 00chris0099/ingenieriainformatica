@@ -65,15 +65,13 @@ export async function POST(request: NextRequest) {
 
       const orderItems = await prisma.orderItem.findMany({ where: { orderId } });
       for (const item of orderItems) {
-        if (!item.variantId) continue;
-        const inventory = await prisma.inventory.findFirst({ where: { variantId: item.variantId } });
-        if (inventory) {
-          await prisma.inventory.update({
-            where: { id: inventory.id },
+        if (!item.productId) continue;
+        const product = await prisma.product.findUnique({ where: { id: item.productId } });
+        if (product) {
+          await prisma.product.update({
+            where: { id: item.productId },
             data: {
-              quantity: Math.max(0, inventory.quantity - item.quantity),
-              reservedQuantity: Math.max(0, inventory.reservedQuantity - item.quantity),
-              availableQuantity: Math.max(0, inventory.availableQuantity - item.quantity),
+              stock: Math.max(0, product.stock - item.quantity),
             },
           });
         }

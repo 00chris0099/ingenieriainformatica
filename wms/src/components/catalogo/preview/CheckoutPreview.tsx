@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useProductForm } from '../ProductFormContext';
-import { X, Check, Truck, Loader2 } from 'lucide-react';
+import { Truck } from 'lucide-react';
 
 const UBIGEO: Record<string, Record<string, string[]>> = {
   'Lima': { 'Lima': ['Miraflores', 'San Isidro', 'Jesus Maria', 'San Borja', 'Surco'] },
@@ -15,23 +15,14 @@ interface CheckoutPreviewProps {
 }
 
 export default function CheckoutPreview({ isMobile = false }: CheckoutPreviewProps) {
-  const { name, prices, enabledPriceTypes, variants, productImages, ctaText } = useProductForm();
-  const [selectedOffer, setSelectedOffer] = useState<any>(null);
+  const { name, price, compareAtPrice, discountPercent, productImages, ctaText } = useProductForm();
   const [showForm, setShowForm] = useState(false);
 
-  const activeVariants = variants.filter(v => v.isActive);
-  const offer = selectedOffer || activeVariants[0] || { name: '1 Unidad', price: prices.main, compareAtPrice: null, images: [] };
-  const mainImage = productImages[0] || offer.images?.[0] || '';
+  const mainImage = productImages[0] || '';
+  const hasDiscount = discountPercent > 0;
+  const finalPrice = hasDiscount ? Math.round(price * (1 - discountPercent / 100) * 100) / 100 : price;
 
-  const hasDiscount = enabledPriceTypes.includes('descuento') && prices.descuento && prices.descuento > 0;
-  const mainPrice = prices.main || 0;
-  const finalPrice = hasDiscount ? Math.round(mainPrice * (1 - prices.descuento / 100) * 100) / 100 : mainPrice;
-
-  const offerDiscount = offer.compareAtPrice && offer.compareAtPrice > offer.price
-    ? Math.round((1 - offer.price / offer.compareAtPrice) * 100)
-    : 0;
-
-  const subtotal = offer.price || finalPrice;
+  const subtotal = finalPrice;
   const shipping = subtotal >= 150 ? 0 : 10;
   const total = subtotal + shipping;
 
@@ -56,56 +47,18 @@ export default function CheckoutPreview({ isMobile = false }: CheckoutPreviewPro
         )}
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-gray-900 truncate">{name || 'Producto'}</p>
-          <p className="text-[10px] text-green-600 font-medium">{offer.name}</p>
+          <p className="text-[10px] text-green-600 font-medium">1 Unidad</p>
           <div className="flex items-center gap-1.5 mt-1">
-            {offerDiscount > 0 && (
-              <span className="text-[10px] text-gray-400 line-through">S/ {offer.compareAtPrice}</span>
+            {(compareAtPrice && compareAtPrice > price) && (
+              <span className="text-[10px] text-gray-400 line-through">S/ {compareAtPrice}</span>
             )}
-            <span className="text-sm font-bold text-green-600">S/ {(offer.price || finalPrice).toFixed(2)}</span>
-            {offerDiscount > 0 && (
-              <span className="text-[8px] px-1 py-0.5 bg-orange-100 text-orange-600 rounded font-bold">-{offerDiscount}%</span>
+            <span className="text-sm font-bold text-green-600">S/ {finalPrice.toFixed(2)}</span>
+            {hasDiscount && (
+              <span className="text-[8px] px-1 py-0.5 bg-orange-100 text-orange-600 rounded font-bold">-{discountPercent}%</span>
             )}
           </div>
         </div>
       </div>
-
-      {/* Offer Selection */}
-      {activeVariants.length > 1 && (
-        <div className="p-3 border-t border-gray-100">
-          <p className="text-[10px] font-medium text-gray-500 mb-1.5">Selecciona tu oferta:</p>
-          <div className="space-y-1.5">
-            {activeVariants.map((v) => {
-              const isSelected = (selectedOffer?.id || activeVariants[0]?.id) === v.id;
-              const vDiscount = v.compareAtPrice && v.compareAtPrice > v.price
-                ? Math.round((1 - v.price / v.compareAtPrice) * 100) : 0;
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => setSelectedOffer(v)}
-                  className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-green-500 bg-green-500' : 'border-gray-300'}`}>
-                    {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                  </div>
-                  {v.images?.[0] && <img src={v.images[0]} alt="" className="w-8 h-8 rounded object-cover shrink-0" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className="text-[10px] font-semibold text-gray-900 truncate">{v.name}</p>
-                      {(v.attributes as any)?.badge && (
-                        <span className="text-[7px] px-1 py-0.5 bg-orange-500 text-white rounded">{(v.attributes as any).badge}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {vDiscount > 0 && <span className="text-[9px] text-gray-400 line-through">S/ {v.compareAtPrice}</span>}
-                      <span className="text-[10px] font-bold text-green-600">S/ {v.price}</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* CTA Button */}
       <div className="p-3 border-t border-gray-100">
@@ -145,8 +98,8 @@ export default function CheckoutPreview({ isMobile = false }: CheckoutPreviewPro
           {/* Summary */}
           <div className="bg-gray-50 rounded-lg p-2.5 space-y-1 mt-2">
             <div className="flex justify-between text-[10px] text-gray-600">
-              <span>{offer.name}</span>
-              <span>S/ {(offer.price || finalPrice).toFixed(2)}</span>
+              <span>1 Unidad</span>
+              <span>S/ {finalPrice.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-[10px] text-gray-600">
               <span className="flex items-center gap-1"><Truck size={10} /> Envio</span>

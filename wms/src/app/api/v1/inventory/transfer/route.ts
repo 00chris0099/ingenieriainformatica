@@ -1,44 +1,53 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
-import { cached, invalidateCache } from '@/lib/cache';
+import { invalidateCache } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fromWarehouseId, toWarehouseId, variantId, quantity } = body;
+    const { fromProductId, toProductId, quantity } = body;
 
-    if (!fromWarehouseId || !toWarehouseId || !variantId || !quantity) {
-      return apiError('fromWarehouseId, toWarehouseId, variantId, and quantity are required', 400);
+    if (!fromProductId || !toProductId || !quantity) {
+      return apiError('fromProductId, toProductId, and quantity are required', 400);
     }
 
-    if (fromWarehouseId === toWarehouseId) {
-      return apiError('Source and destination warehouses must be different', 400);
+    if (fromProductId === toProductId) {
+      return apiError('Source and destination products must be different', 400);
     }
 
-    // Check source has enough stock
-    const sourceInventory = await prisma.inventory.findUnique({
-      where: { variantId_warehouseId: { variantId, warehouseId: fromWarehouseId } },
-    });
+    const [source, destination] = await Promise.all([
+      prisma.product.findUnique({ where: { id: fromProductId } }),
+      prisma.product.findUnique({ where: { id: toProductId } }),
+    ]);
 
-    if (!sourceInventory || sourceInventory.quantity < quantity) {
-      return apiError('Insufficient stock in source warehouse', 400);
+    if (!source) return apiError('Source product not found', 404);
+    if (!destination) return apiError('Destination product not found', 404);
+
+    if (source.stock < quantity) {
+      return apiError(`Insufficient stock. ${source.name} has ${source.stock} units`, 400);
     }
 
-    // Decrease source
-    await prisma.inventory.update({
-      where: { variantId_warehouseId: { variantId, warehouseId: fromWarehouseId } },
-      data: { quantity: { decrement: quantity } },
-    });
-
-    // Increase destination (upsert)
-    await prisma.inventory.upsert({
-      where: { variantId_warehouseId: { variantId, warehouseId: toWarehouseId } },
-      update: { quantity: { increment: quantity } },
-      create: { variantId, warehouseId: toWarehouseId, quantity },
-    });
+    await Promise.all([
+      prisma.product.update({
+        where: { id: fromProductId },
+        data: { stock: { decrement: quantity } },
+      }),
+      prisma.product.update({
+        where: { id: toProductId },
+        data: { stock: { increment: quantity } },
+      }),
+    ]);
 
     await invalidateCache('inventory:*');
-    return apiSuccess({ message: `Transferred ${quantity} units from ${fromWarehouseId} to ${toWarehouseId}` });
-  } catch (error) { return handleApiError(error, 'inventory-transfer'); }
+    await invalidateCache('products:*');
+
+    return apiSuccess({
+      message: `Transferred ${quantity} units from ${source.name} to ${destination.name}`,
+      from: { id: source.id, name: source.name, newStock: source.stock - quantity },
+      to: { id: destination.id, name: destination.name, newStock: destination.stock + quantity },
+    });
+  } catch (error) {
+    return handleApiError(error, 'inventory-transfer');
+  }
 }

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
           const [warehouses, total] = await Promise.all([
             prisma.warehouse.findMany({
               include: {
-                _count: { select: { inventory: true, locations: true } },
+                _count: { select: { locations: true } },
               },
               orderBy: { createdAt: 'desc' },
               skip: offset,

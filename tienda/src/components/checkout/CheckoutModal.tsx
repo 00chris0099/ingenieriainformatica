@@ -31,13 +31,11 @@ interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
   product?: any;
-  selectedOffer?: any;
 }
 
-export default function CheckoutModal({ open, onClose, product, selectedOffer }: CheckoutModalProps) {
+export default function CheckoutModal({ open, onClose, product }: CheckoutModalProps) {
   const router = useRouter();
   const [step, setStep] = useState<'form' | 'processing' | 'done'>('form');
-  const [offer, setOffer] = useState(selectedOffer);
   const [extraItems, setExtraItems] = useState<any[]>([]);
   const [crossSellProducts, setCrossSellProducts] = useState<any[]>([]);
   const [suggestedProducts, setSuggestedProducts] = useState<SuggestedProduct[]>([]);
@@ -96,9 +94,7 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
     }
   }, [product]);
 
-  useEffect(() => {
-    if (selectedOffer) setOffer(selectedOffer);
-  }, [selectedOffer]);
+
 
   // User tries to close checkout - show discount popup instead
   const handleAttemptClose = () => {
@@ -165,21 +161,17 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
   const provinces = form.department ? Object.keys(UBIGEO[form.department] || {}) : [];
   const districts = form.province ? (UBIGEO[form.department]?.[form.province] || []) : [];
 
-  // Calculate prices - detect if current offer IS the main variant
-  const isFirstVariant = offer?.id === product.variants?.[0]?.id;
-  const rawOfferPrice = Number(offer?.price) || 0;
-  const offerComparePrice = offer?.compareAtPrice ? Number(offer.compareAtPrice) : null;
-  const offerHasOwnDiscount = offerComparePrice !== null && offerComparePrice > rawOfferPrice;
-  // Only apply priceConfig to the main offer (first variant)
-  const offerFinalPrice = applyExtraDiscount(getOfferFinalPrice(rawOfferPrice, isFirstVariant));
+  // Calculate prices - use product directly
+  const rawProductPrice = Number(product?.price) || 0;
+  const productFinalPrice = applyExtraDiscount(getOfferFinalPrice(rawProductPrice, true));
   const extraItemsTotal = extraItems.reduce((sum, item) => sum + applyExtraDiscount(getOfferFinalPrice(Number(item.price) || 0, false)), 0);
   const suggestedTotal = selectedSuggested.reduce((sum, p) => sum + applyExtraDiscount(p.price, true), 0);
   const allItems = [
-    { ...offer, price: offerFinalPrice, quantity: 1, type: 'main' as const },
+    { ...product, price: productFinalPrice, quantity: 1, type: 'main' as const },
     ...extraItems.map(e => ({ ...e, price: applyExtraDiscount(getOfferFinalPrice(Number(e.price) || 0, false)), quantity: 1, type: 'extra' as const })),
   ];
 
-  const subtotal = offerFinalPrice + extraItemsTotal + suggestedTotal;
+  const subtotal = productFinalPrice + extraItemsTotal + suggestedTotal;
   const shipping = subtotal >= 150 ? 0 : 10;
   const total = subtotal + shipping;
   const hasProductDiscount = product?.priceConfig?.enabledTypes?.includes('descuento') && product?.priceConfig?.descuento > 0;
@@ -206,9 +198,9 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
         ...allItems.map(item => ({
           name: item.name || product.name,
           price: Number(item.price) || 0,
-          originalPrice: item.type === 'main' ? Number(offer?.price) || 0 : Number(item.price) || 0,
+          originalPrice: item.type === 'main' ? Number(product?.price) || 0 : Number(item.price) || 0,
           quantity: 1,
-          variantId: item.id,
+          productId: item.id,
           offerId: item.id,
         })),
         ...selectedSuggested.map(sp => ({
@@ -216,7 +208,7 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
           price: applyExtraDiscount(sp.price),
           originalPrice: sp.price,
           quantity: 1,
-          variantId: sp.id,
+          productId: sp.id,
           isSuggested: true,
         })),
       ];
@@ -347,33 +339,28 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
           </div>
         ) : (
           <div className="p-4 space-y-4">
-            {/* Product Summary - always shows selected offer */}
+            {/* Product Summary */}
             <div className="bg-gray-50 rounded-xl p-4 flex gap-3">
-              {(offer?.images?.[0] || product.images?.[0]) ? (
-                <img src={offer?.images?.[0] || product.images?.[0]} alt="" className="w-20 h-20 rounded-lg object-cover" />
+              {product.images?.[0] ? (
+                <img src={product.images[0]} alt="" className="w-20 h-20 rounded-lg object-cover" />
               ) : (
                 <div className="w-20 h-20 bg-gray-200 rounded-lg" />
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-gray-900 truncate">{product.name}</p>
-                <p className="text-xs text-green-600 font-medium mt-0.5">{offer?.name || '1 Unidad'}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   {(() => {
-                    const rawP = Number(offer?.price) || 0;
-                    const offerCompare = offer?.compareAtPrice ? Number(offer.compareAtPrice) : null;
-                    const offerHasOwnDiscount = offerCompare !== null && offerCompare > rawP;
-                    const finalP = getOfferFinalPrice(rawP, isFirstVariant);
+                    const rawP = Number(product?.price) || 0;
+                    const finalP = getOfferFinalPrice(rawP, true);
                     const hasDiscount = rawP > finalP;
-                    const discountPct = hasDiscount ? Math.round((1 - finalP / rawP) * 100) : 0;
-                    // Show strikethrough: either variant has compareAtPrice, or priceConfig gives a discount
-                    const strikePrice = offerHasOwnDiscount ? offerCompare : rawP;
-                    const showStrike = offerHasOwnDiscount || hasDiscount;
+                    const discountPct = product?.discountPercent || (hasDiscount ? Math.round((1 - finalP / rawP) * 100) : 0);
+                    const showStrike = discountPct > 0 && finalP < rawP;
                     return (
                       <>
-                        {showStrike && <span className="text-sm text-gray-400 line-through">S/ {strikePrice}</span>}
+                        {showStrike && <span className="text-sm text-gray-400 line-through">S/ {rawP}</span>}
                         <span className="text-lg font-bold text-pink-600">S/ {finalP}</span>
-                        {(hasDiscount || offerHasOwnDiscount) && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold">-{offerHasOwnDiscount ? Math.round((1 - rawP / offerCompare) * 100) : discountPct}%</span>
+                        {discountPct > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold">-{discountPct}%</span>
                         )}
                       </>
                     );
@@ -382,56 +369,7 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
               </div>
             </div>
 
-            {/* Offer Selection - radio cards */}
-            {product.variants?.filter((v: any) => v.isActive !== false).length > 1 && (
-              <div>
-                <p className="text-xs font-medium text-gray-700 mb-2">Selecciona tu oferta:</p>
-                <div className="space-y-2">
-                  {product.variants.filter((v: any) => v.isActive !== false).map((v: any) => {
-                    const isSelected = offer?.id === v.id;
-                    const rawP = Number(v.price) || 0;
-                    const compareP = v.compareAtPrice ? Number(v.compareAtPrice) : null;
-                    const hasOwnDiscount = compareP && compareP > rawP;
-                    // For the FIRST variant (main offer), apply priceConfig discount
-                    const isFirstVariant = product.variants?.[0]?.id === v.id;
-                    const finalP = isFirstVariant ? getOfferFinalPrice(rawP, true) : rawP;
-                    const showStrike = isFirstVariant ? (hasOwnDiscount || rawP > finalP) : hasOwnDiscount;
-                    const strikePrice = hasOwnDiscount ? compareP : rawP;
-                    const pct = showStrike ? Math.round((1 - finalP / strikePrice) * 100) : 0;
-                    return (
-                      <button
-                        key={v.id}
-                        onClick={() => setOffer(v)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${isSelected ? 'border-green-500 bg-green-50 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}
-                      >
-                        {/* Radio circle */}
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-green-500 bg-green-500' : 'border-gray-300'}`}>
-                          {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
-                        </div>
 
-                        {/* Image */}
-                        {v.images?.[0] && <img src={v.images[0]} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-900">{v.name}</p>
-                            {(v.attributes as any)?.badge && (
-                              <span className="text-[9px] px-1.5 py-0.5 bg-orange-500 text-white rounded-full font-medium">{(v.attributes as any).badge}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {showStrike && <span className="text-xs text-gray-400 line-through">S/ {Number(strikePrice)}</span>}
-                            <span className="text-sm font-bold text-pink-600">S/ {finalP}</span>
-                            {showStrike && pct > 0 && <span className="text-[9px] px-1 py-0.5 bg-orange-100 text-orange-600 rounded font-medium">-{pct}%</span>}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Shipping Form */}
             <div className="space-y-3">
@@ -489,13 +427,13 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
                 <p className="text-xs font-medium text-gray-700 mb-2">Tambien te puede interesar</p>
                 <div className="space-y-2">
                   {crossSellProducts.map((cp) => {
-                    const cpPrice = cp.variants?.[0]?.price || 0;
-                    const cpCompare = cp.variants?.[0]?.compareAtPrice;
-                    const isAdded = extraItems.find(e => e.id === cp.variants?.[0]?.id);
+                    const cpPrice = cp.price || 0;
+                    const cpCompare = cp.compareAtPrice;
+                    const isAdded = extraItems.find(e => e.id === cp.id);
                     return (
                       <button
                         key={cp.id}
-                        onClick={() => isAdded ? removeExtraItem(cp.variants?.[0]?.id) : addExtraItem({ id: cp.variants?.[0]?.id, name: cp.name, price: cpPrice, images: cp.images })}
+                        onClick={() => isAdded ? removeExtraItem(cp.id) : addExtraItem({ id: cp.id, name: cp.name, price: cpPrice, images: cp.images })}
                         className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all ${isAdded ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
                       >
                         {cp.images?.[0] && <img src={cp.images[0]} alt="" className="w-12 h-12 rounded-lg object-cover" />}
@@ -574,21 +512,19 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
 
             {/* Summary */}
             <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
-              {/* Show main offer original price strikethrough */}
+              {/* Show main product original price strikethrough */}
               {(() => {
-                const rawP = Number(offer?.price) || 0;
-                const offerCompare = offer?.compareAtPrice ? Number(offer.compareAtPrice) : null;
-                const offerHasOwnDiscount = offerCompare !== null && offerCompare > rawP;
-                const finalP = getOfferFinalPrice(rawP, isFirstVariant);
-                const hasProdDiscount = rawP > finalP;
-                const strikePrice = offerHasOwnDiscount ? offerCompare : rawP;
-                const showStrike = offerHasOwnDiscount || hasProdDiscount;
+                const rawP = Number(product?.price) || 0;
+                const finalP = getOfferFinalPrice(rawP, true);
+                const hasDiscount = rawP > finalP;
+                const discPct = product?.discountPercent || (hasDiscount ? Math.round((1 - finalP / rawP) * 100) : 0);
+                const showStrike = discPct > 0 && finalP < rawP;
                 return (
                   <>
                     {showStrike && (
                       <div className="flex justify-between text-xs text-gray-400">
                         <span>{product.name}</span>
-                        <span className="line-through">S/ {Number(strikePrice).toFixed(2)}</span>
+                        <span className="line-through">S/ {Number(rawP).toFixed(2)}</span>
                       </div>
                     )}
                   </>
@@ -614,10 +550,10 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
                   </div>
                 );
               })}
-              {/* Main offer final price */}
+              {/* Main product final price */}
               <div className="flex justify-between text-xs text-gray-600">
                 <span>{product.name}</span>
-                <span className="font-medium text-pink-600">S/ {offerFinalPrice.toFixed(2)}</span>
+                <span className="font-medium text-pink-600">S/ {productFinalPrice.toFixed(2)}</span>
               </div>
               {selectedSuggested.length > 0 && (
                 <>
@@ -672,7 +608,7 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
               onClick={() => {
                 if (!validate()) return;
                 const allItemsText = [
-                  `- ${product.name} (${offer?.name || '1 Unidad'}) x1 = S/ ${offerFinalPrice.toFixed(2)}`,
+                  `- ${product.name} x1 = S/ ${productFinalPrice.toFixed(2)}`,
                   ...extraItems.map(e => `- ${e.name} x1 = S/ ${Number(e.price).toFixed(2)}`),
                   ...selectedSuggested.map(sp => `- ${sp.name} x1 = S/ ${Number(sp.price).toFixed(2)}`),
                 ].join('%0A');
@@ -703,7 +639,7 @@ export default function CheckoutModal({ open, onClose, product, selectedOffer }:
             bgColor: product?.discountPopup?.bgColor || '#ec4899',
             textColor: product?.discountPopup?.textColor || '#ffffff',
           }}
-          productPrice={getOfferFinalPrice(Number(offer?.price) || 0, isFirstVariant)}
+          productPrice={productFinalPrice}
           productName={product?.name || ''}
           productImage={product?.discountPopup?.imageUrl || product?.images?.[0]}
           onAccept={handleDiscountPopupClose}

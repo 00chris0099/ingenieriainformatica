@@ -30,7 +30,7 @@ function useAbandonedCheckout(form: any, items: any[], total: number) {
             phone: form.phone,
             name: form.name,
             items: items.map(i => ({
-              variantId: i.variantId,
+              productId: i.productId,
               sku: i.sku,
               name: i.name,
               price: i.price,
@@ -62,7 +62,7 @@ function useAbandonedCheckout(form: any, items: any[], total: number) {
             phone: form.phone,
             name: form.name,
             items: items.map(i => ({
-              variantId: i.variantId,
+              productId: i.productId,
               sku: i.sku,
               name: i.name,
               price: i.price,
@@ -167,8 +167,8 @@ export default function CheckoutPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: [
-            ...items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, variantId: i.variantId, sku: i.variantId })),
-            ...selectedSuggestedProducts.map((p) => ({ name: p.name, price: p.price, quantity: 1, variantId: p.id, sku: `suggested-${p.id}`, isSuggested: true })),
+            ...items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, productId: i.productId, sku: i.productId })),
+            ...selectedSuggestedProducts.map((p) => ({ name: p.name, price: p.price, quantity: 1, productId: p.id, sku: `suggested-${p.id}`, isSuggested: true })),
           ],
           customer: { name: form.name, email: form.email, phone: form.phone },
           shipping: { department: form.department, province: form.province, district: form.district, address: form.address, reference: form.reference },
@@ -245,7 +245,7 @@ export default function CheckoutPage() {
               <h2 className="font-semibold flex items-center gap-2 mb-4"><Package size={18} className="text-green-600" /> Tu pedido</h2>
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.variantId} className="flex gap-3 items-center">
+                  <div key={item.productId} className="flex gap-3 items-center">
                     <img src={item.image} alt="" className="w-14 h-14 rounded-xl object-cover" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.name}</p>
@@ -257,12 +257,12 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)} className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center"><Minus size={12} /></button>
+                      <button onClick={() => updateQuantity(item.productId, item.quantity - 1)} className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center"><Minus size={12} /></button>
                       <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)} className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center"><Plus size={12} /></button>
+                      <button onClick={() => updateQuantity(item.productId, item.quantity + 1)} className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center"><Plus size={12} /></button>
                     </div>
                     <span className="text-sm font-semibold ml-2">S/ {item.price * item.quantity}</span>
-                    <button onClick={() => removeItem(item.variantId)} className="text-gray-400 hover:text-red-500 ml-1"><X size={14} /></button>
+                    <button onClick={() => removeItem(item.productId)} className="text-gray-400 hover:text-red-500 ml-1"><X size={14} /></button>
                   </div>
                 ))}
               </div>

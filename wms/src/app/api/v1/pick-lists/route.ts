@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
           assignee: { select: { id: true, fullName: true } },
           items: {
             include: {
-              variant: { select: { id: true, sku: true, name: true } },
+              product: { select: { id: true, sku: true, name: true } },
             },
           },
         },
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
           create: orders.flatMap((order) =>
             order.items.map((item) => ({
               orderId: order.id,
-              variantId: item.variantId,
+              productId: item.productId || '',
               sku: item.sku,
               productName: item.productName,
               quantity: item.quantity,

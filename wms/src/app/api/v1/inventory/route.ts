@@ -6,66 +6,60 @@ import { cached, invalidateCache } from '@/lib/cache';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const warehouseId = getSearchParam(searchParams, 'warehouse_id');
     const lowStock = searchParams.get('low_stock') === 'true';
     const search = getSearchParam(searchParams, 'q');
     const { page, limit, offset } = parsePagination(searchParams);
 
-    const result = await cached(`inventory:${page}:${limit}:${warehouseId}:${lowStock}:${search}`, () =>
+    const result = await cached(`inventory:${page}:${limit}:${lowStock}:${search}`, () =>
       withDbFallback(
         async () => {
-          const where: any = {};
-          if (warehouseId) where.warehouseId = warehouseId;
+          const where: any = { status: { not: 'archived' } };
           if (search) {
             where.OR = [
-              { variant: { sku: { contains: search, mode: 'insensitive' } } },
-              { variant: { name: { contains: search, mode: 'insensitive' } } },
+              { sku: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search, mode: 'insensitive' } },
+              { barcode: { contains: search, mode: 'insensitive' } },
             ];
           }
 
-          const [inventory, total] = await Promise.all([
-            prisma.inventory.findMany({
+          if (lowStock) {
+            where.AND = [
+              { stock: { lte: prisma.product.fields.lowStockAlert } },
+            ];
+          }
+
+          const [products, total] = await Promise.all([
+            prisma.product.findMany({
               where,
-              include: {
-                variant: { include: { product: true } },
-                warehouse: true,
-              },
+              include: { category: { select: { id: true, name: true } } },
               orderBy: { updatedAt: 'desc' },
               skip: offset,
               take: limit,
             }),
-            prisma.inventory.count({ where }),
+            prisma.product.count({ where }),
           ]);
-          return { inventory, total };
+          return { products, total };
         },
-        () => ({ inventory: [], total: 0 })
+        () => ({ products: [], total: 0 })
       ), 30
     );
 
-    let filtered = result.inventory;
-    if (lowStock) {
-      filtered = filtered.filter((inv: any) => inv.availableQuantity <= inv.reorderPoint);
-    }
-
-    const mapped = filtered.map((inv: any) => ({
-      id: inv.id,
-      variantId: inv.variantId,
-      variantSku: inv.variant.sku,
-      variantName: inv.variant.name,
-      productName: inv.variant.product?.name || 'Unknown',
-      warehouseId: inv.warehouseId,
-      warehouseName: inv.warehouse.name,
-      warehouseCode: inv.warehouse.code,
-      quantity: inv.quantity,
-      reservedQuantity: inv.reservedQuantity,
-      availableQuantity: inv.availableQuantity,
-      reorderPoint: inv.reorderPoint,
-      reorderQuantity: inv.reorderQuantity,
-      lastCountedAt: inv.lastCountedAt,
-      updatedAt: inv.updatedAt,
+    const mapped = result.products.map((p: any) => ({
+      id: p.id,
+      productId: p.id,
+      productName: p.name,
+      sku: p.sku,
+      barcode: p.barcode,
+      stock: p.stock,
+      lowStockAlert: p.lowStockAlert,
+      isLowStock: p.lowStockAlert != null && p.stock <= p.lowStockAlert,
+      categoryId: p.categoryId,
+      categoryName: p.category?.name || null,
+      price: p.price,
+      updatedAt: p.updatedAt,
     }));
 
-    return apiPaginated(mapped, filtered.length, page, limit);
+    return apiPaginated(mapped, result.total, page, limit);
   } catch (error) {
     return handleApiError(error, 'inventory-list');
   }
@@ -74,28 +68,21 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { variantId, warehouseId, quantity, reorderPoint, reorderQuantity } = body;
+    const { productId, stock } = body;
 
-    if (!variantId || !warehouseId) return apiError('variantId and warehouseId are required', 400);
+    if (!productId) return apiError('productId is required', 400);
+    if (stock === undefined) return apiError('stock is required', 400);
 
-    const updated = await prisma.inventory.upsert({
-      where: { variantId_warehouseId: { variantId, warehouseId } },
-      update: {
-        ...(quantity !== undefined && { quantity }),
-        ...(reorderPoint !== undefined && { reorderPoint }),
-        ...(reorderQuantity !== undefined && { reorderQuantity }),
-      },
-      create: {
-        variantId,
-        warehouseId,
-        quantity: quantity || 0,
-        reorderPoint: reorderPoint || 10,
-        reorderQuantity: reorderQuantity || 50,
-      },
-      include: { variant: true, warehouse: true },
+    const existing = await prisma.product.findUnique({ where: { id: productId } });
+    if (!existing) return apiError('Product not found', 404);
+
+    const updated = await prisma.product.update({
+      where: { id: productId },
+      data: { stock: Number(stock) },
     });
 
     await invalidateCache('inventory:*');
+    await invalidateCache('products:*');
 
     return apiSuccess(updated);
   } catch (error) {

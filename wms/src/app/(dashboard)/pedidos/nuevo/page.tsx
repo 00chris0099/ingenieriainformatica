@@ -15,17 +15,14 @@ interface Customer {
 interface Product {
   id: string;
   name: string;
-  variants: Array<{
-    id: string;
-    sku: string;
-    name: string;
-    price: number;
-    inventory?: Array<{ availableQuantity: number }>;
-  }>;
+  sku: string;
+  price: number;
+  stock: number;
+  barcode?: string;
 }
 
 interface OrderItem {
-  variantId: string;
+  productId: string;
   sku: string;
   name: string;
   price: number;
@@ -67,35 +64,35 @@ export default function NuevoPedidoPage() {
     fetchData();
   }, []);
 
-  const addItem = (variant: Product['variants'][0], product: Product) => {
-    const existing = items.find(i => i.variantId === variant.id);
+  const addItem = (product: Product) => {
+    const existing = items.find(i => i.productId === product.id);
     if (existing) {
       setItems(items.map(i =>
-        i.variantId === variant.id ? { ...i, quantity: i.quantity + 1 } : i
+        i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
       ));
     } else {
       setItems([...items, {
-        variantId: variant.id,
-        sku: variant.sku,
-        name: `${product.name} - ${variant.name}`,
-        price: Number(variant.price),
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        price: Number(product.price),
         quantity: 1,
       }]);
     }
   };
 
-  const updateQuantity = (variantId: string, quantity: number) => {
+  const updateQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems(items.filter(i => i.variantId !== variantId));
+      setItems(items.filter(i => i.productId !== productId));
     } else {
       setItems(items.map(i =>
-        i.variantId === variantId ? { ...i, quantity } : i
+        i.productId === productId ? { ...i, quantity } : i
       ));
     }
   };
 
-  const removeItem = (variantId: string) => {
-    setItems(items.filter(i => i.variantId !== variantId));
+  const removeItem = (productId: string) => {
+    setItems(items.filter(i => i.productId !== productId));
   };
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -112,7 +109,7 @@ export default function NuevoPedidoPage() {
         body: JSON.stringify({
           customerId: selectedCustomer,
           items: items.map(i => ({
-            variantId: i.variantId,
+            productId: i.productId,
             quantity: i.quantity,
             unitPrice: i.price,
           })),
@@ -173,32 +170,29 @@ export default function NuevoPedidoPage() {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
         <h3 className="text-sm font-semibold text-gray-300 mb-3">Agregar Productos</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-          {products.map((product) =>
-            product.variants.map((variant) => {
-              const stock = variant.inventory?.[0]?.availableQuantity || 0;
-              const inCart = items.find(i => i.variantId === variant.id);
-              return (
-                <button
-                  key={variant.id}
-                  onClick={() => addItem(variant, product)}
-                  disabled={stock <= 0}
-                  className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm text-white truncate">{product.name}</p>
-                    <p className="text-xs text-gray-500">{variant.sku} - S/ {Number(variant.price).toFixed(2)}</p>
-                  </div>
-                  <div className="text-right shrink-0 ml-2">
-                    {inCart ? (
-                      <span className="text-xs bg-brand-600 text-white px-2 py-0.5 rounded-full">x{inCart.quantity}</span>
-                    ) : (
-                      <span className="text-xs text-gray-500">Stock: {stock}</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })
-          )}
+          {products.map((product) => {
+            const inCart = items.find(i => i.productId === product.id);
+            return (
+              <button
+                key={product.id}
+                onClick={() => addItem(product)}
+                disabled={(product.stock ?? 0) <= 0}
+                className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-white truncate">{product.name}</p>
+                  <p className="text-xs text-gray-500">{product.sku} - S/ {Number(product.price).toFixed(2)}</p>
+                </div>
+                <div className="text-right shrink-0 ml-2">
+                  {inCart ? (
+                    <span className="text-xs bg-brand-600 text-white px-2 py-0.5 rounded-full">x{inCart.quantity}</span>
+                  ) : (
+                    <span className="text-xs text-gray-500">Stock: {product.stock ?? 0}</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -210,27 +204,27 @@ export default function NuevoPedidoPage() {
         ) : (
           <div className="space-y-2">
             {items.map((item) => (
-              <div key={item.variantId} className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
+              <div key={item.productId} className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{item.name}</p>
                   <p className="text-xs text-gray-500">{item.sku} - S/ {item.price.toFixed(2)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                     className="w-7 h-7 bg-gray-700 rounded-lg text-white flex items-center justify-center hover:bg-gray-600"
                   >
                     -
                   </button>
                   <span className="w-8 text-center text-sm text-white">{item.quantity}</span>
                   <button
-                    onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                     className="w-7 h-7 bg-gray-700 rounded-lg text-white flex items-center justify-center hover:bg-gray-600"
                   >
                     +
                   </button>
                   <button
-                    onClick={() => removeItem(item.variantId)}
+                    onClick={() => removeItem(item.productId)}
                     className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg"
                   >
                     <Trash2 size={14} />

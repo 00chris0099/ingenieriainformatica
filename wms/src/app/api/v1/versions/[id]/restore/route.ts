@@ -40,9 +40,14 @@ export async function POST(_request: NextRequest, { params }: Props) {
         weight: snapshot.weight,
         weightUnit: snapshot.weightUnit,
         lowStockAlert: snapshot.lowStockAlert,
-        discountPopup: snapshot.discountPopup,
+        price: snapshot.price,
+        stock: snapshot.stock,
+        discountPercent: snapshot.discountPercent,
+        compareAtPrice: snapshot.compareAtPrice,
+        costPrice: snapshot.costPrice,
+        barcode: snapshot.barcode,
       },
-      include: { category: true, variants: true },
+      include: { category: true },
     });
 
     await invalidateCache('products:*');

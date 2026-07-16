@@ -48,7 +48,6 @@ export default function CatalogoPage() {
   useEffect(() => { fetchProducts(); fetchCategories(); }, [fetchProducts, fetchCategories]);
 
   const handleSave = async (data: any) => {
-    console.log('[Catalogo] handleSave:', JSON.stringify({ name: data.name, prices: data.prices, enabledPriceTypes: data.enabledPriceTypes, variants: data.variants?.length }));
     const url = editingProduct ? `/api/v1/products/${editingProduct.id}` : '/api/v1/products';
     const method = editingProduct ? 'PUT' : 'POST';
     const payload = {
@@ -74,19 +73,22 @@ export default function CatalogoPage() {
       originCountry: data.originCountry,
       weight: data.weight,
       weightUnit: data.weightUnit,
+      stock: data.stock,
       lowStockAlert: data.lowStockAlert,
+      price: data.price,
+      compareAtPrice: data.compareAtPrice,
+      discountPercent: data.discountPercent,
+      costPrice: data.costPrice,
+      barcode: data.barcode,
       discountPopup: data.discountPopup,
-      variants: data.variants,
-      prices: data.prices,
-      enabledPriceTypes: data.enabledPriceTypes,
+      ctaText: data.ctaText,
+      crossSellProductIds: data.crossSellProductIds,
     };
-    console.log('[Catalogo] Payload prices:', payload.prices, 'enabledTypes:', payload.enabledPriceTypes);
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    console.log('[Catalogo] Response status:', res.status);
     if (!res.ok) {
       const err = await res.text();
       console.error('[Catalogo] Error response:', err);
@@ -152,7 +154,13 @@ export default function CatalogoPage() {
       originCountry: product.originCountry || '',
       weight: product.weight || null,
       weightUnit: product.weightUnit || 'kg',
+      stock: product.stock ?? 0,
       lowStockAlert: product.lowStockAlert || null,
+      price: product.price ?? 0,
+      compareAtPrice: product.compareAtPrice ?? null,
+      discountPercent: product.discountPercent ?? 0,
+      costPrice: product.costPrice ?? null,
+      barcode: product.barcode || '',
       discountPopup: product.discountPopup || {
         enabled: false,
         title: 'Oferta especial!',
@@ -164,26 +172,8 @@ export default function CatalogoPage() {
         bgColor: '#16a34a',
         textColor: '#ffffff',
       },
-      prices: {
-        main: product.variants?.[0]?.price || 0,
-        especial: product.priceConfig?.especial ?? null,
-        descuento: product.priceConfig?.descuento ?? null,
-        mayorista: product.priceConfig?.mayorista ?? null,
-      },
-      enabledPriceTypes: product.priceConfig?.enabledTypes || [],
-      ctaText: product.priceConfig?.ctaText || '¡Lo quiero ahora!',
-      crossSellProductIds: product.priceConfig?.crossSellProductIds || [],
-      variants: (product.variants || []).map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
-        name: v.name,
-        price: v.price,
-        compareAtPrice: v.compareAtPrice || null,
-        isActive: v.isActive !== false,
-        images: v.images || [],
-        attributes: v.attributes || {},
-      })),
-      variantPricingMode: 'same',
+      ctaText: product.ctaText || '¡Lo quiero ahora!',
+      crossSellProductIds: product.crossSellProductIds || [],
       landingBlocks: landingBlocks,
     });
     setShowForm(true);
@@ -254,32 +244,30 @@ export default function CatalogoPage() {
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-2">
                       {(() => {
-                        const mainPrice = Number(product.variants?.[0]?.price) || 0;
-                        const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
-                        const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
-                        const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
-                        const showStrike = (hasDesc || hasEsp) && finalPrice < mainPrice;
+                        const mainPrice = Number(product.price) || 0;
+                        const hasDiscount = product.discountPercent != null && product.discountPercent > 0;
+                        const effectivePrice = hasDiscount
+                          ? Math.round(mainPrice * (1 - product.discountPercent / 100) * 100) / 100
+                          : mainPrice;
+                        const showStrike = hasDiscount && product.compareAtPrice != null;
                         return (
                           <>
-                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {mainPrice}</span>}
-                            <span className={`font-bold text-sm ${showStrike ? 'text-green-400' : 'text-brand-400'}`}>S/ {finalPrice}</span>
-                            {hasDesc && <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-md font-medium">-{product.priceConfig.descuento}%</span>}
+                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {product.compareAtPrice}</span>}
+                            <span className={`font-bold text-sm ${hasDiscount ? 'text-green-400' : 'text-brand-400'}`}>S/ {effectivePrice}</span>
+                            {hasDiscount && <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-md font-medium">-{product.discountPercent}%</span>}
                           </>
                         );
                       })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        product.totalStock > 10 ? 'bg-green-500/20 text-green-400' :
-                        product.totalStock > 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                        (product.stock ?? 0) > 10 ? 'bg-green-500/20 text-green-400' :
+                        (product.stock ?? 0) > 0 ? 'bg-yellow-500/20 text-yellow-400' :
                         'bg-red-500/20 text-red-400'
-                      }`}>{product.totalStock} uds</span>
+                      }`}>{product.stock ?? 0} uds</span>
                       <StatusBadge status={product.status} />
                     </div>
                   </div>
-                  {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
-                    <span className="inline-block mt-1.5 text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-md font-medium">Mayorista: S/ {product.priceConfig.mayorista}</span>
-                  )}
                 </div>
               </div>
               {showMenu === product.id && (
@@ -335,27 +323,25 @@ export default function CatalogoPage() {
                   <td className="px-4 py-3 text-sm text-gray-400">{product.category || '-'}</td>
                   <td className="px-4 py-3 text-right">
                     {(() => {
-                      const mainPrice = Number(product.variants?.[0]?.price) || 0;
-                      const hasDesc = product.priceConfig?.enabledTypes?.includes('descuento') && product.priceConfig?.descuento != null && product.priceConfig.descuento > 0;
-                      const hasEsp = product.priceConfig?.enabledTypes?.includes('especial') && product.priceConfig?.especial != null;
-                      const finalPrice = hasEsp ? Number(product.priceConfig.especial) : hasDesc ? Math.round(mainPrice * (1 - product.priceConfig.descuento / 100) * 100) / 100 : mainPrice;
-                      const showStrike = (hasDesc || hasEsp) && finalPrice < mainPrice;
+                      const mainPrice = Number(product.price) || 0;
+                      const hasDiscount = product.discountPercent != null && product.discountPercent > 0;
+                      const effectivePrice = hasDiscount
+                        ? Math.round(mainPrice * (1 - product.discountPercent / 100) * 100) / 100
+                        : mainPrice;
+                      const showStrike = hasDiscount && product.compareAtPrice != null;
                       return (
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-1.5">
-                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {mainPrice}</span>}
-                            <span className={`text-sm font-medium ${showStrike ? 'text-green-400' : 'text-brand-400'}`}>S/ {finalPrice}</span>
-                            {hasDesc && <span className="text-[10px] px-1 py-0.5 bg-orange-500/20 text-orange-400 rounded font-medium">-{product.priceConfig.descuento}%</span>}
+                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {product.compareAtPrice}</span>}
+                            <span className={`text-sm font-medium ${hasDiscount ? 'text-green-400' : 'text-brand-400'}`}>S/ {effectivePrice}</span>
+                            {hasDiscount && <span className="text-[10px] px-1 py-0.5 bg-orange-500/20 text-orange-400 rounded font-medium">-{product.discountPercent}%</span>}
                           </div>
-                          {product.priceConfig?.enabledTypes?.includes('mayorista') && product.priceConfig?.mayorista != null && (
-                            <span className="text-[10px] text-blue-400">May: S/ {product.priceConfig.mayorista}</span>
-                          )}
                         </div>
                       );
                     })()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`text-sm font-medium ${product.totalStock > 10 ? 'text-green-400' : product.totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{product.totalStock}</span>
+                    <span className={`text-sm font-medium ${(product.stock ?? 0) > 10 ? 'text-green-400' : (product.stock ?? 0) > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{product.stock ?? 0}</span>
                   </td>
                   <td className="px-4 py-3 text-center"><StatusBadge status={product.status} /></td>
                   <td className="px-4 py-3 text-right">

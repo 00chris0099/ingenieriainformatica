@@ -91,13 +91,9 @@ export async function POST(request: NextRequest) {
         placedAt: now,
         items: {
           create: items.map((item: any) => {
-            if (!item.variantId && !item.isSuggested) {
-              throw new Error(`Item "${item.name}" is missing variantId`);
-            }
             return {
-              variantId: item.isSuggested ? null : item.variantId,
+              productId: item.productId || null,
               productName: item.name,
-              variantName: item.name,
               sku: item.sku || (item.isSuggested ? `suggested-${Date.now()}` : 'N/A'),
               quantity: item.quantity,
               unitPrice: item.price,

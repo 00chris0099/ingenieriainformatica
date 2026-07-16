@@ -10,22 +10,29 @@ interface Props {
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
-    const { quantity, reorderPoint } = body;
+    const { stock } = body;
 
-    const existing = await prisma.inventory.findUnique({ where: { id: params.id } });
-    if (!existing) return apiError('Inventory record not found', 404);
+    if (stock === undefined) return apiError('stock is required', 400);
 
-    const updated = await prisma.inventory.update({
+    const existing = await prisma.product.findUnique({ where: { id: params.id } });
+    if (!existing) return apiError('Product not found', 404);
+
+    const updated = await prisma.product.update({
       where: { id: params.id },
-      data: {
-        ...(quantity !== undefined && { quantity, availableQuantity: quantity - (existing.reservedQuantity || 0) }),
-        ...(reorderPoint !== undefined && { reorderPoint }),
-      },
+      data: { stock: Number(stock) },
     });
 
     await invalidateCache('inventory:*');
+    await invalidateCache('products:*');
 
-    return apiSuccess(updated);
+    return apiSuccess({
+      id: updated.id,
+      name: updated.name,
+      sku: updated.sku,
+      stock: updated.stock,
+      lowStockAlert: updated.lowStockAlert,
+      isLowStock: updated.lowStockAlert != null && updated.stock <= updated.lowStockAlert,
+    });
   } catch (error) {
     return handleApiError(error, 'inventory-update');
   }

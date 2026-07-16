@@ -84,24 +84,18 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // RF-13: Deduct stock from inventory for each item
+        // RF-13: Deduct stock from product for each item
         for (const item of order.items) {
-          if (!item.variantId) continue;
-          const inventory = await prisma.inventory.findFirst({
-            where: { variantId: item.variantId },
+          if (!item.productId) continue;
+          const product = await prisma.product.findUnique({
+            where: { id: item.productId },
           });
 
-          if (inventory) {
-            const newQuantity = Math.max(0, inventory.quantity - item.quantity);
-            const newReserved = Math.max(0, inventory.reservedQuantity - item.quantity);
-            const newAvailable = Math.max(0, inventory.availableQuantity - item.quantity);
-
-            await prisma.inventory.update({
-              where: { id: inventory.id },
+          if (product) {
+            await prisma.product.update({
+              where: { id: item.productId },
               data: {
-                quantity: newQuantity,
-                reservedQuantity: newReserved,
-                availableQuantity: newAvailable,
+                stock: Math.max(0, product.stock - item.quantity),
               },
             });
 

@@ -5,11 +5,11 @@ import { useProductForm } from '../ProductFormContext';
 import { useState } from 'react';
 
 export default function ShareButtons() {
-  const { name, prices } = useProductForm();
+  const { name, price } = useProductForm();
   const [copied, setCopied] = useState(false);
 
   const productUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const shareText = `Mira este producto: ${name} - S/ ${prices.main}`;
+  const shareText = `Mira este producto: ${name} - S/ ${price}`;
 
   const handleWhatsApp = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + productUrl)}`, '_blank');

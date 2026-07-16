@@ -61,6 +61,12 @@ export const createProductSchema = z.object({
   status: z.enum(['draft', 'active', 'archived', 'discontinued']).default('draft'),
   tags: z.array(z.string()).default([]),
   images: z.array(z.string().url()).default([]),
+  price: z.number().min(0).default(0),
+  compareAtPrice: z.number().positive().optional().nullable(),
+  costPrice: z.number().min(0).optional().nullable(),
+  stock: z.number().int().min(0).default(0),
+  discountPercent: z.number().min(0).max(100).optional().nullable(),
+  barcode: z.string().optional(),
   weight: z.number().positive().optional(),
   weightUnit: z.string().default('kg'),
   metadata: z.record(z.any()).default({}),
@@ -76,27 +82,6 @@ export const productFilterSchema = paginationSchema.extend({
   maxPrice: z.coerce.number().min(0).optional(),
   tags: z.array(z.string()).optional(),
 });
-
-// ============================================================================
-// Product Variant Schemas
-// ============================================================================
-
-export const createVariantSchema = z.object({
-  productId: z.string().uuid('ID de producto requerido'),
-  sku: z.string().min(1, 'SKU requerido').max(50),
-  name: z.string().min(1, 'Nombre requerido').max(200),
-  attributes: z.record(z.any()).default({}),
-  price: z.number().positive('Precio debe ser positivo'),
-  compareAtPrice: z.number().positive().optional().nullable(),
-  costPrice: z.number().min(0).optional().nullable(),
-  barcode: z.string().optional(),
-  imageUrl: z.string().url().optional().nullable(),
-  isActive: z.boolean().default(true),
-  sortOrder: z.number().int().min(0).default(0),
-  metadata: z.record(z.any()).default({}),
-});
-
-export const updateVariantSchema = createVariantSchema.omit({ productId: true }).partial();
 
 // ============================================================================
 // Category Schemas
@@ -128,7 +113,7 @@ export const createOrderSchema = z.object({
   billingAddress: z.record(z.any()).default({}),
   shippingAddress: z.record(z.any()).default({}),
   items: z.array(z.object({
-    variantId: z.string().uuid(),
+    productId: z.string().uuid(),
     quantity: z.number().int().positive(),
     unitPrice: z.number().min(0),
     discountPercent: z.number().min(0).max(100).default(0),
@@ -192,25 +177,12 @@ export const customerFilterSchema = paginationSchema.extend({
 });
 
 // ============================================================================
-// Inventory Schemas
+// Inventory Schemas (Simplified - stock on Product directly)
 // ============================================================================
 
-export const updateInventorySchema = z.object({
-  variantId: z.string().uuid(),
-  warehouseId: z.string().uuid(),
-  quantity: z.number().int().min(0),
-  reorderPoint: z.number().int().min(0).optional(),
-  reorderQuantity: z.number().int().min(0).optional(),
-});
-
-export const inventoryMovementSchema = z.object({
-  variantId: z.string().uuid(),
-  warehouseId: z.string().uuid(),
-  type: z.enum(['purchase', 'sale', 'adjustment', 'transfer', 'return', 'damaged', 'expired', 'cycle_count']),
-  quantity: z.number().int(),
-  reason: z.string().max(500).optional(),
-  referenceId: z.string().uuid().optional(),
-  metadata: z.record(z.any()).default({}),
+export const updateStockSchema = z.object({
+  productId: z.string().uuid(),
+  stock: z.number().int().min(0),
 });
 
 // ============================================================================
@@ -285,7 +257,7 @@ export const createPurchaseOrderSchema = z.object({
   expectedDate: z.coerce.date().optional().nullable(),
   notes: z.string().max(1000).optional(),
   items: z.array(z.object({
-    variantId: z.string().uuid(),
+    productId: z.string().uuid(),
     quantity: z.number().int().positive(),
     unitPrice: z.number().min(0),
   })).min(1, 'Al menos un item requerido'),

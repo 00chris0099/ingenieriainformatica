@@ -20,13 +20,13 @@ export async function GET(request: NextRequest) {
         { header: 'Nombre', key: 'name', width: 30 },
         { header: 'Categoria', key: 'category', width: 20 },
         { header: 'Estado', key: 'status', width: 15 },
-        { header: 'Variantes', key: 'variants', width: 10 },
-        { header: 'Stock Total', key: 'stock', width: 15 },
+        { header: 'Precio', key: 'price', width: 15 },
+        { header: 'Stock', key: 'stock', width: 15 },
         { header: 'Creado', key: 'createdAt', width: 20 },
       ];
 
       const products = await prisma.product.findMany({
-        include: { category: true, variants: { include: { inventory: true } } },
+        include: { category: true },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
           name: p.name,
           category: p.category?.name || '-',
           status: p.status,
-          variants: p.variants.length,
-          stock: p.variants.reduce((sum, v) => sum + v.inventory.reduce((s, i) => s + i.quantity, 0), 0),
+          price: Number(p.price || 0),
+          stock: p.stock || 0,
           createdAt: p.createdAt.toISOString().split('T')[0],
         });
       });
@@ -70,27 +70,22 @@ export async function GET(request: NextRequest) {
       ws.columns = [
         { header: 'SKU', key: 'sku', width: 20 },
         { header: 'Producto', key: 'product', width: 30 },
-        { header: 'Almacen', key: 'warehouse', width: 20 },
-        { header: 'Cantidad', key: 'quantity', width: 12 },
-        { header: 'Reservado', key: 'reserved', width: 12 },
-        { header: 'Disponible', key: 'available', width: 12 },
-        { header: 'Reorder', key: 'reorder', width: 10 },
+        { header: 'Stock', key: 'stock', width: 12 },
+        { header: 'Precio', key: 'price', width: 15 },
+        { header: 'Alerta Stock Bajo', key: 'lowStockAlert', width: 15 },
       ];
 
-      const inventory = await prisma.inventory.findMany({
-        include: { variant: { include: { product: true } }, warehouse: true },
-        orderBy: { updatedAt: 'desc' },
+      const products = await prisma.product.findMany({
+        orderBy: { stock: 'asc' },
       });
 
-      inventory.forEach((inv) => {
+      products.forEach((p) => {
         ws.addRow({
-          sku: inv.variant.sku,
-          product: inv.variant.product?.name || '-',
-          warehouse: inv.warehouse.name,
-          quantity: inv.quantity,
-          reserved: inv.reservedQuantity,
-          available: inv.availableQuantity,
-          reorder: inv.reorderPoint,
+          sku: p.sku,
+          product: p.name,
+          stock: p.stock || 0,
+          price: Number(p.price || 0),
+          lowStockAlert: p.lowStockAlert || 0,
         });
       });
     }

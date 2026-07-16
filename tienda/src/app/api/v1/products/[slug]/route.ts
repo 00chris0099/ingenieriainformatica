@@ -21,6 +21,10 @@ export async function GET(_request: NextRequest, { params }: Props) {
       return Response.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    const basePrice = Number(p.price) || 0;
+    const discount = p.discountPercent ? Number(p.discountPercent) : 0;
+    const finalPrice = discount > 0 ? Math.round(basePrice * (1 - discount / 100) * 100) / 100 : basePrice;
+
     const product = {
       id: p.id,
       sku: p.sku,
@@ -44,22 +48,14 @@ export async function GET(_request: NextRequest, { params }: Props) {
       weight: p.weight,
       weightUnit: p.weightUnit || 'kg',
       lowStockAlert: p.lowStockAlert,
-      priceConfig: p.priceConfig || null,
-      discountPopup: p.discountPopup || null,
+      price: basePrice,
+      compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
+      finalPrice,
+      discountPercent: discount,
+      stock: p.stock || 0,
+      barcode: p.barcode,
       category: p.category ? { name: p.category.name, slug: p.category.slug } : null,
       categoryId: p.categoryId,
-      variants: (p.variants || []).map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
-        name: v.name,
-        attributes: v.attributes || {},
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
-        stock: v.stock || 0,
-        isActive: v.isActive !== false,
-        images: v.images || [],
-        lowStockAlert: v.lowStockAlert,
-      })),
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     };

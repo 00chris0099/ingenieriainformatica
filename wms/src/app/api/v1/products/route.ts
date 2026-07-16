@@ -30,13 +30,7 @@ export async function GET(request: NextRequest) {
           const [products, total] = await Promise.all([
             prisma.product.findMany({
               where,
-              include: {
-                category: true,
-                variants: {
-                  include: { inventory: true },
-                  orderBy: { sortOrder: 'asc' },
-                },
-              },
+              include: { category: true },
               orderBy: { createdAt: 'desc' },
               skip: offset,
               take: limit,
@@ -74,23 +68,12 @@ export async function GET(request: NextRequest) {
       weight: p.weight ? Number(p.weight) : null,
       weightUnit: p.weightUnit,
       lowStockAlert: p.lowStockAlert,
-      priceConfig: p.priceConfig,
-      discountPopup: p.discountPopup,
-      discountPopup: p.discountPopup,
-      variants: p.variants.map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
-        name: v.name,
-        attributes: v.attributes,
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
-        stock: v.inventory.reduce((sum: number, inv: any) => sum + inv.quantity, 0),
-        isActive: v.isActive,
-        images: v.images || [],
-        lowStockAlert: v.lowStockAlert,
-      })),
-      totalStock: p.variants.reduce((sum: number, v: any) =>
-        sum + v.inventory.reduce((s: number, inv: any) => s + inv.quantity, 0), 0),
+      price: Number(p.price),
+      compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
+      costPrice: p.costPrice ? Number(p.costPrice) : null,
+      stock: p.stock,
+      discountPercent: p.discountPercent ? Number(p.discountPercent) : null,
+      barcode: p.barcode,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }));
@@ -104,15 +87,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     console.log('[API] POST /api/v1/products called');
-    // Rate limiting: max 10 creates per minute per IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     const rateCheck = checkRateLimit(`products-create:${ip}`, 10, 60);
     if (!rateCheck.allowed) return apiError('Too many requests', 429);
 
     const body = await request.json();
-    console.log('[API] Body received:', { name: body.name, variants: body.variants?.length, prices: body.prices });
+    console.log('[API] Body received:', { name: body.name, price: body.price });
 
-    // Validate required fields
     const validationError = validate(body, {
       name: { required: true, type: 'string', min: 1, max: 200 },
     });
@@ -121,18 +102,15 @@ export async function POST(request: NextRequest) {
     const {
       sku: requestedSku, name, model, description, shortDescription, categoryId, status, tags, images,
       height, width, depth, color, materials, recommendedAge, warrantyDays, originCountry,
-      weight, weightUnit, lowStockAlert, discountPopup, variants, enabledPriceTypes, prices, ctaText, crossSellProductIds
+      weight, weightUnit, lowStockAlert, price, compareAtPrice, costPrice, stock, discountPercent, barcode,
     } = body;
 
-    // Generate slug
     const slug = name.toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-    // Generate SKU secuencial si no se proporciona uno
     let sku = requestedSku;
     if (!sku) {
-      // Obtener nombre de la categoria para el codigo
       let categoryName = null;
       if (categoryId) {
         const category = await prisma.category.findUnique({ where: { id: categoryId } });
@@ -164,23 +142,14 @@ export async function POST(request: NextRequest) {
         weight: weight || null,
         weightUnit: weightUnit || 'kg',
         lowStockAlert: lowStockAlert || null,
-        priceConfig: (enabledPriceTypes && prices) ? { enabledTypes: enabledPriceTypes, especial: prices.especial, descuento: prices.descuento, mayorista: prices.mayorista, ctaText: ctaText || '¡Lo quiero ahora!', crossSellProductIds: crossSellProductIds || [] } : null,
-        discountPopup: discountPopup || null,
-        variants: variants ? {
-          create: variants.map((v: any, i: number) => ({
-            sku: v.sku || `${sku}-V${i + 1}`,
-            name: v.name || `Variante ${i + 1}`,
-            attributes: v.attributes || {},
-            price: v.price,
-            compareAtPrice: v.compareAtPrice || null,
-            costPrice: v.costPrice || null,
-            images: v.images || [],
-            lowStockAlert: v.lowStockAlert || null,
-            sortOrder: i,
-          })),
-        } : undefined,
+        price: price || 0,
+        compareAtPrice: compareAtPrice || null,
+        costPrice: costPrice || null,
+        stock: stock || 0,
+        discountPercent: discountPercent || null,
+        barcode: barcode || null,
       },
-      include: { category: true, variants: true },
+      include: { category: true },
     });
 
     await invalidateCache('products:*');

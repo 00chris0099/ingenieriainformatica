@@ -57,7 +57,7 @@ function calculateDiff(prev: any, curr: any): any {
   }
 
   // Campos numericos
-  const numberFields = ['weight', 'warrantyDays', 'lowStockAlert'];
+  const numberFields = ['weight', 'warrantyDays', 'lowStockAlert', 'price', 'stock', 'discountPercent'];
   for (const field of numberFields) {
     if (prev[field] !== curr[field]) {
       changes.push(`${field}: ${prev[field] || 0} → ${curr[field] || 0}`);
@@ -75,32 +75,6 @@ function calculateDiff(prev: any, curr: any): any {
     if (JSON.stringify(prev[field] || []) !== JSON.stringify(curr[field] || [])) {
       changes.push(`${field} updated`);
     }
-  }
-
-  // Variantes
-  const prevVariants = prev.variants?.length || 0;
-  const currVariants = curr.variants?.length || 0;
-  if (prevVariants !== currVariants) {
-    changes.push(`variants: ${prevVariants} → ${currVariants}`);
-  } else if (prevVariants > 0) {
-    // Comparar precios de variantes
-    for (let i = 0; i < currVariants; i++) {
-      const prevPrice = prev.variants?.[i]?.price;
-      const currPrice = curr.variants?.[i]?.price;
-      if (prevPrice !== currPrice) {
-        changes.push(`variant[${i}] price: ${prevPrice} → ${currPrice}`);
-      }
-    }
-  }
-
-  // Precios
-  if (JSON.stringify(prev.prices) !== JSON.stringify(curr.prices)) {
-    changes.push('prices updated');
-  }
-
-  // Popup descuento
-  if (JSON.stringify(prev.discountPopup) !== JSON.stringify(curr.discountPopup)) {
-    changes.push('discount popup updated');
   }
 
   return changes.length > 0 ? { changes, timestamp: new Date().toISOString() } : null;
@@ -163,9 +137,14 @@ export async function restoreFromVersion(versionId: string) {
       weight: snapshot.weight,
       weightUnit: snapshot.weightUnit,
       lowStockAlert: snapshot.lowStockAlert,
-      discountPopup: snapshot.discountPopup,
+      price: snapshot.price,
+      stock: snapshot.stock,
+      discountPercent: snapshot.discountPercent,
+      compareAtPrice: snapshot.compareAtPrice,
+      costPrice: snapshot.costPrice,
+      barcode: snapshot.barcode,
     },
-    include: { category: true, variants: true },
+    include: { category: true },
   });
 
   // Crear version de restauracion

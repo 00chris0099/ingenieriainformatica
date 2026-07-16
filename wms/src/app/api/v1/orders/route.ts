@@ -110,9 +110,8 @@ export async function POST(request: NextRequest) {
         placedAt: now,
         items: {
           create: items.map((item: any) => ({
-            variantId: item.variantId || '00000000-0000-0000-0000-000000000000',
+            productId: item.productId || null,
             productName: item.productName || item.name,
-            variantName: item.variantName || item.name,
             sku: item.sku || 'N/A',
             quantity: item.quantity,
             unitPrice: item.unitPrice,

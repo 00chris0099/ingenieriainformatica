@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
       // Revenue by month (last 12 months)
       prisma.$queryRaw`
-        SELECT 
+        SELECT
           TO_CHAR(created_at, 'YYYY-MM') as month,
           SUM(total) as revenue,
           COUNT(*) as orders
@@ -73,14 +73,13 @@ export async function GET(request: NextRequest) {
 
       // Top products by order count
       prisma.$queryRaw`
-        SELECT 
+        SELECT
           p.name,
           p.sku,
           COUNT(oi.id) as order_count,
           SUM(oi.quantity) as total_quantity
         FROM order_items oi
-        JOIN product_variants pv ON oi.variant_id = pv.id
-        JOIN products p ON pv.product_id = p.id
+        JOIN products p ON oi.product_id = p.id
         JOIN orders o ON oi.order_id = o.id
         WHERE o.created_at >= ${startDate}
         GROUP BY p.id, p.name, p.sku
@@ -90,7 +89,7 @@ export async function GET(request: NextRequest) {
 
       // Orders by day of week
       prisma.$queryRaw`
-        SELECT 
+        SELECT
           EXTRACT(DOW FROM created_at) as day,
           COUNT(*) as count
         FROM orders
@@ -99,12 +98,11 @@ export async function GET(request: NextRequest) {
         ORDER BY day ASC
       `,
 
-      // Inventory stats
-      prisma.inventory.aggregate({
+      // Inventory stats from Product model
+      prisma.product.aggregate({
+        where: { status: { not: 'archived' } },
         _sum: {
-          quantity: true,
-          reservedQuantity: true,
-          availableQuantity: true,
+          stock: true,
         },
         _count: true,
       }),
@@ -121,11 +119,14 @@ export async function GET(request: NextRequest) {
       ? Number(totalRevenue._sum.total || 0) / totalOrders
       : 0;
 
-    const lowStockCount = await prisma.inventory.count({
-      where: {
-        availableQuantity: { lte: prisma.inventory.fields.reorderPoint },
-      },
+    // Count products where stock <= lowStockAlert
+    const allProducts = await prisma.product.findMany({
+      where: { status: { not: 'archived' }, lowStockAlert: { not: null } },
+      select: { stock: true, lowStockAlert: true },
     });
+    const lowStockCount = allProducts.filter(
+      (p) => p.lowStockAlert !== null && p.stock <= p.lowStockAlert
+    ).length;
 
     return NextResponse.json({
       data: {
@@ -148,9 +149,7 @@ export async function GET(request: NextRequest) {
           count: Number(d.count),
         })),
         inventory: {
-          totalQuantity: Number(inventoryStats._sum.quantity || 0),
-          totalReserved: Number(inventoryStats._sum.reservedQuantity || 0),
-          totalAvailable: Number(inventoryStats._sum.availableQuantity || 0),
+          totalStock: Number(inventoryStats._sum.stock || 0),
           totalLocations: inventoryStats._count,
         },
         picking: {

@@ -34,20 +34,20 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
             </div>
           ) : (
             items.map((item) => (
-              <div key={item.variantId} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
+              <div key={item.productId} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
                 <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.size && `${item.size} `}{item.color}</p>
+                  <p className="text-xs text-gray-500">{item.sku || ''}</p>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center text-xs hover:bg-gray-100"><Minus size={12} /></button>
+                      <button onClick={() => updateQuantity(item.productId, item.quantity - 1)} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center text-xs hover:bg-gray-100"><Minus size={12} /></button>
                       <span className="w-6 text-center text-xs font-medium">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center text-xs hover:bg-gray-100"><Plus size={12} /></button>
+                      <button onClick={() => updateQuantity(item.productId, item.quantity + 1)} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center text-xs hover:bg-gray-100"><Plus size={12} /></button>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-brand-600">S/ {item.price * item.quantity}</span>
-                      <button onClick={() => removeItem(item.variantId)} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      <button onClick={() => removeItem(item.productId)} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>

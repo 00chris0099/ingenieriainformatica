@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
         const customers = await prisma.customer.findMany({
           include: {
             orders: {
-              where: { status: { in: ['paid', 'delivered', 'completed'] } },
+              where: { paymentStatus: 'paid' },
               select: { total: true, createdAt: true },
             },
           },
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'asc' },
         });
 
-        const cohortMap: Record<string, { month: string; customers: number; ids: string[] }> = {};
+        const cohortMap: Record<string, { month: string; customers: number; ids: string[]; retention1?: number; retention2?: number; retention3?: number }> = {};
 
         for (const c of customers) {
           const month = c.createdAt.toISOString().slice(0, 7);
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           const cohortOrders = await prisma.order.findMany({
             where: {
               customerId: { in: cohort.ids },
-              status: { in: ['paid', 'delivered', 'completed'] },
+              paymentStatus: 'paid',
             },
             select: { customerId: true, createdAt: true },
           });
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
             const orders = await prisma.order.findMany({
               where: {
                 createdAt: { gte: startDate, lt: endDate },
-                status: { in: ['paid', 'delivered', 'completed'] },
+                paymentStatus: 'paid',
               },
               select: { total: true },
             });
@@ -124,11 +124,11 @@ export async function GET(request: NextRequest) {
 
       case 'cart': {
         const totalOrders = await prisma.order.count();
-        const paidOrders = await prisma.order.count({ where: { status: { in: ['paid', 'delivered', 'completed'] } } });
+        const paidOrders = await prisma.order.count({ where: { paymentStatus: 'paid' } });
         const conversionRate = totalOrders > 0 ? ((paidOrders / totalOrders) * 100).toFixed(1) : '0';
 
         const paidOrderItems = await prisma.orderItem.findMany({
-          where: { order: { status: { in: ['paid', 'delivered', 'completed'] } } },
+          where: { order: { paymentStatus: 'paid' } },
           select: { unitPrice: true, quantity: true },
         });
         const avgCartValue = paidOrderItems.length > 0
