@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
     if (subtotal + suggestedTotal > 50000) return apiError('Order total exceeds limit', 400);
 
     const shippingAmount = subtotal >= 150 ? 0 : 10;
-    const total = subtotal + shippingAmount + suggestedTotal;
+    const taxAmount = Math.round(subtotal * 0.18 * 100) / 100; // IGV 18%
+    const total = subtotal + shippingAmount + taxAmount + suggestedTotal;
 
     // Generate order number with random suffix to avoid race conditions
     const now = new Date();
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
         paymentMethod: paymentMethod || 'yape',
         currency: 'PEN',
         subtotal,
+        taxAmount,
         shippingAmount,
         total,
         shippingAddress: shipping || {},
@@ -154,8 +156,8 @@ export async function GET(request: NextRequest) {
     const orderNumber = searchParams.get('order_number');
     if (!orderNumber) return apiError('Order number required', 400);
 
-    // Validate order number format
-    if (!/^ADR-\d{8}-[A-Z0-9]{5}$/.test(orderNumber)) return apiError('Invalid order number format', 400);
+    // Validate order number format (accept both WMS and Tienda formats)
+    if (!/^ADR-\d{8}-[A-Z0-9]{5,}$/.test(orderNumber)) return apiError('Invalid order number format', 400);
 
     const order = await prisma.order.findUnique({
       where: { orderNumber },

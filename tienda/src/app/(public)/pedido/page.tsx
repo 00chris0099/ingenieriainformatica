@@ -201,6 +201,12 @@ function PedidoContent() {
                   <span>Envio</span>
                   <span>{order.shippingAmount === 0 ? <span className="text-green-600 font-medium">Gratis</span> : `S/ ${Number(order.shippingAmount || 0).toFixed(2)}`}</span>
                 </div>
+                {order.taxAmount > 0 && (
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>IGV (18%)</span>
+                    <span>S/ {Number(order.taxAmount).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
                   <span>Total</span>
                   <span className="text-pink-600">S/ {Number(order.total || 0).toFixed(2)}</span>
