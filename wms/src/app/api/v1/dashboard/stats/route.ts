@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
             }),
           ]);
 
-          // Low stock: count inventory where quantity <= reorder_point using raw query
+          // Low stock: count products where stock <= lowStockAlert
           const lowStockResult = await prisma.$queryRawUnsafe<{ count: number }[]>(
-            `SELECT COUNT(*)::int as count FROM inventory WHERE quantity <= reorder_point`
+            `SELECT COUNT(*)::int as count FROM "Product" WHERE "lowStockAlert" IS NOT NULL AND stock <= "lowStockAlert"`
           );
           const lowStockProducts = lowStockResult[0]?.count || 0;
 

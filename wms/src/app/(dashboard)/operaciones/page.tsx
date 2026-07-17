@@ -1,15 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { ShoppingCart, Warehouse } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import PedidosPage from '../pedidos/page';
-import InventarioPage from '../inventario/page';
 
-type Tab = 'pedidos' | 'inventario';
+type Tab = 'pedidos';
 
 const tabs = [
   { key: 'pedidos' as Tab, label: 'Pedidos', icon: ShoppingCart },
-  { key: 'inventario' as Tab, label: 'Inventario', icon: Warehouse },
 ];
 
 export default function OperacionesPage() {
@@ -19,7 +17,7 @@ export default function OperacionesPage() {
     <div className="space-y-4 pb-20 lg:pb-0">
       <div>
         <h2 className="text-xl font-bold text-white">Operaciones</h2>
-        <p className="text-sm text-gray-400">Pedidos e inventario</p>
+        <p className="text-sm text-gray-400">Gestion de pedidos</p>
       </div>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -40,7 +38,6 @@ export default function OperacionesPage() {
       </div>
 
       {activeTab === 'pedidos' && <PedidosPage />}
-      {activeTab === 'inventario' && <InventarioPage />}
     </div>
   );
 }

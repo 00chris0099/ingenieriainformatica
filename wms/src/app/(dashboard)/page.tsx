@@ -82,7 +82,7 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Productos', sub: `${stats?.activeProducts || 0} activos`, value: stats?.totalProducts?.toString() || '0', icon: Package, color: 'text-blue-400', href: '/catalogo' },
     { label: 'Pedidos', sub: `${stats?.pendingOrders || 0} pendientes`, value: stats?.totalOrders?.toString() || '0', icon: ShoppingCart, color: 'text-yellow-400', href: '/pedidos' },
-    { label: 'Stock Bajo', sub: 'Requiere atencion', value: stats?.lowStockProducts?.toString() || '0', icon: AlertTriangle, color: 'text-red-400', href: '/inventario' },
+    { label: 'Stock Bajo', sub: 'Requiere atencion', value: stats?.lowStockProducts?.toString() || '0', icon: AlertTriangle, color: 'text-red-400', href: '/catalogo' },
     { label: 'Clientes', sub: 'Total registrados', value: stats?.totalCustomers?.toString() || '0', icon: Users, color: 'text-green-400', href: '/clientes' },
   ];
 
@@ -182,7 +182,7 @@ export default function DashboardPage() {
           <Link href="/pedidos" className="flex items-center gap-2 p-3 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
             <ShoppingCart size={16} /> Ver Pedidos
           </Link>
-          <Link href="/inventario" className="flex items-center gap-2 p-3 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+          <Link href="/catalogo" className="flex items-center gap-2 p-3 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
             <AlertTriangle size={16} /> Revisar Stock
           </Link>
           <Link href="/reportes" className="flex items-center gap-2 p-3 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">

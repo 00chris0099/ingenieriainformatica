@@ -1,10 +1,10 @@
 'use client';
 
 import { useProductForm } from '../ProductFormContext';
-import { Gift, Eye, Tag } from 'lucide-react';
+import { Gift, Eye, Tag, Package, AlertTriangle } from 'lucide-react';
 
 export default function PricingTab() {
-  const { price, discountPercent, costPrice, stock, discountPopup, tags, updateField, toggleDiscountPopup, updateDiscountPopup } = useProductForm();
+  const { price, discountPercent, costPrice, stock, lowStockAlert, discountPopup, tags, updateField, toggleDiscountPopup, updateDiscountPopup } = useProductForm();
 
   const effectivePrice = discountPercent > 0
     ? Math.round(price * (1 - discountPercent / 100) * 100) / 100
@@ -85,6 +85,52 @@ export default function PricingTab() {
             Margen: {((price - costPrice) / price * 100).toFixed(1)}%
           </p>
         )}
+      </div>
+
+      {/* Stock */}
+      <div className="border-t border-gray-700 pt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Package size={18} className="text-blue-400" />
+          <h3 className="text-sm font-medium text-gray-300">Stock</h3>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">Cantidad en stock *</label>
+            <input
+              type="number"
+              value={stock ?? 0}
+              onChange={(e) => updateField('stock', parseInt(e.target.value) || 0)}
+              min="0"
+              step="1"
+              className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="0"
+            />
+            {stock === 0 && (
+              <p className="text-xs text-red-400 flex items-center gap-1">
+                <AlertTriangle size={12} /> Sin stock — producto no disponible en tienda
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">Alerta stock bajo</label>
+            <input
+              type="number"
+              value={lowStockAlert ?? ''}
+              onChange={(e) => updateField('lowStockAlert', e.target.value ? parseInt(e.target.value) : null)}
+              min="0"
+              step="1"
+              className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="Sin alerta"
+            />
+            {lowStockAlert != null && lowStockAlert > 0 && stock <= lowStockAlert && (
+              <p className="text-xs text-yellow-400 flex items-center gap-1">
+                <AlertTriangle size={12} /> Stock bajo (umbral: {lowStockAlert})
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Visual Tags */}
