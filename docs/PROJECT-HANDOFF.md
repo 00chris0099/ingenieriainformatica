@@ -1,558 +1,434 @@
-# Handoff Document - ADRISU KIDS WMS & Tienda Virtual
+# Manual de Usuario - ADRISU KIDS
 
-> **Fecha**: Julio 2026
-> **Repositorio**: https://github.com/00chris0099/adrisu
-> **Produccion**: https://tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host (Tienda) | https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host (WMS)
-
----
-
-## 1. Descripcion General
-
-Sistema completo de e-commerce para muebles de bebes en Peru, compuesto por:
-
-- **WMS (Warehouse Management System)**: Panel de administracion para gestionar productos, pedidos, inventario, facturacion, clientes, reportes y logistica
-- **Tienda Virtual**: Sitio web publico donde los clientes compran productos
-- **Paquetes compartidos**: Prisma schemas, componentes UI, utilidades
+> **Sistema**: WMS (Panel de Administracion) + Tienda Virtual
+> **URLs**:
+> - WMS: https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host
+> - Tienda: https://tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host
 
 ---
 
-## 2. Stack Tecnologico
+## PARTE 1: PANEL DE ADMINISTRACION (WMS)
 
-| Tecnologia | Uso |
-|------------|-----|
-| Next.js 14 | Framework web (App Router) |
-| TypeScript | Lenguaje principal |
-| React 18 | UI library |
-| Prisma | ORM para PostgreSQL |
-| PostgreSQL 15 | Base de datos principal |
-| Redis 7 | Cache y sesiones |
-| NextAuth v5 beta | Autenticacion (JWT) |
-| Tailwind CSS | Estilos |
-| Zustand | State management (carrito) |
-| Recharts | Graficos del dashboard |
-| MercadoPago | Pasarela de pagos |
-| Nubefact | Facturacion electronica SUNAT |
-| Resend | Emails transaccionales |
-| imgBB | Hosting de imagenes |
-| WhatsApp Business API | Chatbot y notificaciones |
-| Docker + Nginx | Deploy y reverse proxy |
-| Turborepo | Monorepo management |
+### 1.1 Inicio de Sesion
+
+1. Abre el navegador y ve a la URL del WMS
+2. Ingresa tu email y contrasena
+3. Haz clic en "Iniciar Sesion"
+
+> **[CAPTURA]**: Pantalla de login
 
 ---
 
-## 3. Arquitectura del Proyecto
+### 1.2 Dashboard Principal
 
-```
-proyecto-integrador/
-├── wms/                    # Panel de administracion (puerto 3000)
-├── tienda/                 # Tienda virtual publica (puerto 3001)
-├── packages/
-│   ├── prisma/             # Schema Prisma para tienda
-│   ├── prisma-wms/         # Schema Prisma para WMS (37 modelos)
-│   ├── ui/                 # Componentes compartidos
-│   └── utils/              # Utilidades compartidas
-├── infrastructure/         # Nginx, env files
-├── scripts/                # Scripts de inicializacion
-├── docker-compose.yml      # Orquestacion de servicios
-└── docs/                   # Documentacion
-```
+Al iniciar sesion, ves el dashboard con:
+
+- **Resumen del dia**: Pedidos nuevos, ingresos, productos con stock bajo
+- **Grafico de ventas**: Ventas de los ultimos meses
+- **Pedidos recientes**: Ultimos pedidos con estado
+- **Productos con stock bajo**: Alertas de reabastecimiento
+
+> **[CAPTURA]**: Dashboard principal con todos los widgets visibles
 
 ---
 
-## 4. WMS - Panel de Administracion
+### 1.3 Gestion de Productos
 
-### 4.1 Paginas del Dashboard (32 paginas)
+#### Ver productos
+1. Haz clic en **Catalogo** en el menu lateral
+2. Ves la lista de todos los productos con imagen, nombre, precio y stock
+3. Usa la barra de busqueda para encontrar un producto especifico
 
-| Ruta | Funcionalidad | Estado |
-|------|---------------|--------|
-| `/` | Dashboard principal con KPIs y graficos | Funcional |
-| `/pedidos` | Lista de pedidos con filtros y busqueda | Funcional |
-| `/pedidos/nuevo` | Crear nuevo pedido | Funcional |
-| `/pedidos/[id]` | Detalle de pedido con timeline de 9 pasos | Funcional |
-| `/pedidos/[id]/picking` | Estacion de picking con escaneo SKU | Funcional |
-| `/pedidos/[id]/packing` | Estacion de empaque con impresion etiquetas | Funcional |
-| `/inventario` | Lista de productos con edicion inline de stock | Funcional |
-| `/inventario/transferencias/nueva` | Transferencia entre almacenes | Funcional |
-| `/inventario/series/nueva` | Registro de numeros de serie | Funcional |
-| `/inventario/lotes/nuevo` | Creacion de lotes con fechas | Funcional |
-| `/catalogo` | CRUD completo de productos con preview | Funcional |
-| `/clientes` | Lista y gestion de clientes | Funcional |
-| `/clientes/nuevo` | Crear nuevo cliente | Funcional |
-| `/clientes/[id]/editar` | Editar cliente | Funcional |
-| `/facturacion` | Gestion de facturas, boletas, notas | Funcional |
-| `/finanzas` | Resumen financiero con graficos | Funcional |
-| `/reportes` | Reportes: general, IGV, proveedores, margenes, inventario | Funcional |
-| `/compras` | Gestion de proveedores | Funcional |
-| `/logistica` | Gestion de envios | Funcional |
-| `/usuarios` | Gestion de usuarios y roles | Funcional |
-| `/cupones` | CRUD de cupones de descuento | Funcional |
-| `/impuestos` | Configuracion de IGV | Funcional |
-| `/comunicaciones` | WhatsApp broadcasts y notificaciones push | Funcional |
-| `/analytics` | Dashboard de analytics basico | Funcional |
-| `/analytics-avanzado` | CLV, cohortes, tendencias, carrito | Funcional |
-| `/blog` | Gestion de articulos del blog | Funcional |
-| `/whatsapp` | Configuracion de chatbot WhatsApp | Funcional |
-| `/labels` | Impresion de etiquetas ZPL | Funcional |
-| `/picking` | Listas de picking batch | Funcional |
-| `/packing` | Estaciones de empaque | Funcional |
-| `/devoluciones` | Gestion de devoluciones/RMA | Funcional |
-| `/calidad` | Control de calidad e inspecciones | Funcional |
-| `/auditoria` | Logs de auditoria del sistema | Funcional |
+> **[CAPTURA]**: Lista de productos en el catalogo
 
-> **[CAPTURA]**: Tomar screenshot del dashboard principal con KPIs visibles
+#### Crear un producto nuevo
+1. Haz clic en **"+ Nuevo Producto"**
+2. Completa la pestana **Informacion**:
+   - Nombre del producto
+   - SKU (se genera automaticamente si lo dejas vacio)
+   - Descripcion
+   - Categoria
+   - Marca, dimensiones, peso, color
+3. Ve a la pestana **Precios**:
+   - Precio principal
+   - Precio especial (opcional)
+   - Descuento por porcentaje (opcional)
+   - Precio mayorista (opcional)
+4. Ve a la pestana **Variantes** si el producto tiene tallas o colores
+5. Haz clic en **"Guardar"**
 
-### 4.2 Gestion de Productos (Catalogo)
+> **[CAPTURA]**: Formulario de nuevo producto con pestanas visibles
+> **[CAPTURA]**: Pestana de precios con descuento configurado
 
-El formulario de productos tiene 5 pestanas:
+#### Editar un producto
+1. En la lista de productos, haz clic en el icono de editar (lapiz)
+2. Modifica los campos que necesites
+3. Haz clic en **"Guardar"**
 
-1. **Informacion**: Nombre, SKU, descripcion, categoria, marca, dimensiones, peso, color, materiales, edad recomendada, garantia, pais de origen
-2. **Precios**: Precio principal, precio especial, descuento porcentaje, precio mayorista, configuracion de tipos de precio
-3. **Variantes**: Agregar/editar variantes (talla, color, etc.) con precio y stock individual
-4. **Ofertas**: Productos sugeridos (cross-sell), configuracion de popup de descuento
-5. **Landing Page**: Editor de bloques para pagina de aterrizaje del producto (hero, texto, imagen, galeria, features, testimonials, FAQ, countdown, CTA, video)
+#### Cambiar precio de un producto
+1. Entra al producto
+2. Ve a la pestana **Precios**
+3. Cambia el precio principal
+4. Haz clic en **"Guardar"**
 
-> **[CAPTURA]**: Tomar screenshot del formulario de producto con las 5 pestanas visibles
-> **[CAPTURA]**: Tomar screenshot del editor de landing page con bloques
+> **[CAPTURA]**: Producto con precio y descuento configurado
 
-### 4.3 Flujo de Pedidos
+---
 
-El flujo completo de un pedido es:
+### 1.4 Gestion de Pedidos
 
+#### Ver pedidos
+1. Haz clic en **Pedidos** en el menu lateral
+2. Ves la lista de todos los pedidos con numero, cliente, total y estado
+3. Filtra por estado: Pendientes, En proceso, Enviados, Entregados
+
+> **[CAPTURA]**: Lista de pedidos con filtros
+
+#### Ver detalle de un pedido
+1. Haz clic en el numero de pedido
+2. Ves:
+   - **Timeline**: Los 9 pasos del pedido (Pendiente → Confirmado → ... → Entregado)
+   - **Cliente**: Nombre, telefono, email
+   - **Direccion de envio**
+   - **Productos**: Lista con cantidades y precios
+   - **Resumen**: Subtotal, IGV, envio, total
+
+> **[CAPTURA]**: Detalle de pedido con timeline visible
+
+#### Cambiar estado de un pedido
+1. Entra al detalle del pedido
+2. Haz clic en el boton del siguiente estado disponible
+3. El timeline se actualiza automaticamente
+
+**Flujo de estados:**
 ```
 Pendiente → Confirmado → Procesando → Picking → Packing → Listo para Enviar → Enviado → En Transito → Entregado
 ```
 
-Cada estado tiene transiciones validas configuradas en `wms/src/lib/orders.ts`.
+> **[CAPTURA]**: Boton de cambio de estado
 
-El timeline de 9 pasos se muestra en la vista de detalle del pedido.
+#### Preparar pedido (Picking)
+1. Entra al pedido que esta en estado "Procesando"
+2. Haz clic en **"Ir a Picking"**
+3. Escanea o ingresa el SKU de cada producto
+4. Marca cada producto conforme lo vas empacando
+5. Cuando todos estan marcados, haz clic en **"Completar Picking"**
 
-> **[CAPTURA]**: Tomar screenshot de la vista de detalle de pedido con timeline visible
-> **[CAPTURA]**: Tomar screenshot de la estacion de picking con escaneo SKU
+> **[CAPTURA]**: Estacion de picking con productos marcados
 
-### 4.4 Facturacion Electronica (Nubefact)
+#### Empacar pedido (Packing)
+1. Entra al pedido que esta en estado "Picking"
+2. Haz clic en **"Ir a Packing"**
+3. Verifica cada producto escaneando o marcando
+4. Haz clic en **"Imprimir Etiqueta"** para generar la etiqueta de envio
+5. Haz clic en **"Generar Guia de Remision"** para la guia del transportista
+6. Cuando todo esta verificado, haz clic en **"Marcar como Listo para Envio"**
 
-El WMS esta integrado con Nubefact para facturacion electronica SUNAT:
-
-- **Documentos soportados**: Factura electronica, Boleta de venta, Nota de credito, Nota de debito
-- **Calculo automatico de IGV**: 18% sobre el subtotal
-- **Generacion de PDF**: Con diseno profesional y logo de empresa
-- **Envio a SUNAT**: Via API de Nubefact
-- **Consulta de estado**: Verificacion de aceptacion/rechazo
-
-Variables de entorno requeridas:
-```
-NUBEFACT_TOKEN=tu_token
-NUBEFACT_URL=https://demo.nubefact.com/api/v1
-```
-
-> **[CAPTURA]**: Tomar screenshot de la pagina de facturacion con lista de comprobantes
-> **[CAPTURA]**: Tomar screenshot del modal de nuevo comprobante con calculo de IGV
-
-### 4.5 Reportes
-
-5 tipos de reportes disponibles:
-
-1. **General**: KPIs, productos, pedidos, revenue, tasa de conversion
-2. **IGV**: Desglose mensual de IGV cobrado, base imponible
-3. **Proveedores**: Compras por proveedor, ranking, dias promedio de entrega
-4. **Margenes**: Top 10 productos mas rentables, margen bruto %
-5. **Inventario**: Valorizacion de stock, rotacion, productos obsoletos
-
-Todos exportables a Excel via `/api/v1/reports/export`.
-
-> **[CAPTURA]**: Tomar screenshot de cada tipo de reporte
-
-### 4.6 Notificaciones
-
-El WMS tiene un sistema de notificaciones en tiempo real:
-
-- **Campana de notificaciones** en el header del dashboard
-- **Polling** cada 30 segundos
-- **Marcado como leido** individual y masivo
-- **Tipos**: Pedidos, estado, stock, informacion
-
-Las notificaciones se crean automaticamente cuando:
-- Se crea un pedido
-- Cambia el estado de un pedido
-- Stock esta bajo el umbral
-
-> **[CAPTURA]**: Tomar screenshot de la campana de notificaciones con el dropdown abierto
+> **[CAPTURA]**: Estacion de packing con productos verificados
+> **[CAPTURA]**: Boton de imprimir etiqueta
 
 ---
 
-## 5. Tienda Virtual
+### 1.5 Gestion de Inventario
 
-### 5.1 Paginas Publicas (15 paginas)
+#### Ver inventario
+1. Haz clic en **Inventario** en el menu lateral
+2. Ves la lista de productos con su stock actual
+3. Puedes editar el stock directamente haciendo clic en el numero
 
-| Ruta | Funcionalidad | Estado |
-|------|---------------|--------|
-| `/` | Landing page con productos destacados | Funcional |
-| `/tienda` | Catalogo con busqueda, filtros, ordenamiento | Funcional |
-| `/producto/[slug]` | Detalle de producto con variantes, landing page | Funcional |
-| `/carrito` | Carrito de compras con drawer slide-in | Funcional |
-| `/checkout` | Checkout 4 pasos: carrito, info, pago, confirmacion | Funcional |
-| `/pago` | Pagina de pago MercadoPago | Funcional |
-| `/pedido` | Seguimiento de pedido por numero | Funcional |
-| `/faq` | 35+ preguntas frecuentes con Schema.org | Funcional |
-| `/blog` | Listado de articulos del blog | Funcional |
-| `/blog/[slug]` | Detalle de articulo con HTML sanitizado | Funcional |
-| `/login` | Inicio de sesion (credenciales + Google) | Funcional |
-| `/registro` | Registro de clientes | Funcional |
-| `/favoritos` | Lista de deseos | Funcional |
-| `/mis-pedidos` | Historial de pedidos del cliente | Funcional |
-| `/perfil` | Perfil del cliente | Funcional |
+> **[CAPTURA]**: Lista de inventario con stock visible
 
-> **[CAPTURA]**: Tomar screenshot de la landing page
-> **[CAPTURA]**: Tomar screenshot del catalogo con productos y filtros
-> **[CAPTURA]**: Tomar screenshot del detalle de producto con variantes y precio
-> **[CAPTURA]**: Tomar screenshot del carrito de compras
-> **[CAPTURA]**: Tomar screenshot del checkout (paso de informacion)
-> **[CAPTURA]**: Tomar screenshot del seguimiento de pedido
+#### Ajustar stock
+1. En la lista de inventario, haz clic en el numero de stock de un producto
+2. Ingresa la nueva cantidad
+3. Confirma el cambio
 
-### 5.2 Carrito de Compras
+> **[CAPTURA]**: Modal de ajuste de stock
 
-- **State management**: Zustand con persistencia en localStorage
-- **Funcionalidades**: Agregar, eliminar, actualizar cantidad, calcular total
-- **Validacion**: Stock disponible, precio actualizado
-- **Drawer**: Se abre desde cualquier pagina como overlay
+#### Transferir productos entre almacenes
+1. Haz clic en **Inventario > Nueva Transferencia**
+2. Selecciona el producto
+3. Selecciona el almacén de origen
+4. Selecciona el almacén de destino
+5. Ingresa la cantidad
+6. Confirma la transferencia
 
-> **[CAPTURA]**: Tomar screenshot del drawer del carrito con productos
-
-### 5.3 Checkout
-
-Flujo de 4 pasos:
-
-1. **Carrito**: Resumen de productos
-2. **Informacion**: Datos del cliente y direccion de envio (con UBIGEO)
-3. **Pago**: Opciones: MercadoPago (tarjetas), Yape, Plin, Contraentrega
-4. **Confirmacion**: Resumen del pedido y numero de orden
-
-Integraciones:
-- **MercadoPago**: Checkout redirige a MP para tarjetas
-- **Yape/Plin**: Muestra QR para pago manual
-- **Contraentrega**: Pago en efectivo al momento de la entrega (solo Lima)
-
-> **[CAPTURA]**: Tomar screenshot del paso de pago con opciones de MercadoPago/Yape/Plin
-
-### 5.4 SEO y GEO
-
-El sitio esta optimizado para buscadores y motores de IA:
-
-- **Schema.org**: Product, FAQ, HowTo, BreadcrumbList, LocalBusiness, Organization, WebSite, Event, Video, Speakable
-- **Meta tags**: OpenGraph, Twitter Cards, metadata dinamica por pagina
-- **Sitemap**: Dinamico con productos y blog
-- **llms.txt**: Archivo para que las IAs entiendan el sitio
-- **RSS Feed**: `/feed.xml` con articulos del blog
-- **Canonical URLs**: En todas las paginas
-
-> **[CAPTURA]**: Tomar screenshot de Google Search Console mostrando rich results
-
-### 5.5 Blog
-
-- **Gestion**: CRUD completo desde el WMS
-- **Contenido**: Articulos educativos sobre muebles para bebes
-- **SEO**: Metadata dinamica, OpenGraph, Schema Article
-- **Sanitizacion**: HTML sanitizado con DOMPurify
-
-> **[CAPTURA]**: Tomar screenshot de un articulo del blog
+> **[CAPTURA]**: Formulario de transferencia
 
 ---
 
-## 6. Base de Datos (37 Modelos Prisma)
+### 1.6 Gestion de Clientes
 
-### Principales modelos:
+#### Ver clientes
+1. Haz clic en **Clientes** en el menu lateral
+2. Ves la lista de clientes con nombre, email y telefono
+3. Busca un cliente por nombre o email
 
-**IAM**: User, Session
-**Catalogo**: Category, Product, ProductVariant
-**Inventario**: Warehouse, Inventory, InventoryMovement, AuditTrail
-**Precios**: PriceList, PriceListItem
-**Ventas/CRM**: Order, OrderItem, OrderStatusHistory, Customer, Shipment
-**Facturacion**: Invoice, InvoiceItem
-**Compras**: Supplier, PurchaseOrder, PurchaseOrderItem, GoodsReceipt
-**Logistica**: Shipment
-**Picking**: PickList, PickListItem
-**Devoluciones**: Return, ReturnItem
-**Conteo Ciclico**: CycleCount, CycleCountItem
-**Lotes**: Lot, LotMovement
-**Series**: SerialNumber
-**Calidad**: QualityCheck, QualityCheckItem
-**Blog**: BlogPost
-**Notificaciones**: NotificationQueue
-**E-commerce**: Wishlist, Review, SuggestedProduct, Coupon, NewsletterSubscriber, TaxConfig
+> **[CAPTURA]**: Lista de clientes
 
-> **[CAPTURA]**: Tomar screenshot de Prisma Studio mostrando los modelos
+#### Crear un cliente
+1. Haz clic en **"+ Nuevo Cliente"**
+2. Completa: nombre, email, telefono, direccion
+3. Haz clic en **"Guardar"**
+
+#### Ver historial de un cliente
+1. Haz clic en el nombre del cliente
+2. Ves sus datos personales y pedidos anteriores
+
+> **[CAPTURA]**: Formulario de nuevo cliente
 
 ---
 
-## 7. Infraestructura
+### 1.7 Facturacion
 
-### 7.1 Docker Compose
+#### Ver facturas
+1. Haz clic en **Facturacion** en el menu lateral
+2. Ves la lista de comprobantes emitidos
+3. Filtra por estado: Borrador, Emitida, Pagada, Anulada
 
-5 servicios:
+> **[CAPTURA]**: Lista de facturas
 
-| Servicio | Puerto | Descripcion |
-|----------|--------|-------------|
-| postgres | 5432 | PostgreSQL 15 Alpine |
-| redis | 6379 | Redis 7 Alpine |
-| wms | 3000 | Next.js WMS (standalone) |
-| tienda | 3001 | Next.js Tienda (standalone) |
-| nginx | 80/443 | Reverse proxy con HTTPS |
+#### Crear una factura
+1. Haz clic en **"+ Nuevo Comprobante"**
+2. Selecciona el tipo: **Factura** o **Boleta**
+3. Selecciona el cliente
+4. Agrega los productos con cantidades y precios
+5. El IGV (18%) se calcula automaticamente
+6. Haz clic en **"Guardar Borrador"**
+7. Para enviar a SUNAT, haz clic en **"Enviar a Nubefact"**
 
-### 7.2 Deploy en EasyPanel
+> **[CAPTURA]**: Modal de nuevo comprobante con IGV calculado
+> **[CAPTURA]**: Factura enviada con estado "Emitida"
 
-Los servicios estan configurados por separado en EasyPanel (no via docker-compose):
+#### Descargar factura en PDF
+1. En la lista de facturas, haz clic en el icono de ojo (ver)
+2. Se abre el PDF de la factura con formato profesional
 
-- **WMS**: `tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host`
-- **Tienda**: `tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host`
-
-Variables de entorno requeridas en EasyPanel:
-
-**WMS:**
-```
-DATABASE_URL=postgres://...
-REDIS_URL=redis://...
-NEXTAUTH_SECRET=adriskids-wms-secret-2024
-NEXTAUTH_URL=https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host
-AUTH_TRUST_HOST=true
-MERCADOPAGO_ACCESS_TOKEN=...
-MERCADOPAGO_PUBLIC_KEY=...
-IMGBB_API_KEY=...
-RESEND_API_KEY=...
-NUBEFACT_TOKEN=...
-NUBEFACT_URL=https://demo.nubefact.com/api/v1
-```
-
-**Tienda:**
-```
-DATABASE_URL=postgres://...
-REDIS_URL=redis://...
-NEXTAUTH_SECRET=adriskids-wms-secret-2024
-NEXTAUTH_URL=https://tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host
-AUTH_TRUST_HOST=true
-WMS_INTERNAL_URL=https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host
-MERCADOPAGO_ACCESS_TOKEN=...
-MERCADOPAGO_PUBLIC_KEY=...
-IMGBB_API_KEY=...
-RESEND_API_KEY=...
-```
-
-> **[CAPTURA]**: Tomar screenshot del docker-compose.yml
-> **[CAPTURA]**: Tomar screenshot de EasyPanel con los servicios configurados
+> **[CAPTURA]**: PDF de factura con logo y datos
 
 ---
 
-## 8. Seguridad
+### 1.8 Reportes
 
-### Implementada:
-- Autenticacion JWT con NextAuth
-- Middleware protection en WMS (solo lectura publica)
-- CORS restringido por dominio
-- Rate limiting en endpoints criticos
-- Input validation en APIs
-- SQL injection prevention via Prisma
-- XSS prevention via React + DOMPurify
-- Secrets en variables de entorno (no hardcodeados)
+#### Ver reportes
+1. Haz clic en **Reportes** en el menu lateral
+2. Selecciona el tipo de reporte:
+   - **General**: KPIs y resumen del negocio
+   - **IGV**: Desglose de impuestos
+   - **Proveedores**: Compras por proveedor
+   - **Margenes**: Rentabilidad por producto
+   - **Inventario**: Valorizacion de stock
 
-### Pendiente:
-- 2FA no implementado (solo estructura base)
-- Audit trail completo para todas las mutaciones
+> **[CAPTURA]**: Reporte general con graficos
+> **[CAPTURA]**: Reporte de IGV con desglose mensual
 
----
-
-## 9. GEO (Generative Engine Optimization)
-
-Optimizado para que las IAs (ChatGPT, Perplexity, Gemini) entiendan y recomienden la tienda:
-
-- **Schema.org**: Product, FAQ (35+ preguntas), HowTo, BreadcrumbList, LocalBusiness, Organization, WebSite, Event, Video, Speakable
-- **llms.txt**: Archivo en la raiz del sitio con descripcion del negocio, productos, precios, politicas
-- **RSS Feed**: `/feed.xml` para sindicacion de contenido
-- **Blog educativo**: 5 articulos optimizados para GEO
-- **Contenido semántico**: Descripciones ricas de productos
-- **Sinónimos de búsqueda**: Búsqueda expandida con sinónimos
-
-> **[CAPTURA]**: Tomar screenshot de la pagina /faq con las 35+ preguntas
-> **[CAPTURA]**: Tomar screenshot del archivo llms.txt
+#### Exportar a Excel
+1. En cualquier reporte, haz clic en **"Exportar"**
+2. Se descarga un archivo Excel con los datos
 
 ---
 
-## 10. Funcionalidades Clave
+### 1.9 Cupones de Descuento
 
-### 10.1 Impresion de Etiquetas (ZPL)
-- Etiquetas de producto (50x30mm, 100x50mm)
-- Etiquetas de envio (100x100mm, 100x150mm)
-- Guia de remision
-- Generador de codigo ZPL en `wms/src/lib/printing/zpl.ts`
+#### Crear un cupon
+1. Haz clic en **Cupones** en el menu lateral
+2. Haz clic en **"+ Nuevo Cupon"**
+3. Completa:
+   - Codigo (ej: NAVIDAD10)
+   - Tipo: Porcentaje o Monto fijo
+   - Valor del descuento
+   - Compra minima (opcional)
+   - Descuento maximo (opcional)
+   - Limite de usos (opcional)
+   - Fechas de validez
+4. Haz clic en **"Crear Cupon"**
 
-### 10.2 WhatsApp Business Chatbot
-- Flujos predefinidos: bienvenida, estado de pedido, catalogo, devoluciones, soporte
-- Webhook handler en `/api/v1/whatsapp`
-- Configuracion desde el WMS
-
-### 10.3 Escaneo de Codigos de Barras
-- Componente `BarcodeScanner` usando html5-qrcode
-- Compatible con camara del celular
-- Uso en: picking, packing, inventario
-
-### 10.4 PWA (Progressive Web App)
-- Manifest.json configurado
-- Service Worker para offline
-- Instalable en dispositivos moviles
-
-### 10.5 Analytics
-- **Basico**: Dashboard con KPIs, productos top, revenue
-- **Avanzado**: CLV (Customer Lifetime Value), cohortes, tendencias estacionales, analisis de carrito
-
-> **[CAPTURA]**: Tomar screenshot del escanner de codigos de barras en accion
-> **[CAPTURA]**: Tomar screenshot del dashboard de analytics avanzado
+> **[CAPTURA]**: Formulario de nuevo cupon con todos los campos
 
 ---
 
-## 11. Servicios Externos
+### 1.10 Notificaciones
 
-| Servicio | Estado | Uso |
-|----------|--------|-----|
-| MercadoPago | Configurado (sandbox) | Pagos con tarjeta |
-| Nubefact | Configurado (demo) | Facturacion electronica SUNAT |
-| Resend | Configurado | Emails transaccionales |
-| imgBB | Configurado | Hosting de imagenes |
-| SUNAT RUC | Configurado | Consulta de RUCs |
-| WhatsApp Business | Pendiente de API key | Chatbot y notificaciones |
-| Google Analytics | Pendiente | Tracking de trafico |
-| Meta Pixel | Pendiente | Retargeting |
+- Haz clic en la **campanita** en la esquina superior derecha
+- Ves las notificaciones de nuevos pedidos, cambios de estado, alertas de stock
+- Haz clic en "Marcar todo leido" para limpiar
+
+> **[CAPTURA]**: Dropdown de notificaciones abierto
 
 ---
 
-## 12. Comandos Utiles
+## PARTE 2: TIENDA VIRTUAL (Cliente)
 
-```bash
-# Instalar dependencias
-pnpm install
+### 2.1 Navegar la Tienda
 
-# Desarrollo local
-pnpm --filter @repo/wms dev      # WMS en puerto 3000
-pnpm --filter @repo/tienda dev   # Tienda en puerto 3001
+1. Abre la URL de la tienda
+2. Usa la **barra de busqueda** para encontrar productos
+3. Usa los **filtros de categoria** (Camas, Sillas, Carritos, etc.)
+4. Ordena por: Mas recientes, Precio (mayor/menor), Nombre
 
-# Build
-pnpm --filter @repo/wms build
-pnpm --filter @repo/tienda build
+> **[CAPTURA]**: Pagina principal de la tienda con productos
 
-# Base de datos
-pnpm --filter @repo/prisma-wms db:generate   # Generar Prisma Client
-pnpm --filter @repo/prisma-wms db:push        # Push schema a DB
-pnpm --filter @repo/prisma-wms db:seed        # Seed datos iniciales
-pnpm --filter @repo/prisma-wms db:studio      # Abrir Prisma Studio
+### 2.2 Ver un Producto
 
-# Docker
-docker-compose up -d    # Levantar todos los servicios
-docker-compose down     # Detener todos los servicios
-```
+1. Haz clic en cualquier producto
+2. Ves:
+   - **Imagenes** del producto (puedes cambiar entre ellas)
+   - **Nombre y precio** (con descuento si aplica)
+   - **Descripcion** detallada
+   - **Variantes** (si tiene tallas o colores)
+   - **Stock disponible**
+   - ** boton "Lo quiero ahora!"**
 
----
+> **[CAPTURA]**: Pagina de producto con variantes y precio
 
-## 13. Estructura de Directorios WMS
+### 2.3 Agregar al Carrito
 
-```
-wms/src/
-├── app/
-│   ├── (auth)/login/           # Pagina de login
-│   ├── (dashboard)/            # 32 paginas del dashboard
-│   │   ├── page.tsx            # Dashboard principal
-│   │   ├── pedidos/            # Gestion de pedidos
-│   │   ├── inventario/         # Gestion de inventario
-│   │   ├── catalogo/           # Gestion de productos
-│   │   ├── clientes/           # Gestion de clientes
-│   │   ├── accounting/         # Facturacion
-│   │   ├── finanzas/           # Finanzas
-│   │   ├── reportes/           # Reportes
-│   │   ├── compras/            # Proveedores
-│   │   ├── logistica/          # Envios
-│   │   ├── usuarios/           # Usuarios
-│   │   ├── cupones/            # Cupones
-│   │   ├── comunicaciones/     # WhatsApp + Push
-│   │   ├── analytics/          # Analytics basico
-│   │   ├── analytics-avanzado/ # CLV, cohortes, etc.
-│   │   ├── blog/               # Blog
-│   │   ├── devoluciones/       # RMA
-│   │   ├── calidad/            # Control de calidad
-│   │   └── auditoria/          # Logs
-│   └── api/v1/                 # 75 endpoints API
-├── components/
-│   ├── catalogo/               # ProductForm, tabs, previews
-│   ├── ui/                     # Componentes compartidos
-│   └── notifications/          # NotificationBell
-├── lib/
-│   ├── auth.ts                 # NextAuth configuration
-│   ├── billing/                # Nubefact, IGV, PDF
-│   ├── orders.ts               # Transiciones de estado
-│   └── ...                     # Otras utilidades
-└── middleware.ts                # Auth + CORS
-```
+1. Selecciona la variante si aplica (talla, color)
+2. Haz clic en **"Lo quiero ahora!"**
+3. El carrito se abre como panel lateral
+4. Puedes modificar cantidades o eliminar productos
 
----
+> **[CAPTURA]**: Panel lateral del carrito con productos
 
-## 14. Estructura de Directorios Tienda
+### 2.4 Comprar (Checkout)
 
-```
-tienda/src/
-├── app/
-│   ├── (public)/               # Paginas publicas
-│   │   ├── tienda/             # Catalogo
-│   │   ├── producto/[slug]/    # Detalle producto
-│   │   ├── carrito/            # Carrito
-│   │   ├── checkout/           # Checkout
-│   │   ├── pedido/             # Seguimiento
-│   │   ├── faq/                # Preguntas frecuentes
-│   │   ├── blog/               # Blog
-│   │   └── login/registro/     # Auth
-│   ├── api/v1/                 # 15 endpoints API
-│   ├── sitemap.ts              # Sitemap dinamico
-│   ├── robots.ts               # Reglas de crawlers
-│   └── feed.xml/               # RSS feed
-├── components/
-│   ├── checkout/               # CheckoutModal, MercadoPago
-│   ├── geo/                    # Schema.org components
-│   ├── layout/                 # Navbar, Footer
-│   └── ui/                     # Componentes compartidos
-├── lib/
-│   ├── auth.ts                 # NextAuth configuration
-│   ├── search-synonyms.ts      # Sinonimos de busqueda
-│   └── geo/                    # Knowledge graph, guides
-└── middleware.ts                # Auth
-```
+#### Paso 1: Carrito
+- Revisa los productos, cantidades y subtotal
+- Haz clic en **"Continuar compra"**
+
+#### Paso 2: Informacion
+- Ingresa tus datos: nombre, email, telefono
+- Selecciona o ingresa la direccion de envio
+- Haz clic en **"Continuar al pago"**
+
+#### Paso 3: Pago
+Elige tu metodo de pago:
+- **MercadoPago**: Paga con tarjeta de credito o debito
+- **Yape**: Escanea el codigo QR y paga desde tu celular
+- **Plin**: Escanea el codigo QR y paga desde tu celular
+- **Contraentrega**: Paga en efectivo cuando recibas el pedido (solo Lima)
+
+> **[CAPTURA]**: Paso de pago con opciones de MercadoPago, Yape y Plin
+
+#### Paso 4: Confirmacion
+- Ves el resumen de tu pedido
+- Recibes el **numero de pedido** para dar seguimiento
+- Recibes un **email de confirmacion**
+
+> **[CAPTURA]**: Pagina de confirmacion con numero de pedido
+
+### 2.5 Seguir tu Pedido
+
+1. Ve a **/pedido** o usa el link del email
+2. Ingresa tu numero de pedido (ej: ADR-20260715-abc12)
+3. Haz clic en **"Buscar"**
+4. Ves el **timeline** con el estado actual de tu pedido
+
+> **[CAPTURA]**: Pagina de seguimiento con timeline
+
+### 2.6 Preguntas Frecuentes
+
+1. Ve a **/faq**
+2. Encuentra respuestas sobre envios, pagos, garantia, devoluciones
+3. Las preguntas estan organizadas por categoria
+
+> **[CAPTURA]**: Pagina de FAQ con categorias
 
 ---
 
-## 15. Notas para el Desarrollador
+## PARTE 3: TAREAS COMUNES
 
-### Importante:
-1. El WMS y Tienda comparten la misma base de datos pero tienen schemas de Prisma diferentes
-2. La tienda obtiene productos del WMS via API interna (no directo a la DB)
-3. Los archivos de landing page se guardan en disco (`public/landings/`), no en la DB
-4. El deploy en EasyPanel usa Dockerfiles separados, no docker-compose
-5. El WMS usa `output: 'standalone'` en Next.js, el CMD debe ser `node .next/standalone/server.js`
+### Crear un producto paso a paso
+1. WMS → Catalogo → Nuevo Producto
+2. Llenar informacion basica
+3. Agregar precio
+4. Agregar variantes si aplica
+5. Guardar
+6. Verificar que aparece en la tienda
 
-### Bugs conocidos:
-1. Picking/packing no persisten progreso al recargar (estado en React)
-2. Las imagenes usan `<img>` en vez de `<Image>` de Next.js
-3. Hay console.log en produccion que deberian eliminarse
-4. El componente `CrossSellProductItem` en OffersTab.tsx es dead code
+### Procesar un pedido de principio a fin
+1. WMS → Pedidos → Ver pedido nuevo
+2. Cambiar a "Confirmado"
+3. Cambiar a "Procesando"
+4. Ir a Picking → Escanear productos
+5. Ir a Packing → Verificar → Imprimir etiqueta
+6. Cambiar a "Listo para Enviar"
+7. Cambiar a "Enviado" (cuando el transportista lo recoja)
+8. Cambiar a "Entregado" (cuando el cliente lo reciba)
 
-### Proximo paso sugerido:
-1. Configurar WhatsApp Business API para chatbot real
-2. Integrar Google Analytics 4 y Meta Pixel
-3. Persistir progreso de picking/packing via API
-4. Agregar tests unitarios (cobertura actual ~30%)
-5. Configurar HTTPS con Let's Encrypt en Nginx
+### Crear una factura
+1. WMS → Facturacion → Nuevo Comprobante
+2. Seleccionar tipo (Factura o Boleta)
+3. Seleccionar cliente
+4. Agregar productos
+5. Guardar borrador
+6. Enviar a Nubefact
+7. Descargar PDF
+
+### Responder un reclamo de devolucion
+1. WMS → Devoluciones → Nueva Devolucion
+2. Ingresar numero de pedido
+3. Ingresar motivo de la devolucion
+4. Cambiar estado a "Inspeccionando" cuando llegue el producto
+5. Cambiar a "Aprobada" o "Rechazada"
+6. Si se aprueba, procesar reembolso
 
 ---
 
-## 16. Contactos
+## PARTE 4: CONFIGURACION INICIAL
 
-- **Desarrollador**: Chris (00chris0099)
-- **Repositorio**: https://github.com/00chris0099/adrisu
-- **Produccion WMS**: https://tiendavirtual-adrisuestesiwms.jpq6em.easypanel.host
-- **Produccion Tienda**: https://tiendavirtual-tiendaadrisuk.jpq6em.easypanel.host
+### Datos de la empresa (configurar en WMS → Configuracion)
+- **Nombre**: ADRISU KIDS
+- **RUC**: 10730431746
+- **Direccion**: Av. Industrial 123, Lima
+- **Telefono**: 999 111 222
+- **Moneda**: Soles (PEN)
+
+### Usuarios iniciales
+- **Admin**: Crear desde WMS → Usuarios → Nuevo Usuario
+- **Rol**: Super Admin o Admin
+
+### Productos iniciales
+- El sistema viene con 18 productos de ejemplo (muebles para bebes)
+- Puedes editarlos o crear nuevos desde Catalogo
+
+### Configurar Nubefact (Facturacion)
+1. Crear cuenta en https://www.nubefact.com/registro
+2. Obtener token de la API
+3. Configurar en WMS → Variables de entorno:
+   - `NUBEFACT_TOKEN=tu_token`
+   - `NUBEFACT_URL=https://demo.nubefact.com/api/v1`
+
+### Configurar MercadoPago (Pagos)
+1. Crear cuenta en https://www.mercadopago.com
+2. Obtener credenciales de produccion
+3. Configurar en las variables de entorno de ambos servicios
 
 ---
 
-*Documento generado automaticamente como parte del handoff del proyecto ADRISU KIDS.*
+## PARTE 5: SOLUCION DE PROBLEMAS COMUNES
+
+### No se ven los productos en la tienda
+- Verificar que el producto tenga estado "Activo"
+- Verificar que el WMS este corriendo
+- Esperar 1 minuto (cache de 60 segundos)
+
+### No se genera la factura
+- Verificar que Nubefact este configurado con token valido
+- Verificar que el cliente tenga RUC o DNI
+
+### El pedido no cambia de estado
+- Verificar que el estado actual permita la transicion
+- Ejemplo: No se puede ir de "Pendiente" directo a "Enviado"
+
+### No se envia el email de confirmacion
+- Verificar que Resend este configurado con API key valida
+- Revisar la carpeta de spam del cliente
+
+### La busqueda no encuentra productos
+- Intentar con sinonimos: "cuna" tambien busca "berlin", "cama convertible"
+- Verificar que el producto este activo y con stock
+
+---
+
+*Manual de usuario para el sistema ADRISU KIDS - WMS y Tienda Virtual*
