@@ -169,7 +169,11 @@ export default function OffersTab() {
     if (swapIdx < 0 || swapIdx >= offers.length) return;
 
     const newOffers = [...offers];
-    [newOffers[idx], newOffers[swapIdx]] = [newOffers[swapIdx], newOffers[idx]];
+    const itemA = newOffers[idx];
+    const itemB = newOffers[swapIdx];
+    if (!itemA || !itemB) return;
+    newOffers[idx] = itemB;
+    newOffers[swapIdx] = itemA;
     const reordered = newOffers.map((o, i) => ({ ...o, sortOrder: i }));
     setOffers(reordered);
 

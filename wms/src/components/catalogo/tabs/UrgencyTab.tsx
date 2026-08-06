@@ -70,7 +70,7 @@ export default function UrgencyTab() {
   };
 
   const previewAvatar = socialProof.avatars[0];
-  const previewMsg = (socialProof.messages[0] || DEFAULT_MESSAGES[0])
+  const previewMsg = (socialProof.messages[0] || DEFAULT_MESSAGES[0] || '')
     .replace('{name}', previewAvatar?.name || 'María')
     .replace('{city}', previewAvatar?.city || 'Lima')
     .replace('{product}', 'Este producto');
