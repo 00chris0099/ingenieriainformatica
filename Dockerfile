@@ -16,4 +16,4 @@ RUN pnpm --filter @repo/wms build
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@repo/wms", "start"]
+CMD ["sh", "-c", "pnpm --filter @repo/prisma db:push --accept-data-loss && pnpm --filter @repo/wms start"]
