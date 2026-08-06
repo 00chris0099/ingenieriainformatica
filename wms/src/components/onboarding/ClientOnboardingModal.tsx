@@ -75,22 +75,22 @@ export default function ClientOnboardingModal({ userName, onComplete }: Props) {
 
   // Handle auto-progress during creation step 3
   useEffect(() => {
-    if (step === 3) {
-      const interval = setInterval(() => {
-        setLoadingProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setTimeout(() => {
-              onComplete(formData);
-            }, 600);
-            return 100;
-          }
-          return prev + 25;
-        });
-      }, 500);
+    if (step !== 3) return;
 
-      return () => clearInterval(interval);
-    }
+    const interval = setInterval(() => {
+      setLoadingProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            onComplete(formData);
+          }, 600);
+          return 100;
+        }
+        return prev + 25;
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
   }, [step]);
 
   const handleNextStep1 = (e: React.FormEvent) => {
