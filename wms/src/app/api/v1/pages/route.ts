@@ -95,18 +95,7 @@ export async function POST(request: NextRequest) {
           seo = template.seo;
           settings = template.settings;
         }
-      } catch {
-        // Try built-in templates API
-        try {
-          const { BUILTIN_TEMPLATES } = await import('@/lib/builtinTemplates');
-          const tpl = BUILTIN_TEMPLATES.find((t: any) => t.id === templateId);
-          if (tpl) {
-            blocks = tpl.blocks;
-            seo = tpl.seo;
-            settings = tpl.settings;
-          }
-        } catch { /* no template found */ }
-      }
+      } catch { /* template registry unavailable — page created with empty blocks */ }
     }
 
     // Try DB first
