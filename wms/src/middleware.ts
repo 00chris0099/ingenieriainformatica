@@ -21,7 +21,11 @@ function addCorsHeaders(response: NextResponse, origin: string | null) {
 
 const PUBLIC_ROUTES = [
   '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
   '/api/auth',
+  '/api/v1/auth',
   '/api/v1/health',
   '/api/v1/store',
 ];
@@ -79,7 +83,7 @@ export default auth((req) => {
   const isReadOnlyPublic = READ_ONLY_PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
 
   if (isFullyPublic) {
-    if (session && pathname === '/login') {
+    if (session && ['/login', '/register', '/forgot-password', '/reset-password'].includes(pathname)) {
       return NextResponse.redirect(new URL('/', req.url));
     }
     const response = NextResponse.next();
