@@ -28,10 +28,12 @@ export default function NuevoClientePage() {
   const handleChange = (field: string, value: any) => {
     if (field.startsWith('billingAddress.')) {
       const key = field.split('.')[1];
-      setForm({
-        ...form,
-        billingAddress: { ...form.billingAddress, [key]: value },
-      });
+      if (key) {
+        setForm({
+          ...form,
+          billingAddress: { ...form.billingAddress, [key]: value },
+        });
+      }
     } else {
       setForm({ ...form, [field]: value });
     }
