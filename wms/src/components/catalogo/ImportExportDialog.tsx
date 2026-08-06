@@ -77,14 +77,16 @@ export default function ImportExportDialog({ isOpen, onClose, mode, onImportComp
           }
         } else if (selectedFile.name.endsWith('.csv')) {
           const lines = content.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-          const rows = lines.slice(1, 6).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-            const row: any = {};
-            headers.forEach((h, i) => { row[h] = values[i]; });
-            return row;
-          });
-          setPreview(rows);
+          if (lines[0]) {
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const rows = lines.slice(1, 6).map(line => {
+              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+              const row: any = {};
+              headers.forEach((h, i) => { row[h] = values[i]; });
+              return row;
+            });
+            setPreview(rows);
+          }
         }
       } catch (err) {
         console.error('Failed to parse file:', err);
