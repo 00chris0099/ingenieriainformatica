@@ -150,8 +150,10 @@ const ImageUploader = memo(function ImageUploader({ images, onImagesChange, labe
   const moveImage = (fromIndex: number, toIndex: number) => {
     const newImages = [...images];
     const [moved] = newImages.splice(fromIndex, 1);
-    newImages.splice(toIndex, 0, moved);
-    onImagesChange(newImages);
+    if (moved !== undefined) {
+      newImages.splice(toIndex, 0, moved);
+      onImagesChange(newImages);
+    }
   };
 
   return (
