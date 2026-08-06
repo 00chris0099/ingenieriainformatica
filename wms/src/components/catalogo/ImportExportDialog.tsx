@@ -110,13 +110,15 @@ export default function ImportExportDialog({ isOpen, onClose, mode, onImportComp
           products = data.products || data;
         } else if (file.name.endsWith('.csv')) {
           const lines = content.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-          products = lines.slice(1).filter(line => line.trim()).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-            const row: any = {};
-            headers.forEach((h, i) => { row[h] = values[i]; });
-            return row;
-          });
+          if (lines[0]) {
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            products = lines.slice(1).filter(line => line.trim()).map(line => {
+              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+              const row: any = {};
+              headers.forEach((h, i) => { row[h] = values[i]; });
+              return row;
+            });
+          }
         }
 
         const res = await fetch('/api/v1/products/import', {
