@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { hash } from 'bcryptjs';
-import { verifyCode } from '../send-code/route';
+import { verifyCode } from '@/lib/auth-code';
 
 export async function POST(request: NextRequest) {
   try {
