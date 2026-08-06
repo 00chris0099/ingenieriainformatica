@@ -14,6 +14,7 @@ datasource db {
 enum UserRole {
   super_admin
   admin
+  client
   warehouse_manager
   warehouse_staff
   sales_manager
