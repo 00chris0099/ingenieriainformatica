@@ -126,7 +126,15 @@ function LoginForm() {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    setError('');
     try {
+      const configRes = await fetch('/api/v1/auth/config');
+      const configData = await configRes.json();
+      if (!configData.googleConfigured) {
+        setError('⚠️ El acceso con Google requiere agregar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en las Variables de Entorno de EasyPanel. Mientras tanto, ingresa con tu correo y contraseña.');
+        setGoogleLoading(false);
+        return;
+      }
       await signIn('google', { callbackUrl: '/' });
     } catch {
       setError('Error al conectar con Google.');
