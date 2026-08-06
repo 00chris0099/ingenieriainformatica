@@ -141,7 +141,7 @@ export default function CalendarioLogisticoPage() {
             <div className="grid grid-cols-7 gap-1">
               {days.map((day, index) => {
                 const dayEvents = getEventsForDate(day.date);
-                const dateStr = day.date.toISOString().split('T')[0];
+                const dateStr = day.date.toISOString().split('T')[0] || '';
                 const isSelected = selectedDate === dateStr;
                 const isToday = day.date.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
 
