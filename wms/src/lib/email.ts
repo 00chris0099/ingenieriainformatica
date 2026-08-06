@@ -37,7 +37,7 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
     </div>
   `;
 
-  // 1. Primary: Send via Resend HTTP API (Fast, Zero Extra Dependencies)
+  // Resend HTTP API Dispatcher (Clean & Zero External Package Dependencies)
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
     try {
@@ -64,34 +64,6 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
       }
     } catch (err) {
       console.error('[RESEND API EXCEPTION]', err);
-    }
-  }
-
-  // 2. Secondary: Dynamic import of Nodemailer if installed
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    try {
-      const nodemailer = await import('nodemailer');
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: Number(process.env.SMTP_PORT) === 465,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
-
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || `"Plataforma de Tiendas" <${process.env.SMTP_USER}>`,
-        to,
-        subject,
-        html: htmlContent,
-      });
-
-      console.log(`[SMTP EMAIL SUCCESS] Code sent to ${to}`);
-      return true;
-    } catch (err) {
-      console.error('[SMTP EMAIL ERROR]', err);
     }
   }
 
