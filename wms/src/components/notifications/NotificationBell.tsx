@@ -128,7 +128,7 @@ export default function NotificationBell() {
               </div>
             ) : (
               notifications.map((notif) => {
-                const cfg = typeConfig[notif.type] || typeConfig.info;
+                const cfg = typeConfig[notif.type] || typeConfig.info || { icon: Info, color: 'text-gray-400', bg: 'bg-gray-500/20' };
                 const Icon = cfg.icon;
                 return (
                   <div
