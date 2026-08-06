@@ -6,7 +6,7 @@ interface EmptyStateProps {
   icon?: ReactNode
   title: string
   description?: string
-  action?: {
+  action?: ReactNode | {
     label: string
     onClick: () => void
     variant?: 'primary' | 'secondary'
@@ -25,9 +25,13 @@ export default function EmptyState({ icon, title, description, action, className
         <p className="text-xs text-[var(--color-text-tertiary)] max-w-sm mb-5">{description}</p>
       )}
       {action && (
-        <Button variant={action.variant || 'primary'} size="sm" onClick={action.onClick}>
-          {action.label}
-        </Button>
+        action && typeof action === 'object' && 'label' in action && typeof (action as any).label === 'string' ? (
+          <Button variant={(action as any).variant || 'primary'} size="sm" onClick={(action as any).onClick}>
+            {(action as any).label}
+          </Button>
+        ) : (
+          action as ReactNode
+        )
       )}
     </div>
   )
