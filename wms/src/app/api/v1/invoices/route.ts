@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {};
     if (status) where.status = status;
-    if (type) where.documentType = type;
+    if (type) where.invoiceNumber = { startsWith: type === 'BOLETA' ? 'B' : 'F' };
 
     const result = await cached(`invoices:${page}:${limit}:${status}:${type}`, () =>
       prisma.invoice.findMany({
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
     const mapped = result.invoices.map((inv) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
-      documentType: inv.documentType || 'FACTURA',
+      documentType: inv.invoiceNumber.startsWith('B') ? 'BOLETA' : 'FACTURA',
       customerName: inv.customer?.fullName || 'Sin cliente',
-      customerDoc: inv.customer?.documentNumber || '',
+      customerDoc: inv.customer?.taxId || '',
       orderNumber: inv.order?.orderNumber || null,
       status: inv.status,
       currency: inv.currency,
@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
-        documentType: documentType || 'FACTURA',
         customerId: customerId || null,
         orderId: orderId || null,
         status: 'draft',
