@@ -6,6 +6,7 @@ import PageHeader from '@/components/ui/PageHeader';
 
 type Tab = 'users' | 'settings';
 
+const defaultRole = { color: 'bg-gray-500/20 text-gray-400', label: 'Solo Lectura' };
 const roleConfig: Record<string, { color: string; label: string }> = {
   super_admin: { color: 'bg-red-500/20 text-red-400', label: 'Super Admin' },
   admin: { color: 'bg-purple-500/20 text-purple-400', label: 'Admin' },
@@ -13,7 +14,7 @@ const roleConfig: Record<string, { color: string; label: string }> = {
   warehouse_staff: { color: 'bg-cyan-500/20 text-cyan-400', label: 'Personal' },
   sales_manager: { color: 'bg-green-500/20 text-green-400', label: 'Gerente Ventas' },
   sales_rep: { color: 'bg-teal-500/20 text-teal-400', label: 'Ventas' },
-  readonly: { color: 'bg-gray-500/20 text-gray-400', label: 'Solo Lectura' },
+  readonly: defaultRole,
 };
 
 export default function UsuariosPage() {
@@ -109,7 +110,7 @@ export default function UsuariosPage() {
           ) : (
             <div className="space-y-3">
               {users.map((user) => {
-                const role = roleConfig[user.role] || roleConfig.readonly;
+                const role = (user.role && roleConfig[user.role]) || defaultRole;
                 return (
                   <div key={user.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                     <div className="flex items-center gap-3">
