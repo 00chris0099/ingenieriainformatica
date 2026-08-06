@@ -1,4 +1,17 @@
-import { useSession } from 'next-auth/react'
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { signOut, useSession } from 'next-auth/react'
+import NotificationBell from '@/components/notifications/NotificationBell'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import {
+  LayoutDashboard, Package, ShoppingCart, Users,
+  Settings, Menu, X, ChevronRight, ChevronDown,
+  UserCog, DollarSign, FileText, LogOut, User,
+  PanelLeftClose, PanelLeft, Search
+} from 'lucide-react'
+import { useState, Fragment } from 'react'
 
 interface NavGroup {
   label: string
