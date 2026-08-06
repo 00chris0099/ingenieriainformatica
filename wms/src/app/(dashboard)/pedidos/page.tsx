@@ -269,7 +269,7 @@ export default function PedidosPage() {
                 )}
                 {getCallUrl(previewOrder) && (
                   <a
-                    href={getCallUrl(previewOrder)}
+                    href={getCallUrl(previewOrder) ?? undefined}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
                   >
                     <Phone size={18} /> Llamar
