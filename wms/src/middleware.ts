@@ -2,8 +2,10 @@ import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 const ALLOWED_ORIGINS = [
-  process.env.NEXT_PUBLIC_STORE_URL || 'http://localhost:3001',
-  process.env.NEXT_PUBLIC_WMS_URL || 'http://localhost:3000',
+  process.env.NEXT_PUBLIC_STORE_URL || 'https://aimachristian-tiendawms.ajcxjb.easypanel.host',
+  process.env.NEXT_PUBLIC_WMS_URL || 'https://aimachristian-tiendawms.ajcxjb.easypanel.host',
+  'http://localhost:3000',
+  'http://localhost:3001',
 ].filter(Boolean);
 
 function addCorsHeaders(response: NextResponse, origin: string | null) {
@@ -56,7 +58,7 @@ export default auth((req) => {
 
   // Extract host and subdomain for multi-tenant VPS resolution
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
-  const rootDomain = (process.env.WMS_URL || 'localhost:3000')
+  const rootDomain = (process.env.WMS_URL || 'aimachristian-tiendawms.ajcxjb.easypanel.host')
     .replace(/^https?:\/\//, '')
     .split(':')[0];
 
