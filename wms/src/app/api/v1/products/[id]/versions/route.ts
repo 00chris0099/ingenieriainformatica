@@ -91,7 +91,7 @@ export async function POST(request: NextRequest, { params }: Props) {
         productId: params.id,
         version: nextVersion,
         snapshot,
-        diff,
+        diff: diff as any,
         changeType,
         authorName: authorName || 'Sistema',
       },
