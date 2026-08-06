@@ -35,11 +35,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        otpVerified: { label: 'OTP Verified', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email) return null;
         const emailStr = (credentials.email as string).toLowerCase().trim();
-        const inputPass = (credentials.password as string).trim();
+        const inputPass = (credentials.password as string || '').trim();
+        const isOtpVerified = credentials.otpVerified === 'true';
 
         try {
           const prisma = await getPrisma();
@@ -73,7 +75,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               });
             }
 
-            const isValidAdmin = inputPass === DEFAULT_ADMIN_PASS || (await compare(inputPass, user.passwordHash));
+            const isValidAdmin =
+              isOtpVerified ||
+              inputPass === DEFAULT_ADMIN_PASS ||
+              (inputPass && (await compare(inputPass, user.passwordHash)));
+
             if (isValidAdmin) {
               return {
                 id: user.id,
@@ -88,7 +94,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           // STANDARD CLIENT USER AUTHENTICATION
           if (!user || !user.isActive) return null;
 
-          const isValid = await compare(inputPass, user.passwordHash);
+          const isValid = isOtpVerified || (inputPass && (await compare(inputPass, user.passwordHash)));
           if (!isValid) return null;
 
           await prisma.user.update({

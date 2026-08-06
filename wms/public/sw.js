@@ -23,6 +23,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // CRITICAL FIX: Only cache GET requests. Ignore POST, PUT, DELETE, and API calls completely.
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
