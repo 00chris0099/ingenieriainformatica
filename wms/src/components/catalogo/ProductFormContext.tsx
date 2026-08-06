@@ -526,7 +526,9 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     setState(prev => {
       const newBlocks = [...prev.landingBlocks];
       const [moved] = newBlocks.splice(from, 1);
-      newBlocks.splice(to, 0, moved);
+      if (moved !== undefined) {
+        newBlocks.splice(to, 0, moved);
+      }
       return { ...prev, landingBlocks: newBlocks, isDirty: true };
     });
   }, []);
