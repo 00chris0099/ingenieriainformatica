@@ -102,14 +102,16 @@ const ImageUploader = memo(function ImageUploader({ images, onImagesChange, labe
     setUploadProgress(0);
     const uploadedUrls: string[] = [];
 
-    for (let i = 0; i < imageFiles.length; i++) {
-      setUploadProgress(Math.round(((i) / imageFiles.length) * 100));
+    let i = 0;
+    for (const file of imageFiles) {
+      setUploadProgress(Math.round((i / imageFiles.length) * 100));
       // Compress image then upload to imgBB
-      const compressed = await compressImage(imageFiles[i]);
+      const compressed = await compressImage(file);
       const url = await uploadToImgBB(compressed);
       if (url) {
         uploadedUrls.push(url);
       }
+      i++;
     }
 
     if (uploadedUrls.length > 0) {
