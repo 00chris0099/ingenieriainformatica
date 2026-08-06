@@ -4,11 +4,11 @@ import { hash } from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding adriskids database...');
+  console.log('Seeding database...');
 
-  // Admin user
+  // ─── Admin user ───────────────────────────────────────────────────────
   const adminPassword = await hash('admin123', 12);
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: 'admin@adriskids.com' },
     update: {},
     create: {
@@ -20,7 +20,7 @@ async function main() {
   });
   console.log('Admin: admin@adriskids.com / admin123');
 
-  // Demo users
+  // ─── Demo users ──────────────────────────────────────────────────────
   const demoPass = await hash('demo123', 12);
   for (const u of [
     { email: 'ventas@adriskids.com', fullName: 'Ventas Demo', role: 'sales_manager' as const },
@@ -30,7 +30,7 @@ async function main() {
   }
   console.log('Demo users created');
 
-  // Categories
+  // ─── Categories ──────────────────────────────────────────────────────
   const cats = [
     { name: 'Camas y Cunas', slug: 'camas-cunas', sortOrder: 1, description: 'Camas, cunas y berlines' },
     { name: 'Sillas Altas', slug: 'sillas-altas', sortOrder: 2, description: 'Sillas altas y coches' },
@@ -45,7 +45,7 @@ async function main() {
   }
   console.log('Categories seeded');
 
-  // Warehouse
+  // ─── Warehouse ───────────────────────────────────────────────────────
   await prisma.warehouse.upsert({
     where: { code: 'ALM-01' },
     update: {},
@@ -53,7 +53,45 @@ async function main() {
   });
   console.log('Warehouse seeded');
 
-  console.log('Seed completed! Create products through the WMS UI.');
+  // ─── Default Business (Page Builder) ─────────────────────────────────
+  const business = await prisma.business.upsert({
+    where: { slug: 'adriskids' },
+    update: {},
+    create: {
+      name: 'AdriSu Kids',
+      slug: 'adriskids',
+      industry: 'ecommerce',
+      primaryColor: '#2563eb',
+      secondaryColor: '#7c3aed',
+      accentColor: '#f59e0b',
+      subdomain: 'adriskids',
+      settings: JSON.stringify({
+        currency: 'PEN',
+        language: 'es',
+        region: 'pe',
+      }),
+    },
+  });
+  console.log(`Business seeded: ${business.name} (${business.id})`);
+
+  // ─── Default Tax Config (IGV Peru) ──────────────────────────────────
+  await prisma.taxConfig.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000001' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'IGV (18%)',
+      rate: 18,
+      isDefault: true,
+    },
+  });
+  console.log('Tax config seeded: IGV 18%');
+
+  console.log('\nSeed completed!');
+  console.log('Next steps:');
+  console.log('  1. Run `pnpm --filter @repo/prisma db:push` to sync schema');
+  console.log('  2. Run `pnpm --filter @repo/prisma db:seed` to seed data');
+  console.log('  3. Run `pnpm --filter @repo/prisma tsx src/scripts/migrate-landings.ts` to migrate old landings');
 }
 
 main()

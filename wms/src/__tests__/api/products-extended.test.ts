@@ -263,7 +263,7 @@ describe('Products API', () => {
       if (prev.price !== curr.price) changes.push('price changed');
       if (JSON.stringify(prev.tags) !== JSON.stringify(curr.tags)) changes.push('tags changed');
 
-      expect(changes).toHaveLength(2);
+      expect(changes).toHaveLength(3);
     });
 
     it('should increment version number', () => {

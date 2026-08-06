@@ -1,5 +1,5 @@
 {
-  "name": "adriskids",
+  "name": "pagebuilder",
   "private": true,
   "scripts": {
     "wms:dev": "pnpm --filter @repo/wms dev",
@@ -10,10 +10,10 @@
     "build": "pnpm run --parallel build:wms build:tienda",
     "test": "pnpm --filter @repo/wms test",
     "lint": "echo 'Lint passed'",
-    "db:generate": "pnpm --filter @repo/prisma-wms db:generate && pnpm --filter @repo/prisma db:generate",
-    "db:seed": "pnpm --filter @repo/prisma-wms db:seed && pnpm --filter @repo/prisma db:seed",
-    "migrate:variant": "pnpm exec tsx scripts/migrate-eliminate-variant.ts",
-    "sync:start": "pnpm --filter @repo/sync-worker start"
+    "db:generate": "pnpm --filter @repo/prisma db:generate",
+    "db:push": "pnpm --filter @repo/prisma db:push",
+    "db:seed": "pnpm --filter @repo/prisma db:seed",
+    "db:studio": "pnpm --filter @repo/prisma db:studio"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

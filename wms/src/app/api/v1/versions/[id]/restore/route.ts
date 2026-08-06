@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
+import { requireAuth } from '@/lib/api/auth-guard';
 
 interface Props {
   params: { id: string };
@@ -9,6 +10,9 @@ interface Props {
 
 export async function POST(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+
     const version = await prisma.productVersion.findUnique({
       where: { id: params.id },
     });
@@ -17,7 +21,6 @@ export async function POST(_request: NextRequest, { params }: Props) {
 
     const snapshot = version.snapshot as any;
 
-    // Restore product from snapshot
     const restored = await prisma.product.update({
       where: { id: version.productId },
       data: {

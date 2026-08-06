@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError, withDbFallback, checkRateLimit, validate } from '@/lib/api';
+import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError, checkRateLimit, validate } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 import { generateSequentialSku } from '@/lib/sku-generator';
 
@@ -23,35 +23,30 @@ export async function GET(request: NextRequest) {
 
     const cacheKey = `products:${page}:${limit}:${search}:${category}:${status}`;
 
-    const result = await cached(cacheKey, () =>
-      withDbFallback(
-        async () => {
-          const where: any = {};
-          if (status) where.status = status;
-          if (category) where.category = { slug: category };
-          if (search) {
-            where.OR = [
-              { name: { contains: search, mode: 'insensitive' } },
-              { sku: { contains: search, mode: 'insensitive' } },
-            ];
-          }
+    const result = await cached(cacheKey, async () => {
+      const where: any = {};
+      if (status) where.status = status;
+      if (category) where.category = { slug: category };
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+        ];
+      }
 
-          const [products, total] = await Promise.all([
-            prisma.product.findMany({
-              where,
-              include: { category: true },
-              orderBy: { createdAt: 'desc' },
-              skip: offset,
-              take: limit,
-            }),
-            prisma.product.count({ where }),
-          ]);
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: { category: true },
+          orderBy: { createdAt: 'desc' },
+          skip: offset,
+          take: limit,
+        }),
+        prisma.product.count({ where }),
+      ]);
 
-          return { products, total };
-        },
-        () => ({ products: [], total: 0 })
-      ), 60
-    );
+      return { products, total };
+    }, 60);
 
     const mapped = result.products.map((p: any) => ({
       id: p.id,
@@ -98,13 +93,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[API] POST /api/v1/products called');
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     const rateCheck = checkRateLimit(`products-create:${ip}`, 10, 60);
     if (!rateCheck.allowed) return apiError('Too many requests', 429);
 
     const body = await request.json();
-    console.log('[API] Body received:', { name: body.name, price: body.price });
 
     const validationError = validate(body, {
       name: { required: true, type: 'string', min: 1, max: 200 },

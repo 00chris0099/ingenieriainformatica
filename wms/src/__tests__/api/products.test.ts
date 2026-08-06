@@ -52,7 +52,7 @@ describe('Products API', () => {
     const response = await POST(request);
     const data = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
     expect(data.success).toBe(true);
   });
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError, withDbFallback } from '@/lib/api';
+import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 import { VALID_TRANSITIONS } from '@/lib/orders';
 
@@ -13,37 +13,32 @@ export async function GET(request: NextRequest) {
 
     const cacheKey = `orders:${page}:${limit}:${status}:${search}`;
 
-    const result = await cached(cacheKey, () =>
-      withDbFallback(
-        async () => {
-          const where: any = {};
-          if (status) where.status = status;
-          if (search) {
-            where.OR = [
-              { orderNumber: { contains: search, mode: 'insensitive' } },
-              { customer: { fullName: { contains: search, mode: 'insensitive' } } },
-            ];
-          }
+    const result = await cached(cacheKey, async () => {
+      const where: any = {};
+      if (status) where.status = status;
+      if (search) {
+        where.OR = [
+          { orderNumber: { contains: search, mode: 'insensitive' } },
+          { customer: { fullName: { contains: search, mode: 'insensitive' } } },
+        ];
+      }
 
-          const [orders, total] = await Promise.all([
-            prisma.order.findMany({
-              where,
-              include: {
-                customer: true,
-                items: true,
-                _count: { select: { statusHistory: true } },
-              },
-              orderBy: { createdAt: 'desc' },
-              skip: offset,
-              take: limit,
-            }),
-            prisma.order.count({ where }),
-          ]);
-          return { orders, total };
-        },
-        () => ({ orders: [], total: 0 })
-      ), 30
-    );
+      const [orders, total] = await Promise.all([
+        prisma.order.findMany({
+          where,
+          include: {
+            customer: true,
+            items: true,
+            _count: { select: { statusHistory: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: offset,
+          take: limit,
+        }),
+        prisma.order.count({ where }),
+      ]);
+      return { orders, total };
+    }, 30);
 
     const mapped = result.orders.map((o: any) => ({
       id: o.id,

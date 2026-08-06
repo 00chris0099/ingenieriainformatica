@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./validators": "./src/validators.ts"
+    "./validators": "./src/validators.ts",
+    "./email": "./src/email.ts"
   },
   "dependencies": {
     "zod": "^3.23.0"

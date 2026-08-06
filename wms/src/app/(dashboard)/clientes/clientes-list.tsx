@@ -1,16 +1,18 @@
 'use client';
 
-import { Users, Search, Eye, Loader2, Plus, Mail, Phone, Edit, Trash2 } from 'lucide-react';
+import { Users, Search, Mail, Phone, Edit, Trash2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import PageHeader from '@/components/ui/PageHeader';
-import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
 
-const typeLabels: Record<string, { label: string; color: string }> = {
-  individual: { label: 'Individual', color: 'bg-gray-500/20 text-gray-400' },
-  business: { label: 'Empresa', color: 'bg-blue-500/20 text-blue-400' },
-  importer: { label: 'Importador', color: 'bg-purple-500/20 text-purple-400' },
+const typeLabels: Record<string, { label: string; variant: 'neutral' | 'info' | 'accent' }> = {
+  individual: { label: 'Individual', variant: 'neutral' },
+  business: { label: 'Empresa', variant: 'info' },
+  importer: { label: 'Importador', variant: 'accent' },
 };
 
 export default function ClientesList() {
@@ -45,109 +47,119 @@ export default function ClientesList() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
           <input
             type="text"
             placeholder="Buscar por nombre, email o RUC..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="input-field pl-10"
           />
         </div>
-        <Link href="/clientes/nuevo"
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 rounded-xl text-sm font-medium text-white transition-colors">
-          <Plus size={16} /> Nuevo Cliente
+        <Link href="/clientes/nuevo">
+          <Button icon={<Users size={16} />}>Nuevo Cliente</Button>
         </Link>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin text-brand-400" />
-        </div>
-      )}
+      {loading && <TableSkeleton rows={5} columns={5} />}
 
       {!loading && customers.length === 0 && (
-        <EmptyState icon={<Users size={48} />} title="No hay clientes" description="Los clientes que se registren en la tienda apareceran aqui" />
+        <EmptyState
+          icon={<Users size={24} />}
+          title="No hay clientes"
+          description="Los clientes que se registren en la tienda apareceran aqui"
+        />
       )}
 
       {!loading && customers.length > 0 && (
         <>
           {/* Mobile */}
-          <div className="lg:hidden space-y-3">
+          <div className="lg:hidden space-y-3 stagger-children">
             {customers.map((customer) => (
-              <div key={customer.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <div key={customer.id} className="surface-card p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-brand-500/20 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-bold text-brand-400">{customer.fullName?.charAt(0) || '?'}</span>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ background: 'var(--color-accent-muted)' }}>
+                      <span className="text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
+                        {customer.fullName?.charAt(0) || '?'}
+                      </span>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-white">{customer.fullName}</p>
-                      <p className="text-xs text-gray-500">{customer.email}</p>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{customer.fullName}</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">{customer.email}</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeLabels[customer.customerType]?.color || 'bg-gray-500/20 text-gray-400'}`}>
+                  <Badge variant={typeLabels[customer.customerType]?.variant || 'neutral'}>
                     {typeLabels[customer.customerType]?.label || customer.customerType}
-                  </span>
+                  </Badge>
                 </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                  {customer.phone && <span className="flex items-center gap-1"><Phone size={12} /> {customer.phone}</span>}
+                <div className="flex items-center gap-4 mt-3 text-xs text-[var(--color-text-tertiary)]">
+                  {customer.phone && (
+                    <span className="flex items-center gap-1"><Phone size={12} /> {customer.phone}</span>
+                  )}
                   <span className="flex items-center gap-1"><Mail size={12} /> {customer._count?.orders || 0} pedidos</span>
                 </div>
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800">
-                  <Link href={`/clientes/${customer.id}/editar`}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-gray-800 rounded-lg text-xs text-gray-300 hover:bg-gray-700">
-                    <Edit size={14} /> Editar
+                <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--color-border)]">
+                  <Link href={`/clientes/${customer.id}/editar`} className="flex-1">
+                    <Button variant="ghost" size="sm" className="w-full" icon={<Edit size={14} />}>Editar</Button>
                   </Link>
-                  <button onClick={() => setDeleteDialog({ open: true, customer })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-900/30 rounded-lg text-xs text-red-400 hover:bg-red-900/50">
-                    <Trash2 size={14} /> Eliminar
-                  </button>
+                  <Button variant="danger" size="sm" className="flex-1" icon={<Trash2 size={14} />}
+                    onClick={() => setDeleteDialog({ open: true, customer })}>Eliminar</Button>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Desktop */}
-          <div className="hidden lg:block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="hidden lg:block surface-card overflow-hidden">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Cliente</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Contacto</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Tipo</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Pedidos</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Acciones</th>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Contacto</th>
+                  <th>Tipo</th>
+                  <th className="text-right">Pedidos</th>
+                  <th className="text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800">
+              <tbody>
                 {customers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-4 py-3">
+                  <tr key={customer.id}>
+                    <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-brand-500/20 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-bold text-brand-400">{customer.fullName?.charAt(0) || '?'}</span>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ background: 'var(--color-accent-muted)' }}>
+                          <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>
+                            {customer.fullName?.charAt(0) || '?'}
+                          </span>
                         </div>
-                        <span className="text-sm font-medium text-white">{customer.fullName}</span>
+                        <span className="text-sm font-medium text-[var(--color-text-primary)]">{customer.fullName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400">
-                      <div>{customer.email}</div>
-                      {customer.phone && <div className="text-xs text-gray-500">{customer.phone}</div>}
+                    <td>
+                      <div className="text-[var(--color-text-secondary)]">{customer.email}</div>
+                      {customer.phone && <div className="text-xs text-[var(--color-text-tertiary)]">{customer.phone}</div>}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeLabels[customer.customerType]?.color || 'bg-gray-500/20 text-gray-400'}`}>
+                    <td>
+                      <Badge variant={typeLabels[customer.customerType]?.variant || 'neutral'}>
                         {typeLabels[customer.customerType]?.label || customer.customerType}
-                      </span>
+                      </Badge>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400 text-right">{customer._count?.orders || 0}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="text-right text-[var(--color-text-secondary)]">{customer._count?.orders || 0}</td>
+                    <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Link href={`/clientes/${customer.id}/editar`} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5"><Edit size={14} /></Link>
-                        <button onClick={() => setDeleteDialog({ open: true, customer })} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-500/10"><Trash2 size={14} /></button>
+                        <Link href={`/clientes/${customer.id}/editar`}
+                          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
+                          <Edit size={14} />
+                        </Link>
+                        <button onClick={() => setDeleteDialog({ open: true, customer })}
+                          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] rounded-lg hover:bg-[var(--color-error-muted)] transition-colors">
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>

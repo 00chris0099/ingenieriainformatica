@@ -1,113 +1,224 @@
-'use client';
+'use client'
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
-import NotificationBell from '@/components/notifications/NotificationBell';
-import ThemeToggle from '@/components/ui/ThemeToggle';
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { signOut } from 'next-auth/react'
+import NotificationBell from '@/components/notifications/NotificationBell'
+import ThemeToggle from '@/components/ui/ThemeToggle'
 import {
-  LayoutDashboard, Package, ShoppingCart, Users, Warehouse,
-  Truck, BarChart3, Shield, Settings, Menu, X, ChevronRight,
-  MessageSquare, UserCog, DollarSign, Tag, Percent, TrendingUp,
-  LogOut, ChevronLeft, User, FileText
-} from 'lucide-react';
-import { useState } from 'react';
+  LayoutDashboard, Package, ShoppingCart, Users,
+  Settings, Menu, X, ChevronRight, ChevronDown,
+  UserCog, DollarSign, FileText, LogOut, User,
+  PanelLeftClose, PanelLeft, Search
+} from 'lucide-react'
+import { useState, Fragment } from 'react'
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/tienda', label: 'Tienda', icon: Package },
-  { href: '/operaciones', label: 'Operaciones', icon: ShoppingCart },
-  { href: '/clientes', label: 'Clientes', icon: Users },
-  { href: '/finanzas', label: 'Finanzas', icon: DollarSign },
-  { href: '/admin', label: 'Admin', icon: UserCog },
-];
+interface NavGroup {
+  label: string
+  items: Array<{ href: string; label: string; icon: any }>
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Principal',
+    items: [
+      { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/pages', label: 'Pages', icon: FileText },
+    ],
+  },
+  {
+    label: 'Operaciones',
+    items: [
+      { href: '/catalogo', label: 'Catalogo', icon: Package },
+      { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+      { href: '/clientes', label: 'Clientes', icon: Users },
+    ],
+  },
+  {
+    label: 'Administracion',
+    items: [
+      { href: '/finanzas', label: 'Finanzas', icon: DollarSign },
+      { href: '/usuarios', label: 'Usuarios', icon: UserCog },
+      { href: '/configuracion', label: 'Configuracion', icon: Settings },
+    ],
+  },
+]
+
+const allNavItems = navGroups.flatMap(g => g.items)
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const pathname = usePathname()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
-  const currentLabel = navItems.find((i) => i.href === pathname || (i.href !== '/' && pathname.startsWith(i.href)))?.label || 'WMS';
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
+
+  const currentLabel = allNavItems.find(
+    (i) => i.href === pathname || (i.href !== '/' && pathname.startsWith(i.href))
+  )?.label || 'Dashboard'
+
+  const isActive = (href: string) =>
+    pathname === href || (href !== '/' && pathname.startsWith(href))
+
+  const sidebarWidth = sidebarCollapsed ? 'w-[70px]' : 'w-[260px]'
 
   return (
-    <div className="flex h-screen bg-gray-950 overflow-hidden">
-      {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex flex-col bg-sidebar border-r border-sidebar-border shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-[70px]' : 'w-[260px]'}`}>
-        {/* Logo - clickeable para colapsar */}
-        <div className={`flex items-center h-16 border-b border-sidebar-border shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : 'px-5'}`}>
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-bg-base)' }}>
+      {/* ═══════════════ DESKTOP SIDEBAR ═══════════════ */}
+      <aside className={`hidden lg:flex flex-col shrink-0 transition-all duration-300 ease-[var(--ease-spring)] ${sidebarWidth}`}
+        style={{
+          background: 'var(--color-bg-surface)',
+          borderRight: '1px solid var(--color-border)',
+        }}
+      >
+        {/* Logo */}
+        <div className={`flex items-center h-16 shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : 'px-5'}`}
+          style={{ borderBottom: '1px solid var(--color-border)' }}
+        >
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <img src="/images/logo.png" alt="AdriSu Kids" className="h-10 w-auto shrink-0" />
-
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-accent-muted)' }}>
+              <span className="text-sm font-bold" style={{ color: 'var(--color-accent)' }}>PB</span>
+            </div>
+            {!sidebarCollapsed && (
+              <span className="text-sm font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+                PageBuilder
+              </span>
+            )}
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+          {navGroups.map((group) => {
+            const isCollapsed = collapsedGroups.has(group.label)
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
-                  sidebarCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-                } ${
-                  isActive
-                    ? 'bg-brand-600/15 text-brand-400 shadow-sm shadow-brand-600/10'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <item.icon size={18} className={isActive ? 'text-brand-400' : 'shrink-0'} />
+              <div key={group.label} className="mb-4">
                 {!sidebarCollapsed && (
-                  <>
-                    <span className="flex-1">{item.label}</span>
-                    {isActive && <ChevronRight size={14} className="text-brand-400/50" />}
-                  </>
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex items-center justify-between w-full px-2 mb-1"
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                    >
+                      {group.label}
+                    </span>
+                    <ChevronDown size={12}
+                      className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                    />
+                  </button>
                 )}
-              </Link>
-            );
+                {(!sidebarCollapsed && isCollapsed) ? null : (
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const active = isActive(item.href)
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          title={sidebarCollapsed ? item.label : undefined}
+                          className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-all duration-200 ${
+                            sidebarCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+                          }`}
+                          style={active ? {
+                            background: 'var(--color-bg-selected)',
+                            color: 'var(--color-accent)',
+                            boxShadow: 'inset 2px 0 0 0 var(--color-accent)',
+                          } : {
+                            color: 'var(--color-text-secondary)',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) e.currentTarget.style.background = 'var(--color-bg-hover)'
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) e.currentTarget.style.background = 'transparent'
+                          }}
+                        >
+                          <item.icon size={18} style={active ? { color: 'var(--color-accent)' } : {}} />
+                          {!sidebarCollapsed && (
+                            <span className="flex-1">{item.label}</span>
+                          )}
+                          {!sidebarCollapsed && active && (
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }} />
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
           })}
         </nav>
 
         {/* User Profile - Bottom */}
-        <div className="border-t border-sidebar-border p-3">
+        <div className="p-3" style={{ borderTop: '1px solid var(--color-border)' }}>
           {sidebarCollapsed ? (
-            /* Collapsed: just avatar button */
             <button
               onClick={() => setProfileOpen(!profileOpen)}
               className="w-full flex items-center justify-center py-2"
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold text-white">AD</span>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'var(--color-accent-muted)' }}
+              >
+                <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>U</span>
               </div>
             </button>
           ) : (
-            /* Expanded: full profile card */
             <div className="relative">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-3 p-2 rounded-xl transition-colors"
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-xs font-bold text-white">AD</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--color-accent-muted)' }}
+                >
+                  <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>U</span>
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-medium text-white truncate">Admin</p>
-                  <p className="text-[11px] text-gray-500 truncate">admin@adriskids.com</p>
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>Admin</p>
+                  <p className="text-[11px] truncate" style={{ color: 'var(--color-text-tertiary)' }}>admin@pagebuilder.com</p>
                 </div>
-                <ChevronRight size={14} className={`text-gray-500 transition-transform ${profileOpen ? 'rotate-90' : ''}`} />
+                <ChevronRight size={14} style={{ color: 'var(--color-text-tertiary)' }}
+                  className={`transition-transform duration-200 ${profileOpen ? 'rotate-90' : ''}`}
+                />
               </button>
 
-              {/* Profile Dropdown */}
               {profileOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden">
-                  <Link href="/admin" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-700 transition-colors">
+                <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl overflow-hidden animate-fade-in-down"
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-xl)',
+                  }}
+                >
+                  <Link href="/usuarios" onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm transition-colors"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
                     <User size={16} />
                     <span>Ver perfil</span>
                   </Link>
-                  <button onClick={() => signOut({ callbackUrl: '/login' })} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-gray-700 transition-colors border-t border-gray-700">
+                  <button onClick={() => signOut({ callbackUrl: '/login' })}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors"
+                    style={{ color: 'var(--color-error)', borderTop: '1px solid var(--color-border)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
                     <LogOut size={16} />
                     <span>Cerrar sesion</span>
                   </button>
@@ -118,49 +229,87 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* ═══════════════ MOBILE SIDEBAR ═══════════════ */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-[280px] bg-gray-900 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between h-16 px-5 border-b border-gray-800">
-              <img src="/images/logo.png" alt="AdriSu Kids" className="h-9 w-auto" />
-              <button onClick={() => setSidebarOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+        <div className="lg:hidden fixed inset-0 z-[var(--z-overlay)] flex">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSidebarOpen(false)} />
+          <aside className="relative w-[280px] flex flex-col shadow-2xl animate-slide-in-left"
+            style={{ background: 'var(--color-bg-surface)' }}
+          >
+            <div className="flex items-center justify-between h-16 px-5"
+              style={{ borderBottom: '1px solid var(--color-border)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: 'var(--color-accent-muted)' }}
+                >
+                  <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>PB</span>
+                </div>
+                <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>PageBuilder</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+                style={{ color: 'var(--color-text-tertiary)' }}
+              >
                 <X size={18} />
               </button>
             </div>
 
             <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
-                      isActive ? 'bg-brand-600/20 text-brand-400' : 'text-gray-400 hover:bg-white/5 hover:text-white active:bg-white/10'
-                    }`}
-                  >
-                    <item.icon size={18} className={isActive ? 'text-brand-400' : 'text-gray-500'} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+              {navGroups.map((group) => (
+                <div key={group.label} className="mb-3">
+                  <div className="px-2 mb-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                    >
+                      {group.label}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const active = isActive(item.href)
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all"
+                          style={active ? {
+                            background: 'var(--color-bg-selected)',
+                            color: 'var(--color-accent)',
+                          } : {
+                            color: 'var(--color-text-secondary)',
+                          }}
+                        >
+                          <item.icon size={18} />
+                          <span>{item.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
 
-            {/* Mobile: User + Logout */}
-            <div className="border-t border-gray-800 p-4">
+            <div className="p-4" style={{ borderTop: '1px solid var(--color-border)' }}>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-xs font-bold text-white">AD</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--color-accent-muted)' }}
+                >
+                  <span className="text-xs font-bold" style={{ color: 'var(--color-accent)' }}>U</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">Admin</p>
-                  <p className="text-[11px] text-gray-500 truncate">admin@adriskids.com</p>
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>Admin</p>
+                  <p className="text-[11px] truncate" style={{ color: 'var(--color-text-tertiary)' }}>admin@pagebuilder.com</p>
                 </div>
               </div>
-              <button onClick={() => signOut({ callbackUrl: '/login' })} className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm text-gray-400 hover:text-white transition-colors">
+              <button onClick={() => signOut({ callbackUrl: '/login' })}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-colors"
+                style={{
+                  background: 'var(--color-bg-hover)',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
                 <LogOut size={16} />
                 <span>Cerrar sesion</span>
               </button>
@@ -169,26 +318,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Main Content */}
+      {/* ═══════════════ MAIN CONTENT ═══════════════ */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar - Simplified */}
-        <header className="h-14 border-b border-gray-800 flex items-center justify-between px-4 shrink-0">
+        {/* Top Bar */}
+        <header className="h-16 flex items-center justify-between px-4 md:px-6 shrink-0"
+          style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-surface)' }}
+        >
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+            <button onClick={() => setSidebarOpen(true)}
+              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+            >
               <Menu size={20} />
             </button>
-            <h1 className="text-base font-semibold text-white">{currentLabel}</h1>
+
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Workspace</span>
+              <ChevronRight size={12} style={{ color: 'var(--color-text-tertiary)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{currentLabel}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1.5">
+            {/* Search */}
+            <button className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+            >
+              <Search size={18} />
+            </button>
+
             <ThemeToggle />
             <NotificationBell />
-            {/* Desktop: collapse toggle */}
+
+            {/* Collapse toggle */}
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
               title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
             >
-              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              {sidebarCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
             </button>
           </div>
         </header>
@@ -199,5 +373,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
-  );
+  )
 }

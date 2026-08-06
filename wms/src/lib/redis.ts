@@ -29,7 +29,7 @@ function getRedis() {
       enableOfflineQueue: false,
     });
     redisInstance.on('error', () => {});
-    redisInstance.on('connect', () => console.log('[Redis] Conectado'));
+    redisInstance.on('connect', () => {});
     return redisInstance;
   } catch {
     return createMockRedis();

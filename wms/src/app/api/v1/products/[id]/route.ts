@@ -47,7 +47,6 @@ export async function GET(_request: NextRequest, { params }: Props) {
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
-    console.log('[API] PUT /api/v1/products/' + params.id, { price: body.price, discountPercent: body.discountPercent });
     const {
       name, slug: newSlug, model, description, shortDescription, categoryId, status, tags, images, brand,
       height, width, depth, color, materials, recommendedAge, warrantyDays, originCountry,

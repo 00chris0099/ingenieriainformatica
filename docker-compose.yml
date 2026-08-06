@@ -46,7 +46,6 @@ services:
     volumes:
       - ./scripts/init-db.sh:/init-db.sh
       - ./packages/prisma:/app/packages/prisma
-      - ./packages/prisma-wms:/app/packages/prisma-wms
     entrypoint: /bin/sh
     command: /init-db.sh
     networks:

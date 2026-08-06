@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     // Send confirmation email (non-blocking)
     const customerEmail = customer?.email;
     if (customerEmail) {
-      import('@/lib/notifications/email').then(({ sendEmail, orderConfirmationEmail }) => {
+      import('@repo/utils/email').then(({ sendEmail, orderConfirmationEmail }) => {
         sendEmail({
           to: customerEmail,
           subject: `Pedido ${order.orderNumber} confirmado - ADRISU KIDS`,

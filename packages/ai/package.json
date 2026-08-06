@@ -1,0 +1,17 @@
+{
+  "name": "@repo/ai",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/blocks": "workspace:*",
+    "@repo/templates": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

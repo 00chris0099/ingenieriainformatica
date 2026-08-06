@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/blocks": "workspace:*",
     "@repo/prisma": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/utils": "workspace:*",
@@ -19,6 +20,7 @@
     "lucide-react": "^0.344.0",
     "next": "^14.2.0",
     "next-auth": "^5.0.0-beta.19",
+    "next-intl": "^4.13.5",
     "next-pwa": "^5.6.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

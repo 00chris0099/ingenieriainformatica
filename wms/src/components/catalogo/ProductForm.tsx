@@ -140,15 +140,6 @@ function ProductFormInner({ productId, categories, onSave, onCancel, mode }: Omi
 
       await onSave(savedData);
 
-      // Save landing page blocks (also handles clearing blocks)
-      if (slug) {
-        await fetch(`/api/v1/landings/${slug}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ blocks: form.landingBlocks }),
-        });
-      }
-
       form.markClean();
       setSaveMessage({ type: 'success', text: 'Producto guardado' });
       setTimeout(() => setSaveMessage(null), 3000);

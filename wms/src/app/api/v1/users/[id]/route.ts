@@ -3,11 +3,15 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 import { hash } from 'bcryptjs';
+import { requireAuth, requireRole, canManageUser } from '@/lib/api/auth-guard';
 
 interface Props { params: { id: string } }
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+
     const user = await prisma.user.findUnique({
       where: { id: params.id },
       select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, lastLoginAt: true },
@@ -18,11 +22,34 @@ export async function GET(_request: NextRequest, { params }: Props) {
 }
 
 export async function PUT(request: NextRequest, { params }: Props) {
+  return updateHandler(request, params);
+}
+
+export async function PATCH(request: NextRequest, { params }: Props) {
+  return updateHandler(request, params);
+}
+
+async function updateHandler(request: NextRequest, params: { id: string }) {
   try {
     const body = await request.json();
     const { fullName, role, isActive, password } = body;
+
+    // Check if role is being changed — need admin privileges
+    if (role !== undefined) {
+      const manageCheck = await canManageUser(role);
+      if (manageCheck.error) return manageCheck.error;
+    } else {
+      const authCheck = await requireAuth();
+      if (authCheck.error) return authCheck.error;
+    }
+
     const existing = await prisma.user.findUnique({ where: { id: params.id } });
     if (!existing) return apiError('User not found', 404);
+
+    // Prevent changing super_admin role
+    if (existing.role === 'super_admin' && role && role !== 'super_admin') {
+      return apiError('Cannot change super admin role', 403);
+    }
 
     const updateData: any = {};
     if (fullName !== undefined) updateData.fullName = fullName;
@@ -41,6 +68,9 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
 export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireRole('super_admin', 'admin');
+    if (authCheck.error) return authCheck.error;
+
     const existing = await prisma.user.findUnique({ where: { id: params.id } });
     if (!existing) return apiError('User not found', 404);
     if (existing.role === 'super_admin') return apiError('Cannot delete super admin', 403);

@@ -7,11 +7,15 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx src/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:migrate-landings": "tsx src/scripts/migrate-landings.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0"
+    "@prisma/client": "^5.14.0",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "prisma": "^5.14.0",

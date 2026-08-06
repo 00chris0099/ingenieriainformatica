@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { auth } from '@/lib/auth';
+import { requireAuth, requireRole } from '@/lib/api/auth-guard';
 
-/**
- * RF-54: Tax configuration API
- */
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+
     const taxes = await prisma.taxConfig.findMany({
       where: { isActive: true },
       orderBy: { isDefault: 'desc' },
@@ -20,8 +19,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authCheck = await requireRole('super_admin', 'admin');
+    if (authCheck.error) return authCheck.error;
 
     const body = await request.json();
     const { name, rate, isDefault } = body;
@@ -30,7 +29,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name and rate required' }, { status: 400 });
     }
 
-    // If setting as default, unset others
     if (isDefault) {
       await prisma.taxConfig.updateMany({
         where: { isDefault: true },
@@ -50,8 +48,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authCheck = await requireRole('super_admin', 'admin');
+    if (authCheck.error) return authCheck.error;
 
     const body = await request.json();
     const { id, name, rate, isDefault, isActive } = body;
@@ -76,8 +74,8 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authCheck = await requireRole('super_admin', 'admin');
+    if (authCheck.error) return authCheck.error;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

@@ -45,17 +45,6 @@ export function handleApiError(error: unknown, context: string) {
   return apiError(error instanceof Error ? error.message : 'Internal server error', 500);
 }
 
-export async function withDbFallback<T>(dbQuery: () => Promise<T>, mockFallback: () => T): Promise<T> {
-  try { return await dbQuery(); }
-  catch (error: any) {
-    const msg = error.message || '';
-    if (msg.includes('connect') || msg.includes('ECONNREFUSED') || msg.includes("Can't reach database") || msg.includes('PrismaClientInitializationError') || msg.includes('P1000') || msg.includes('P2022')) {
-      return mockFallback();
-    }
-    throw error;
-  }
-}
-
 export function getClientIp(request: NextRequest): string {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { apiSuccess, apiPaginated, apiError, parsePagination, handleApiError, withDbFallback } from '@/lib/api';
+import { apiSuccess, apiPaginated, apiError, parsePagination, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 
 export async function GET(request: NextRequest) {
@@ -8,22 +8,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const { page, limit, offset } = parsePagination(searchParams);
 
-    const result = await cached('categories:all', () =>
-      withDbFallback(
-        async () => {
-          const [categories, total] = await Promise.all([
-            prisma.category.findMany({
-              include: { _count: { select: { products: true } }, children: true },
-              where: { parentId: null },
-              orderBy: { sortOrder: 'asc' },
-            }),
-            prisma.category.count(),
-          ]);
-          return { categories, total };
-        },
-        () => ({ categories: [], total: 0 })
-      ), 300
-    );
+    const result = await cached('categories:all', async () => {
+      const [categories, total] = await Promise.all([
+        prisma.category.findMany({
+          include: { _count: { select: { products: true } }, children: true },
+          where: { parentId: null },
+          orderBy: { sortOrder: 'asc' },
+        }),
+        prisma.category.count(),
+      ]);
+      return { categories, total };
+    }, 300);
 
     return apiPaginated(result.categories, result.total, page, limit);
   } catch (error) {

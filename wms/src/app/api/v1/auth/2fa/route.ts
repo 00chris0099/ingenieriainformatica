@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         data: {
           secret,
-          currentCode, // For testing - remove in production
           message: 'Scan the secret with your authenticator app',
         },
       });

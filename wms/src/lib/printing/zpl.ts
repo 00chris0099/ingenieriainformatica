@@ -330,7 +330,5 @@ export async function sendZplToPrinter(
 ): Promise<boolean> {
   // This would need to be implemented server-side
   // using net.Socket or a library like net-ping
-  console.log(`Sending ZPL to ${printerIp}:${printerPort}`);
-  console.log(zpl);
   return true;
 }

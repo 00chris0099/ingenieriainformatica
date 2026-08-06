@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Plus, Search, Edit, Trash2, Loader2, MoreVertical, Copy, Download, Upload } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, MoreVertical, Copy, Download, Upload } from 'lucide-react';
 import ProductForm from '@/components/catalogo/ProductForm';
 import ImportExportDialog from '@/components/catalogo/ImportExportDialog';
-import StatusBadge from '@/components/ui/StatusBadge';
-import SearchBar from '@/components/ui/SearchBar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function CatalogoPage() {
   const { showToast } = useToast();
@@ -51,40 +54,19 @@ export default function CatalogoPage() {
     const url = editingProduct ? `/api/v1/products/${editingProduct.id}` : '/api/v1/products';
     const method = editingProduct ? 'PUT' : 'POST';
     const payload = {
-      sku: data.sku,
-      name: data.name,
-      slug: data.slug,
-      model: data.model,
-      description: data.description,
-      shortDescription: data.shortDescription,
-      brand: data.brand,
-      categoryId: data.categoryId,
-      status: data.status,
-      tags: data.tags,
-      images: data.images,
-      mainImageIndex: data.mainImageIndex,
-      height: data.height,
-      width: data.width,
-      depth: data.depth,
-      color: data.color,
-      materials: data.materials,
-      recommendedAge: data.recommendedAge,
-      warrantyDays: data.warrantyDays,
-      originCountry: data.originCountry,
-      weight: data.weight,
-      weightUnit: data.weightUnit,
-      stock: data.stock,
-      lowStockAlert: data.lowStockAlert,
-      price: data.price,
-      compareAtPrice: data.compareAtPrice,
-      discountPercent: data.discountPercent,
-      costPrice: data.costPrice,
-      barcode: data.barcode,
-      discountPopup: data.discountPopup,
-      promotionBar: data.promotionBar,
-      socialProof: data.socialProof,
-      ctaText: data.ctaText,
-      crossSellProductIds: data.crossSellProductIds,
+      sku: data.sku, name: data.name, slug: data.slug, model: data.model,
+      description: data.description, shortDescription: data.shortDescription,
+      brand: data.brand, categoryId: data.categoryId, status: data.status,
+      tags: data.tags, images: data.images, mainImageIndex: data.mainImageIndex,
+      height: data.height, width: data.width, depth: data.depth, color: data.color,
+      materials: data.materials, recommendedAge: data.recommendedAge,
+      warrantyDays: data.warrantyDays, originCountry: data.originCountry,
+      weight: data.weight, weightUnit: data.weightUnit, stock: data.stock,
+      lowStockAlert: data.lowStockAlert, price: data.price,
+      compareAtPrice: data.compareAtPrice, discountPercent: data.discountPercent,
+      costPrice: data.costPrice, barcode: data.barcode, discountPopup: data.discountPopup,
+      promotionBar: data.promotionBar, socialProof: data.socialProof,
+      ctaText: data.ctaText, crossSellProductIds: data.crossSellProductIds,
     };
     const res = await fetch(url, {
       method,
@@ -112,43 +94,22 @@ export default function CatalogoPage() {
 
   const handleDuplicate = async (productId: string) => {
     try {
-      const res = await fetch(`/api/v1/products/${productId}/duplicate`, {
-        method: 'POST',
-      });
+      const res = await fetch(`/api/v1/products/${productId}/duplicate`, { method: 'POST' });
       if (res.ok) {
         showToast('Producto duplicado', 'success');
         fetchProducts();
       }
-    } catch (err) {
-      showToast('Error al duplicar', 'error');
-    }
+    } catch { showToast('Error al duplicar', 'error'); }
   };
 
-  const startEdit = async (product: any) => {
-    // Load landing page blocks
-    let landingBlocks: any[] = [];
-    try {
-      const slug = product.slug || product.name?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || '';
-      const res = await fetch(`/api/v1/landings/${slug}`);
-      if (res.ok) {
-        const data = await res.json();
-        landingBlocks = data.data?.blocks || [];
-      }
-    } catch (err) {
-      console.error('Failed to load landing page:', err);
-    }
-
+  const startEdit = (product: any) => {
     setEditingProduct({
       ...product,
       model: product.model || '',
       shortDescription: product.shortDescription || '',
       productImages: product.images || [],
       mainImageIndex: product.mainImageIndex || 0,
-      dimensions: {
-        height: product.height || null,
-        width: product.width || null,
-        depth: product.depth || null,
-      },
+      dimensions: { height: product.height || null, width: product.width || null, depth: product.depth || null },
       color: product.color || '',
       materials: product.materials || [],
       recommendedAge: product.recommendedAge || '',
@@ -164,71 +125,87 @@ export default function CatalogoPage() {
       barcode: product.barcode || '',
       tags: product.tags || [],
       discountPopup: product.discountPopup || {
-        enabled: false,
-        title: 'Oferta especial!',
+        enabled: false, title: 'Oferta especial!',
         description: 'Obtén un descuento exclusivo en este producto',
-        discountPercent: 10,
-        ctaText: 'Comprar ahora',
-        ctaUrl: '#',
-        imageUrl: '',
-        bgColor: '#16a34a',
-        textColor: '#ffffff',
+        discountPercent: 10, ctaText: 'Comprar ahora', ctaUrl: '#', imageUrl: '',
+        bgColor: '#16a34a', textColor: '#ffffff',
       },
       ctaText: product.ctaText || '¡Lo quiero ahora!',
       crossSellProductIds: product.crossSellProductIds || [],
       promotionBar: product.promotionBar || {
         enabled: false,
         message: '¡Oferta por tiempo limitado! Quedan {hours}h {minutes}m {seconds}s',
-        hours: 24,
-        bgColor: '#dc2626',
-        textColor: '#ffffff',
+        hours: 24, bgColor: '#dc2626', textColor: '#ffffff',
       },
       socialProof: product.socialProof || {
-        enabled: false,
-        interval: 5,
-        messages: [
-          '{name} de {city} compró este producto',
-          '{name} de {city} acabó de comprar',
-          '{name} de {city} se lo llevó',
-        ],
+        enabled: false, interval: 5,
+        messages: ['{name} de {city} compró este producto', '{name} de {city} acabó de comprar', '{name} de {city} se lo llevó'],
         avatars: [],
       },
-      landingBlocks: landingBlocks,
     });
     setShowForm(true);
     setShowMenu(null);
   };
 
+  const getStockBadge = (stock: number) => {
+    if (stock > 10) return <Badge variant="success">{stock} uds</Badge>;
+    if (stock > 0) return <Badge variant="warning">{stock} uds</Badge>;
+    return <Badge variant="error">{stock} uds</Badge>;
+  };
+
+  const getPriceDisplay = (product: any) => {
+    const mainPrice = Number(product.price) || 0;
+    const hasDiscount = product.discountPercent != null && product.discountPercent > 0;
+    const effectivePrice = hasDiscount
+      ? Math.round(mainPrice * (1 - product.discountPercent / 100) * 100) / 100
+      : mainPrice;
+    const showStrike = hasDiscount && product.compareAtPrice != null;
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <div className="flex items-center gap-1.5">
+          {showStrike && <span className="text-xs text-[var(--color-text-tertiary)] line-through">S/ {product.compareAtPrice}</span>}
+          <span className={`text-sm font-medium ${hasDiscount ? 'text-[var(--color-success)]' : 'text-[var(--color-accent)]'}`}>
+            S/ {effectivePrice}
+          </span>
+          {hasDiscount && (
+            <Badge variant="warning" className="text-[10px]">-{product.discountPercent}%</Badge>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-4 pb-20 lg:pb-0">
+    <div className="space-y-4 pb-20 lg:pb-0 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Catalogo de Productos</h2>
-          <p className="text-sm text-gray-400">{products.length} productos</p>
+          <h2 className="text-xl font-semibold text-[var(--color-text-primary)] tracking-tight">Catalogo de Productos</h2>
+          <p className="text-sm text-[var(--color-text-tertiary)]">{products.length} productos</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setImportExportMode('export')}
-            className="flex items-center gap-2 px-3 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            <Download size={16} /> Exportar
-          </button>
-          <button
-            onClick={() => setImportExportMode('import')}
-            className="flex items-center gap-2 px-3 py-2.5 bg-gray-800 text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            <Upload size={16} /> Importar
-          </button>
-          <button onClick={() => { setEditingProduct(null); setShowForm(true); }}
-            className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-brand-700 transition-colors">
-            <Plus size={18} /> Nuevo Producto
-          </button>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={() => setImportExportMode('export')}>
+            Exportar
+          </Button>
+          <Button variant="secondary" size="sm" icon={<Upload size={14} />} onClick={() => setImportExportMode('import')}>
+            Importar
+          </Button>
+          <Button size="sm" icon={<Plus size={16} />} onClick={() => { setEditingProduct(null); setShowForm(true); }}>
+            Nuevo Producto
+          </Button>
         </div>
       </div>
 
-      <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nombre o SKU..." />
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre o SKU..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="input-field pl-10"
+        />
+      </div>
 
-      {/* Product Form Modal */}
       {showForm && (
         <ProductForm
           initialData={editingProduct}
@@ -240,147 +217,121 @@ export default function CatalogoPage() {
         />
       )}
 
-      {/* Loading */}
-      {loading && <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-brand-400" /></div>}
+      {loading && <TableSkeleton rows={5} columns={6} />}
 
-      {/* Product List - Mobile */}
+      {!loading && products.length === 0 && (
+        <EmptyState
+          icon={<Package size={24} />}
+          title="No se encontraron productos"
+          description="Crea tu primer producto para empezar a vender"
+          action={{ label: 'Nuevo Producto', onClick: () => { setEditingProduct(null); setShowForm(true); } }}
+        />
+      )}
+
       {!loading && (
-        <div className="lg:hidden space-y-3">
-          {products.map((product) => (
-            <div key={product.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <div className="flex gap-3">
-                <img src={product.images?.[0] || ''}
-                  alt="" className="w-14 h-14 rounded-lg object-cover bg-gray-800 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{product.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
+        <>
+          {/* Mobile */}
+          <div className="lg:hidden space-y-3 stagger-children">
+            {products.map((product) => (
+              <div key={product.id} className="surface-card p-4 group">
+                <div className="flex gap-3">
+                  <img src={product.images?.[0] || ''}
+                    alt="" className="w-14 h-14 rounded-lg object-cover bg-[var(--color-bg-hover)] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{product.name}</p>
+                        <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{product.sku}</p>
+                      </div>
+                      <button onClick={() => setShowMenu(showMenu === product.id ? null : product.id)}
+                        className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1 shrink-0 transition-colors">
+                        <MoreVertical size={16} />
+                      </button>
                     </div>
-                    <button onClick={() => setShowMenu(showMenu === product.id ? null : product.id)}
-                      className="text-gray-500 hover:text-white p-1 shrink-0"><MoreVertical size={16} /></button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const mainPrice = Number(product.price) || 0;
-                        const hasDiscount = product.discountPercent != null && product.discountPercent > 0;
-                        const effectivePrice = hasDiscount
-                          ? Math.round(mainPrice * (1 - product.discountPercent / 100) * 100) / 100
-                          : mainPrice;
-                        const showStrike = hasDiscount && product.compareAtPrice != null;
-                        return (
-                          <>
-                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {product.compareAtPrice}</span>}
-                            <span className={`font-bold text-sm ${hasDiscount ? 'text-green-400' : 'text-brand-400'}`}>S/ {effectivePrice}</span>
-                            {hasDiscount && <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-md font-medium">-{product.discountPercent}%</span>}
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        (product.stock ?? 0) > 10 ? 'bg-green-500/20 text-green-400' :
-                        (product.stock ?? 0) > 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-red-500/20 text-red-400'
-                      }`}>{product.stock ?? 0} uds</span>
-                      <StatusBadge status={product.status} />
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-2">
+                        {getPriceDisplay(product)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStockBadge(product.stock ?? 0)}
+                        <Badge variant={product.status === 'active' ? 'success' : 'neutral'}>
+                          {product.status === 'active' ? 'Activo' : product.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>
+                {showMenu === product.id && (
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--color-border)]">
+                    <Button variant="ghost" size="sm" className="flex-1" icon={<Edit size={14} />}
+                      onClick={() => startEdit(product)}>Editar</Button>
+                    <Button variant="ghost" size="sm" className="flex-1" icon={<Copy size={14} />}
+                      onClick={() => handleDuplicate(product.id)}>Duplicar</Button>
+                    <Button variant="danger" size="sm" className="flex-1" icon={<Trash2 size={14} />}
+                      onClick={() => setDeleteConfirm({ open: true, id: product.id })}>Archivar</Button>
+                  </div>
+                )}
               </div>
-              {showMenu === product.id && (
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800">
-                  <button onClick={() => startEdit(product)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-gray-800 rounded-lg text-xs text-gray-300 hover:bg-gray-700">
-                    <Edit size={14} /> Editar
-                  </button>
-                  <button onClick={() => handleDuplicate(product.id)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-gray-800 rounded-lg text-xs text-gray-300 hover:bg-gray-700">
-                    <Copy size={14} /> Duplicar
-                  </button>
-                  <button onClick={() => setDeleteConfirm({ open: true, id: product.id })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-900/30 rounded-lg text-xs text-red-400 hover:bg-red-900/50">
-                    <Trash2 size={14} /> Archivar
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {products.length === 0 && (
-            <div className="text-center py-12 text-gray-500"><Package size={32} className="mx-auto mb-2 opacity-50" /><p className="text-sm">No se encontraron productos</p></div>
-          )}
-        </div>
-      )}
+            ))}
+          </div>
 
-      {/* Desktop Table */}
-      {!loading && (
-        <div className="hidden lg:block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Producto</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">SKU</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Categoria</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Precio</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Stock</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Estado</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {products.map((product) => (
-                <tr key={product.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <img src={product.images?.[0] || ''}
-                        alt="" className="w-10 h-10 rounded-lg object-cover bg-gray-800" />
-                      <span className="text-sm font-medium text-white truncate">{product.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">{product.sku}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{product.category || '-'}</td>
-                  <td className="px-4 py-3 text-right">
-                    {(() => {
-                      const mainPrice = Number(product.price) || 0;
-                      const hasDiscount = product.discountPercent != null && product.discountPercent > 0;
-                      const effectivePrice = hasDiscount
-                        ? Math.round(mainPrice * (1 - product.discountPercent / 100) * 100) / 100
-                        : mainPrice;
-                      const showStrike = hasDiscount && product.compareAtPrice != null;
-                      return (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <div className="flex items-center gap-1.5">
-                            {showStrike && <span className="text-xs text-gray-500 line-through">S/ {product.compareAtPrice}</span>}
-                            <span className={`text-sm font-medium ${hasDiscount ? 'text-green-400' : 'text-brand-400'}`}>S/ {effectivePrice}</span>
-                            {hasDiscount && <span className="text-[10px] px-1 py-0.5 bg-orange-500/20 text-orange-400 rounded font-medium">-{product.discountPercent}%</span>}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`text-sm font-medium ${(product.stock ?? 0) > 10 ? 'text-green-400' : (product.stock ?? 0) > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{product.stock ?? 0}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center"><StatusBadge status={product.status} /></td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => startEdit(product)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5"><Edit size={14} /></button>
-                      <button onClick={() => handleDuplicate(product.id)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5"><Copy size={14} /></button>
-                      <button onClick={() => setDeleteConfirm({ open: true, id: product.id })} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-500/10"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
+          {/* Desktop Table */}
+          <div className="hidden lg:block surface-card overflow-hidden">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>SKU</th>
+                  <th>Categoria</th>
+                  <th className="text-right">Precio</th>
+                  <th className="text-right">Stock</th>
+                  <th className="text-center">Estado</th>
+                  <th className="text-right">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {products.length === 0 && (
-            <div className="text-center py-12 text-gray-500"><Package size={32} className="mx-auto mb-2 opacity-50" /><p className="text-sm">No se encontraron productos</p></div>
-          )}
-        </div>
+              </thead>
+              <tbody>
+                {products.map((product) => (
+                  <tr key={product.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <img src={product.images?.[0] || ''}
+                          alt="" className="w-10 h-10 rounded-lg object-cover bg-[var(--color-bg-hover)]" />
+                        <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{product.name}</span>
+                      </div>
+                    </td>
+                    <td className="font-mono text-[var(--color-text-tertiary)]">{product.sku}</td>
+                    <td className="text-[var(--color-text-secondary)]">{product.category || '-'}</td>
+                    <td className="text-right">{getPriceDisplay(product)}</td>
+                    <td className="text-right">{getStockBadge(product.stock ?? 0)}</td>
+                    <td className="text-center">
+                      <Badge variant={product.status === 'active' ? 'success' : 'neutral'}>
+                        {product.status === 'active' ? 'Activo' : product.status}
+                      </Badge>
+                    </td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => startEdit(product)}
+                          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
+                          <Edit size={14} />
+                        </button>
+                        <button onClick={() => handleDuplicate(product.id)}
+                          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
+                          <Copy size={14} />
+                        </button>
+                        <button onClick={() => setDeleteConfirm({ open: true, id: product.id })}
+                          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] rounded-lg hover:bg-[var(--color-error-muted)] transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={deleteConfirm.open}
         onClose={() => setDeleteConfirm({ open: false, id: '' })}
@@ -391,7 +342,6 @@ export default function CatalogoPage() {
         variant="danger"
       />
 
-      {/* Import/Export Dialog */}
       <ImportExportDialog
         isOpen={importExportMode !== null}
         onClose={() => setImportExportMode(null)}

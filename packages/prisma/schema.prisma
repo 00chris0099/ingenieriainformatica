@@ -126,28 +126,34 @@ enum QCStatus {
 // ============================================================================
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  phone        String?
-  avatarUrl    String?   @map("avatar_url")
-  role         UserRole  @default(readonly)
-  isActive     Boolean   @default(true) @map("is_active")
-  twoFactorSecret  String?  @map("two_factor_secret")
-  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique
+  passwordHash     String    @map("password_hash")
+  fullName         String    @map("full_name")
+  phone            String?
+  avatarUrl        String?   @map("avatar_url")
+  role             UserRole  @default(readonly)
+  isActive         Boolean   @default(true) @map("is_active")
+  twoFactorSecret  String?   @map("two_factor_secret")
+  twoFactorEnabled Boolean   @default(false) @map("two_factor_enabled")
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  sessions             Session[]
-  placedOrders         Order[]            @relation("PlacedBy")
-  managedWarehouses    Warehouse[]        @relation("Manager")
-  orderedPurchaseOrders PurchaseOrder[]   @relation("OrderedBy")
-  receivedReceipts     GoodsReceipt[]     @relation("ReceivedBy")
-  auditTrails          AuditTrail[]       @relation("PerformedBy")
-  notifications        NotificationQueue[] @relation("Recipient")
+  sessions              Session[]
+  placedOrders          Order[]            @relation("PlacedBy")
+  managedWarehouses     Warehouse[]        @relation("Manager")
+  orderedPurchaseOrders PurchaseOrder[]    @relation("OrderedBy")
+  receivedReceipts      GoodsReceipt[]     @relation("ReceivedBy")
+  auditTrails           AuditTrail[]       @relation("PerformedBy")
+  notifications         NotificationQueue[] @relation("Recipient")
+  assignedPickLists     PickList[]         @relation("PickListAssignee")
+  assignedCycleCounts   CycleCount[]       @relation("CycleCountAssignee")
+  qualityChecks         QualityCheck[]     @relation("QCAssigner")
+  blogPosts             BlogPost[]
 
+  @@index([role])
+  @@index([isActive])
   @@map("users")
 }
 
@@ -175,7 +181,7 @@ model Category {
   slug        String    @unique
   description String?
   imageUrl    String?   @map("image_url")
-  attributes  Json      @default("[]")   // Atributos de variante: [{name, type, options}]
+  attributes  Json      @default("[]")
   sortOrder   Int       @default(0) @map("sort_order")
   isActive    Boolean   @default(true) @map("is_active")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -202,31 +208,25 @@ model Product {
   tags             String[]      @default([])
   images           String[]      @default([])
 
-  // Dimensiones
   height           Decimal?      @db.Decimal(10, 2)
   width            Decimal?      @db.Decimal(10, 2)
   depth            Decimal?      @db.Decimal(10, 2)
 
-  // Atributos adicionales
   color            String?
   materials        String[]      @default([])
   recommendedAge   String?       @map("recommended_age")
   warrantyDays     Int?          @map("warranty_days")
   originCountry    String?       @map("origin_country")
 
-  // Peso
   weight           Decimal?      @db.Decimal(10, 2)
   weightUnit       String?       @default("kg") @map("weight_unit")
 
-  // Stock
   lowStockAlert    Int?          @map("low_stock_alert")
 
-  // Urgency / Promoción
   discountPopup    Json?         @map("discount_popup")
-  promotionBar     Json?         @map("promotion_bar") // {enabled, message, hours, bgColor, textColor}
-  socialProof      Json?         @map("social_proof")   // {enabled, interval, messages[], avatars[]}
+  promotionBar     Json?         @map("promotion_bar")
+  socialProof      Json?         @map("social_proof")
 
-  // Precio y stock
   price            Decimal       @default(0) @db.Decimal(10, 2)
   compareAtPrice   Decimal?      @map("compare_at_price") @db.Decimal(10, 2)
   costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
@@ -238,18 +238,50 @@ model Product {
   updatedAt        DateTime      @updatedAt @map("updated_at")
   publishedAt      DateTime?     @map("published_at")
 
-  category  Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  reviews   Review[]
-  suggestedProducts SuggestedProduct[]
-  offers    Offer[]
-  orderItems OrderItem[]
-  wishlists  Wishlist[]
-  priceListItems PriceListItem[]
+  category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  versions           ProductVersion[]
+  suggestedProducts  SuggestedProduct[]
+  offers             Offer[]
+  orderItems         OrderItem[]
+  pickListItems      PickListItem[]
+  returnItems        ReturnItem[]
+  cycleCountItems    CycleCountItem[]
+  lots               Lot[]
+  serialNumbers      SerialNumber[]
+  qcItems            QualityCheckItem[]
+  wishlists          Wishlist[]
+  priceListItems     PriceListItem[]
   purchaseOrderItems PurchaseOrderItem[]
-  goodsReceiptItems GoodsReceiptItem[]
-  cartItems CartItem[]
+  goodsReceiptItems  GoodsReceiptItem[]
+  reviews            Review[]
+  cartItems          CartItem[]
 
+  @@index([categoryId])
+  @@index([status])
+  @@index([brand])
+  @@index([createdAt])
   @@map("products")
+}
+
+// ============================================================================
+// VERSION HISTORY
+// ============================================================================
+
+model ProductVersion {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  version    Int      @default(1)
+  snapshot   Json
+  diff       Json?
+  changeType String   @default("manual") @map("change_type")
+  authorId   String?  @map("author_id") @db.Uuid
+  authorName String?  @map("author_name")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, version])
+  @@map("product_versions")
 }
 
 // ============================================================================
@@ -274,6 +306,12 @@ model Warehouse {
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
   shipments      Shipment[]
+  pickLists      PickList[]
+  returns        Return[]
+  cycleCounts    CycleCount[]
+  lots           Lot[]
+  serialNumbers  SerialNumber[]
+  qualityChecks  QualityCheck[]
 
   @@map("warehouses")
 }
@@ -329,8 +367,8 @@ model PriceListItem {
   minQuantity Int      @default(1) @map("min_quantity")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  priceList PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([priceListId, productId, minQuantity])
   @@map("price_list_items")
@@ -342,9 +380,9 @@ model PriceListItem {
 
 model Customer {
   id              String   @id @default(uuid()) @db.Uuid
-  source          String   @default("store")
+  source          String   @default("wms")
   customerType    String   @default("individual") @map("customer_type")
-  email           String?  @unique
+  email           String?
   password        String   @default("")
   phone           String?
   fullName        String   @map("full_name")
@@ -357,9 +395,14 @@ model Customer {
   currentBalance  Decimal  @default(0) @db.Decimal(12, 2) @map("current_balance")
   tags            String[] @default([])
   notes           String?
-  customerTier    String   @default("normal") @map("customer_tier") // nuevo, frecuente, vip, problematico
+  customerTier    String   @default("normal") @map("customer_tier")
   isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([phone])
+  @@index([customerTier])
+  @@index([isActive])
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   priceList PriceList? @relation(fields: [priceListId], references: [id], onDelete: SetNull)
@@ -367,6 +410,7 @@ model Customer {
   invoices  Invoice[]
   reviews   Review[]
   cart      Cart?
+  returns   Return[]
   wishlists Wishlist[]
 
   @@map("customers")
@@ -375,7 +419,7 @@ model Customer {
 model Order {
   id              String        @id @default(uuid()) @db.Uuid
   orderNumber     String        @unique @map("order_number")
-  source          String        @default("store")
+  source          String        @default("wms")
   customerId      String        @map("customer_id") @db.Uuid
   placedBy        String?       @map("placed_by") @db.Uuid
   status          OrderStatus   @default(pending)
@@ -399,29 +443,33 @@ model Order {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  customer       Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  placer         User?              @relation("PlacedBy", fields: [placedBy], references: [id], onDelete: SetNull)
-  items          OrderItem[]
-  statusHistory  OrderStatusHistory[]
-  invoices       Invoice[]
-  shipments      Shipment[]
-  payments       Payment[]
+  customer      Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  placer        User?              @relation("PlacedBy", fields: [placedBy], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  invoices      Invoice[]
+  shipments     Shipment[]
+  payments      Payment[]
 
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
   @@map("orders")
 }
 
 model OrderItem {
-  id         String  @id @default(uuid()) @db.Uuid
-  orderId    String  @map("order_id") @db.Uuid
-  productId  String? @map("product_id") @db.Uuid
-  productName String @map("product_name")
-  sku        String
-  quantity   Int
-  unitPrice  Decimal @db.Decimal(10, 2) @map("unit_price")
+  id              String  @id @default(uuid()) @db.Uuid
+  orderId         String  @map("order_id") @db.Uuid
+  productId       String? @map("product_id") @db.Uuid
+  productName     String  @map("product_name")
+  sku             String
+  quantity        Int
+  unitPrice       Decimal @db.Decimal(10, 2) @map("unit_price")
   discountPercent Decimal @default(0) @db.Decimal(5, 2) @map("discount_percent")
   discountAmount  Decimal @default(0) @db.Decimal(10, 2) @map("discount_amount")
-  total      Decimal @db.Decimal(12, 2)
-  createdAt  DateTime @default(now()) @map("created_at")
+  total           Decimal @db.Decimal(12, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -473,13 +521,13 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id        String  @id @default(uuid()) @db.Uuid
-  invoiceId String  @map("invoice_id") @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  invoiceId   String  @map("invoice_id") @db.Uuid
   description String
-  quantity  Int
-  unitPrice Decimal @db.Decimal(10, 2) @map("unit_price")
-  total     Decimal @db.Decimal(12, 2)
-  createdAt DateTime @default(now()) @map("created_at")
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2) @map("unit_price")
+  total       Decimal @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -551,8 +599,8 @@ model PurchaseOrderItem {
   total           Decimal  @db.Decimal(12, 2)
   createdAt       DateTime @default(now()) @map("created_at")
 
-  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@map("purchase_order_items")
 }
@@ -638,6 +686,254 @@ model ShipmentEvent {
 }
 
 // ============================================================================
+// PICKING
+// ============================================================================
+
+model PickList {
+  id          String        @id @default(uuid()) @db.Uuid
+  pickNumber  String        @unique @map("pick_number")
+  warehouseId String        @map("warehouse_id") @db.Uuid
+  assignedTo  String?       @map("assigned_to") @db.Uuid
+  status      PickListStatus @default(draft)
+  zone        String?
+  priority    Int           @default(0)
+  startedAt   DateTime?     @map("started_at")
+  completedAt DateTime?     @map("completed_at")
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  warehouse Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  assignee  User?        @relation("PickListAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  items     PickListItem[]
+
+  @@map("pick_lists")
+}
+
+model PickListItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  pickListId   String   @map("pick_list_id") @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  sku          String
+  productName  String   @map("product_name")
+  locationCode String?  @map("location_code")
+  quantity     Int
+  scannedQty   Int      @default(0) @map("scanned_qty")
+  status       String   @default("pending")
+  scannedAt    DateTime? @map("scanned_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  pickList PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("pick_list_items")
+}
+
+// ============================================================================
+// RETURNS / RMA
+// ============================================================================
+
+model Return {
+  id          String       @id @default(uuid()) @db.Uuid
+  returnNumber String      @unique @map("return_number")
+  orderId     String?      @map("order_id") @db.Uuid
+  customerId  String       @map("customer_id") @db.Uuid
+  warehouseId String       @map("warehouse_id") @db.Uuid
+  status      ReturnStatus @default(pending)
+  reason      String?
+  receivedAt  DateTime?    @map("received_at")
+  inspectedAt DateTime?    @map("inspected_at")
+  resolvedAt  DateTime?    @map("resolved_at")
+  notes       String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  customer  Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  warehouse Warehouse   @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  items     ReturnItem[]
+
+  @@map("returns")
+}
+
+model ReturnItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  returnId    String   @map("return_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  sku         String
+  productName String   @map("product_name")
+  quantity    Int
+  condition   String   @default("good")
+  disposition String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  return  Return  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("return_items")
+}
+
+// ============================================================================
+// CYCLE COUNTING
+// ============================================================================
+
+model CycleCount {
+  id            String          @id @default(uuid()) @db.Uuid
+  countNumber   String          @unique @map("count_number")
+  warehouseId   String          @map("warehouse_id") @db.Uuid
+  scheduledDate DateTime        @map("scheduled_date")
+  status        CycleCountStatus @default(scheduled)
+  zone          String?
+  assignedTo    String?         @map("assigned_to") @db.Uuid
+  startedAt     DateTime?       @map("started_at")
+  completedAt   DateTime?       @map("completed_at")
+  notes         String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  assignee  User?           @relation("CycleCountAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  items     CycleCountItem[]
+
+  @@map("cycle_counts")
+}
+
+model CycleCountItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  cycleCountId  String   @map("cycle_count_id") @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  warehouseId   String   @map("warehouse_id") @db.Uuid
+  locationCode  String?  @map("location_code")
+  sku           String
+  productName   String   @map("product_name")
+  expectedQty   Int      @map("expected_qty")
+  countedQty    Int?     @map("counted_qty")
+  variance      Int?
+  status        String   @default("pending")
+  countedAt     DateTime? @map("counted_at")
+  adjustedAt    DateTime? @map("adjusted_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  cycleCount CycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("cycle_count_items")
+}
+
+// ============================================================================
+// LOT/BATCH TRACKING
+// ============================================================================
+
+model Lot {
+  id                String    @id @default(uuid()) @db.Uuid
+  lotNumber         String    @unique @map("lot_number")
+  productId         String    @map("product_id") @db.Uuid
+  warehouseId       String    @map("warehouse_id") @db.Uuid
+  quantity          Int       @default(0)
+  reservedQty       Int       @default(0) @map("reserved_qty")
+  availableQty      Int       @default(0) @map("available_qty")
+  manufacturingDate DateTime? @map("manufacturing_date")
+  expirationDate    DateTime? @map("expiration_date")
+  receivedAt        DateTime  @default(now()) @map("received_at")
+  status            String    @default("active")
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  movements LotMovement[]
+
+  @@map("lots")
+}
+
+model LotMovement {
+  id            String   @id @default(uuid()) @db.Uuid
+  lotId         String   @map("lot_id") @db.Uuid
+  type          String
+  quantity      Int
+  referenceId   String?  @map("reference_id")
+  referenceType String?  @map("reference_type")
+  performedBy   String?  @map("performed_by") @db.Uuid
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@map("lot_movements")
+}
+
+// ============================================================================
+// SERIAL NUMBER TRACKING
+// ============================================================================
+
+model SerialNumber {
+  id           String   @id @default(uuid()) @db.Uuid
+  serialNumber String   @unique @map("serial_number")
+  productId    String   @map("product_id") @db.Uuid
+  warehouseId  String   @map("warehouse_id") @db.Uuid
+  locationCode String?  @map("location_code")
+  status       String   @default("available")
+  orderId      String?  @map("order_id") @db.Uuid
+  receivedAt   DateTime @default(now()) @map("received_at")
+  soldAt       DateTime? @map("sold_at")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@map("serial_numbers")
+}
+
+// ============================================================================
+// QUALITY CONTROL
+// ============================================================================
+
+model QualityCheck {
+  id            String    @id @default(uuid()) @db.Uuid
+  qcNumber      String    @unique @map("qc_number")
+  type          String
+  referenceId   String?   @map("reference_id")
+  referenceType String?   @map("reference_type")
+  warehouseId   String    @map("warehouse_id") @db.Uuid
+  inspectorId   String?   @map("inspector_id") @db.Uuid
+  status        QCStatus @default(pending)
+  result        String?
+  defectCount   Int       @default(0) @map("defect_count")
+  notes         String?
+  inspectedAt   DateTime? @map("inspected_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  inspector User?           @relation("QCAssigner", fields: [inspectorId], references: [id], onDelete: SetNull)
+  items     QualityCheckItem[]
+
+  @@map("quality_checks")
+}
+
+model QualityCheckItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  qcId        String   @map("qc_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Int
+  passedQty   Int      @default(0) @map("passed_qty")
+  failedQty   Int      @default(0) @map("failed_qty")
+  defectType  String?  @map("defect_type")
+  defectNotes String?  @map("defect_notes")
+  disposition String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  qc      QualityCheck @relation(fields: [qcId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("quality_check_items")
+}
+
+// ============================================================================
 // AUDIT + NOTIFICATIONS + SYNC
 // ============================================================================
 
@@ -660,16 +956,16 @@ model AuditTrail {
 }
 
 model NotificationQueue {
-  id               String   @id @default(uuid()) @db.Uuid
-  recipientId      String?  @map("recipient_id") @db.Uuid
-  recipientEmail   String?  @map("recipient_email")
-  subject          String?
-  body             String
-  channel          String?
-  type             String   @default("info") // order, status, stock, info
-  isRead           Boolean  @default(false) @map("is_read")
-  status           String   @default("pending")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  recipientId    String?  @map("recipient_id") @db.Uuid
+  recipientEmail String?  @map("recipient_email")
+  subject        String?
+  body           String
+  channel        String?
+  type           String   @default("info")
+  isRead         Boolean  @default(false) @map("is_read")
+  status         String   @default("pending")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   recipient User? @relation("Recipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
@@ -677,16 +973,16 @@ model NotificationQueue {
 }
 
 model SyncEvent {
-  id         String   @id @default(uuid()) @db.Uuid
-  eventType  String   @map("event_type")
-  entityType String   @map("entity_type")
-  entityId   String   @map("entity_id") @db.Uuid
-  payload    Json
-  status     String   @default("pending")
-  retryCount Int      @default(0) @map("retry_count")
-  errorMessage String? @map("error_message")
-  createdAt  DateTime @default(now()) @map("created_at")
-  syncedAt   DateTime? @map("synced_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  eventType    String   @map("event_type")
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id") @db.Uuid
+  payload      Json
+  status       String   @default("pending")
+  retryCount   Int      @default(0) @map("retry_count")
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+  syncedAt     DateTime? @map("synced_at")
 
   @@index([status, createdAt])
   @@map("sync_events")
@@ -773,12 +1069,12 @@ model Offer {
   productId       String   @map("product_id") @db.Uuid
   name            String
   description     String?
-  type            String   @default("quantity") // "quantity" | "addon"
-  quantity        Int      @default(1) // unidades en el pack (para type=quantity)
-  price           Decimal  @db.Decimal(10, 2) // precio con descuento
-  compareAtPrice  Decimal? @map("compare_at_price") @db.Decimal(10, 2) // precio original
-  discountPercent Decimal? @map("discount_percent") @db.Decimal(5, 2) // porcentaje de descuento
-  linkedProductId String?  @map("linked_product_id") @db.Uuid // producto agregado (para type=addon)
+  type            String   @default("quantity")
+  quantity        Int      @default(1)
+  price           Decimal  @db.Decimal(10, 2)
+  compareAtPrice  Decimal? @map("compare_at_price") @db.Decimal(10, 2)
+  discountPercent Decimal? @map("discount_percent") @db.Decimal(5, 2)
+  linkedProductId String?  @map("linked_product_id") @db.Uuid
   imageUrl        String?  @map("image_url")
   sortOrder       Int      @default(0) @map("sort_order")
   isActive        Boolean  @default(true) @map("is_active")
@@ -795,10 +1091,10 @@ model Offer {
 // ============================================================================
 
 model Wishlist {
-  id        String   @id @default(uuid()) @db.Uuid
-  customerId String  @map("customer_id") @db.Uuid
-  productId String   @map("product_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -815,27 +1111,25 @@ model NewsletterSubscriber {
   id        String   @id @default(uuid()) @db.Uuid
   email     String   @unique
   name      String?
-  status    String   @default("active") // active, unsubscribed
-  source    String?  // landing, checkout, footer
+  status    String   @default("active")
+  source    String?
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("newsletter_subscribers")
 }
 
 // ============================================================================
-// COUPONS
-// ============================================================================
 // TAX CONFIG
 // ============================================================================
 
 model TaxConfig {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String
-  rate        Decimal @db.Decimal(5, 2) // 0.18 for IGV
-  isDefault   Boolean @default(false) @map("is_default")
-  isActive    Boolean @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  rate      Decimal  @db.Decimal(5, 2)
+  isDefault Boolean  @default(false) @map("is_default")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("tax_configs")
 }
@@ -845,29 +1139,29 @@ model TaxConfig {
 // ============================================================================
 
 model AbandonedCheckout {
-  id              String   @id @default(uuid()) @db.Uuid
-  sessionId       String?  @map("session_id")
+  id              String    @id @default(uuid()) @db.Uuid
+  sessionId       String?   @map("session_id")
   email           String?
   phone           String?
   name            String?
-  items           Json     @default("[]")
-  subtotal        Decimal  @default(0) @db.Decimal(12, 2)
-  total           Decimal  @default(0) @db.Decimal(12, 2)
-  shippingAddress Json     @default("{}") @map("shipping_address")
-  paymentMethod   String?  @map("payment_method")
-  status          String   @default("abandoned") // abandoned, recovered, converted
+  items           Json      @default("[]")
+  subtotal        Decimal   @default(0) @db.Decimal(12, 2)
+  total           Decimal   @default(0) @db.Decimal(12, 2)
+  shippingAddress Json      @default("{}") @map("shipping_address")
+  paymentMethod   String?   @map("payment_method")
+  status          String    @default("abandoned")
   recoveredAt     DateTime? @map("recovered_at")
   convertedAt     DateTime? @map("converted_at")
-  orderId         String?  @map("order_id") @db.Uuid
+  orderId         String?   @map("order_id") @db.Uuid
   notes           String?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   @@map("abandoned_checkouts")
 }
 
 // ============================================================================
-// SUGGESTED PRODUCTS (Upsell en Checkout)
+// SUGGESTED PRODUCTS
 // ============================================================================
 
 model SuggestedProduct {
@@ -879,7 +1173,7 @@ model SuggestedProduct {
   compareAtPrice  Decimal? @db.Decimal(10, 2) @map("compare_at_price")
   discountPercent Int      @default(0) @map("discount_percent")
   imageUrl        String?  @map("image_url")
-  type            String   @default("custom") // "existing" | "custom"
+  type            String   @default("custom")
   linkedProductId String?  @map("linked_product_id") @db.Uuid
   sortOrder       Int      @default(0) @map("sort_order")
   isActive        Boolean  @default(true) @map("is_active")
@@ -889,4 +1183,154 @@ model SuggestedProduct {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("suggested_products")
+}
+
+// ============================================================================
+// BLOG POSTS
+// ============================================================================
+
+model BlogPost {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String
+  slug            String    @unique
+  content         String    @db.Text
+  excerpt         String?
+  coverImage      String?   @map("cover_image")
+  authorId        String?   @map("author_id") @db.Uuid
+  publishedAt     DateTime? @map("published_at")
+  tags            String[]
+  category        String?
+  metaTitle       String?   @map("meta_title")
+  metaDescription String?   @map("meta_description")
+  isPublished     Boolean   @default(false) @map("is_published")
+  viewCount       Int       @default(0) @map("view_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  author User? @relation(fields: [authorId], references: [id])
+
+  @@map("blog_posts")
+}
+
+// ============================================================================
+// PAGE BUILDER — Multi-Tenant Business Configuration
+// ============================================================================
+
+model Business {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String   @unique
+  industry       String
+  logoUrl        String?  @map("logo_url")
+  faviconUrl     String?  @map("favicon_url")
+  primaryColor   String   @default("#2563eb") @map("primary_color")
+  secondaryColor String   @default("#7c3aed") @map("secondary_color")
+  accentColor    String   @default("#f59e0b") @map("accent_color")
+  domain         String?  @unique
+  subdomain      String   @unique
+  settings       Json     @default("{}")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  pages          Page[]
+  themes         Theme[]
+  aiGenerations  AIGeneration[]
+  customDomains  CustomDomain[]
+
+  @@map("businesses")
+}
+
+model Page {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  title       String
+  slug        String
+  description String?
+  type        String   @default("landing")
+  status      String   @default("draft")
+  blocks      Json     @default("[]")
+  seo         Json     @default("{}")
+  settings    Json     @default("{}")
+  templateId  String?  @map("template_id") @db.Uuid
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  template Theme?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  versions  PageVersion[]
+
+  @@unique([businessId, slug])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("pages")
+}
+
+model PageVersion {
+  id        String   @id @default(uuid()) @db.Uuid
+  pageId    String   @map("page_id") @db.Uuid
+  version   Int      @default(1)
+  snapshot  Json
+  diff      Json?
+  authorId  String?  @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, version])
+  @@map("page_versions")
+}
+
+model Theme {
+  id           String   @id @default(uuid()) @db.Uuid
+  businessId   String?  @map("business_id") @db.Uuid
+  name         String
+  slug         String   @unique
+  description  String?
+  category     String
+  thumbnailUrl String?  @map("thumbnail_url")
+  config       Json     @default("{}")
+  blocks       Json     @default("[]")
+  isSystem     Boolean  @default(false) @map("is_system")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  pages    Page[]
+
+  @@map("themes")
+}
+
+model AIGeneration {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  type       String
+  prompt     String   @db.Text
+  result     Json     @default("{}")
+  model      String   @default("gpt-4")
+  tokensUsed Int      @default(0) @map("tokens_used")
+  status     String   @default("pending")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("ai_generations")
+}
+
+model CustomDomain {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  domain     String   @unique
+  status     String   @default("pending")
+  sslStatus  String   @default("none") @map("ssl_status")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("custom_domains")
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError, withDbFallback } from '@/lib/api';
+import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 
 export async function GET(request: NextRequest) {
@@ -11,38 +11,33 @@ export async function GET(request: NextRequest) {
     const tier = getSearchParam(searchParams, 'tier');
     const { page, limit, offset } = parsePagination(searchParams);
 
-    const result = await cached(`customers:${page}:${limit}:${search}:${customerType}:${tier}`, () =>
-      withDbFallback(
-        async () => {
-          const where: any = {};
-          if (customerType) where.customerType = customerType;
-          if (tier) where.customerTier = tier;
-          if (search) {
-            where.OR = [
-              { fullName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search } },
-              { companyName: { contains: search, mode: 'insensitive' } },
-              { taxId: { contains: search } },
-            ];
-          }
-          const [customers, total] = await Promise.all([
-            prisma.customer.findMany({
-              where,
-              include: {
-                _count: { select: { orders: true, invoices: true } },
-              },
-              orderBy: { createdAt: 'desc' },
-              skip: offset,
-              take: limit,
-            }),
-            prisma.customer.count({ where }),
-          ]);
-          return { customers, total };
-        },
-        () => ({ customers: [], total: 0 })
-      ), 30
-    );
+    const result = await cached(`customers:${page}:${limit}:${search}:${customerType}:${tier}`, async () => {
+      const where: any = {};
+      if (customerType) where.customerType = customerType;
+      if (tier) where.customerTier = tier;
+      if (search) {
+        where.OR = [
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+          { companyName: { contains: search, mode: 'insensitive' } },
+          { taxId: { contains: search } },
+        ];
+      }
+      const [customers, total] = await Promise.all([
+        prisma.customer.findMany({
+          where,
+          include: {
+            _count: { select: { orders: true, invoices: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: offset,
+          take: limit,
+        }),
+        prisma.customer.count({ where }),
+      ]);
+      return { customers, total };
+    }, 30);
 
     const mapped = result.customers.map((c: any) => ({
       id: c.id,

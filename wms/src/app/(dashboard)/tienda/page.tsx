@@ -1,11 +1,10 @@
 'use client';
 
-import CatalogoPage from '../catalogo/page';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function TiendaPage() {
-  return (
-    <div className="space-y-4 pb-20 lg:pb-0">
-      <CatalogoPage />
-    </div>
-  );
+  const router = useRouter();
+  useEffect(() => { router.replace('/catalogo'); }, [router]);
+  return null;
 }

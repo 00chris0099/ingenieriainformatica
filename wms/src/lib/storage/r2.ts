@@ -29,8 +29,7 @@ export function getPublicUrl(key: string): string {
 }
 
 export async function deleteFile(key: string): Promise<void> {
-  // In production, use @aws-sdk/client-s3
-  console.log('[R2] Delete:', key);
+  // TODO: Implement with @aws-sdk/client-s3
 }
 
 export function generateProductKey(productId: string, filename: string): string {

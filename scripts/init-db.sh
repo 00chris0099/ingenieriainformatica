@@ -7,12 +7,7 @@ until pg_isready -h postgres -U adris -d adriskids -q 2>/dev/null; do
 done
 echo "PostgreSQL is ready!"
 
-echo "Running Prisma migrations for prisma-wms..."
-cd /app/packages/prisma-wms
-npm install --prefer-offline 2>/dev/null || npm install
-DATABASE_URL="$DATABASE_URL" npx prisma db push --skip-generate
-
-echo "Running Prisma migrations for prisma..."
+echo "Running Prisma migrations..."
 cd /app/packages/prisma
 npm install --prefer-offline 2>/dev/null || npm install
 DATABASE_URL="$DATABASE_URL" npx prisma db push --skip-generate
