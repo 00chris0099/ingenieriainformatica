@@ -28,6 +28,9 @@ const PUBLIC_ROUTES = [
   '/api/v1/auth',
   '/api/v1/health',
   '/api/v1/store',
+  '/manifest.json',
+  '/sw.js',
+  '/site.webmanifest',
 ];
 
 const READ_ONLY_PUBLIC_ROUTES = [
@@ -147,5 +150,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|sw.js|manifest.json|site.webmanifest|robots.txt).*)'],
 };
