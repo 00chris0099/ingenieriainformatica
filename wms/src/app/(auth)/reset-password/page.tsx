@@ -1,18 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, ShieldCheck, RefreshCw, ArrowRight, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Lock, ShieldCheck, RefreshCw, ArrowRight, CheckCircle2 } from 'lucide-react';
 
-export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
+function ResetPasswordContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token') || '';
+  const email = searchParams.get('email') || '';
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Anti-bot Captcha
-  const [num1, setNum1] = useState(4);
-  const [num2, setNum2] = useState(9);
+  const [num1, setNum1] = useState(7);
+  const [num2, setNum2] = useState(3);
   const [captchaInput, setCaptchaInput] = useState('');
 
-  const [resetUrl, setResetUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -29,10 +35,19 @@ export default function ForgotPasswordPage() {
     generateCaptcha();
   }, []);
 
-  const handleSendResetLink = async (e: React.FormEvent) => {
+  const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setResetUrl('');
+
+    if (newPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
 
     if (Number(captchaInput) !== num1 + num2) {
       setError('Respuesta Anti-bot incorrecta.');
@@ -40,33 +55,34 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    if (!email || !email.includes('@')) {
-      setError('Ingresa un correo electrónico válido.');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/reset-password-link', {
+      const res = await fetch('/api/v1/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({
+          token,
+          email,
+          newPassword,
+          captchaAnswer: captchaInput,
+          captchaExpected: num1 + num2,
+        }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setSuccessMsg(`Se ha enviado un enlace de recuperación a ${email}. Revisa tu bandeja de entrada.`);
-        if (data.resetUrl) {
-          setResetUrl(data.resetUrl);
-        }
+        setSuccessMsg('¡Contraseña actualizada con éxito! Redirigiendo al inicio de sesión...');
+        setTimeout(() => {
+          router.push('/login');
+        }, 1500);
       } else {
-        setError(data.error || 'Error al enviar el enlace de recuperación.');
+        setError(data.error || 'Error al restablecer la contraseña.');
         generateCaptcha();
       }
     } catch {
-      setError('Error de conexión.');
+      setError('Error al procesar la solicitud.');
     } finally {
       setLoading(false);
     }
@@ -74,15 +90,12 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#090d16] text-white p-6 relative selection:bg-red-600 selection:text-white">
-      {/* Ambient Red Glow */}
-      <div className="absolute top-10 left-10 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-
       <div className="w-full max-w-md bg-[#090d16] border border-gray-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative">
         <div className="flex items-center gap-3">
           <img src="/images/brand-logo.svg" alt="Brand Logo" className="h-10 w-auto" />
           <div>
-            <h2 className="text-xl font-extrabold text-white tracking-tight">Recuperar Contraseña</h2>
-            <p className="text-xs text-gray-400">Solicitud de enlace de restablecimiento</p>
+            <h2 className="text-xl font-extrabold text-white tracking-tight">Establecer Nueva Contraseña</h2>
+            <p className="text-xs text-gray-400">Para la cuenta {email ? <span className="text-red-500 font-bold">{email}</span> : ''}</p>
           </div>
         </div>
 
@@ -94,45 +107,48 @@ export default function ForgotPasswordPage() {
         )}
 
         {successMsg && (
-          <div className="p-4 rounded-xl bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-xs space-y-2">
-            <div className="flex items-center gap-2 font-bold">
-              <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
-              <span>{successMsg}</span>
-            </div>
-            {resetUrl && (
-              <div className="pt-2 border-t border-emerald-500/20">
-                <p className="text-[11px] text-emerald-300 font-semibold mb-1">Enlace temporal generado:</p>
-                <a
-                  href={resetUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-emerald-400 underline font-mono break-all hover:text-emerald-200"
-                >
-                  <span>Abrir enlace de restablecimiento</span>
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-            )}
+          <div className="p-4 rounded-xl bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-xs flex items-center gap-3">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+            <span>{successMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSendResetLink} className="space-y-4">
+        <form onSubmit={handleReset} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
-              Correo Electrónico Registrado
+              Nueva Contraseña
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
-                <Mail size={16} />
+                <Lock size={16} />
               </div>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="usuario@ejemplo.com"
-                className="w-full h-11 pl-10 pr-4 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full h-11 pl-10 pr-4 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 focus:outline-none focus:border-red-600 transition-all"
                 required
                 autoFocus
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+              Confirmar Nueva Contraseña
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
+                <Lock size={16} />
+              </div>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full h-11 pl-10 pr-4 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 focus:outline-none focus:border-red-600 transition-all"
+                required
               />
             </div>
           </div>
@@ -148,7 +164,7 @@ export default function ForgotPasswordPage() {
                 type="button"
                 onClick={generateCaptcha}
                 className="text-xs text-gray-400 hover:text-white p-1"
-                title="Cambiar problema"
+                title="Cambiar suma"
               >
                 <RefreshCw size={12} />
               </button>
@@ -157,7 +173,7 @@ export default function ForgotPasswordPage() {
               type="number"
               value={captchaInput}
               onChange={(e) => setCaptchaInput(e.target.value)}
-              placeholder="Resultado de la suma"
+              placeholder="Resultado"
               className="w-full h-9 px-3 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white focus:outline-none focus:border-red-600"
               required
             />
@@ -171,11 +187,11 @@ export default function ForgotPasswordPage() {
             {loading ? (
               <span className="flex items-center gap-2">
                 <RefreshCw className="animate-spin h-4 w-4 text-white" />
-                Enviando Enlace...
+                Guardando...
               </span>
             ) : (
               <>
-                <span>Enviar Enlace al Correo</span>
+                <span>Guardar Nueva Contraseña</span>
                 <ArrowRight size={16} />
               </>
             )}
@@ -189,5 +205,13 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#090d16] text-gray-400 text-sm">Cargando...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

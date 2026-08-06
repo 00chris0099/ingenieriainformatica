@@ -1,37 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { hash } from 'bcryptjs';
-import { verifyCode } from '@/lib/auth-code';
+import { verifyResetToken, consumeResetToken } from '@/lib/reset-tokens';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, newPassword, code, captchaAnswer, captchaExpected } = await request.json();
+    const { token, email, newPassword, captchaAnswer, captchaExpected } = await request.json();
 
-    if (!email || !newPassword || !code) {
-      return NextResponse.json({ success: false, error: 'Correo, código y nueva contraseña requeridos.' }, { status: 400 });
+    if (!newPassword || (!token && !email)) {
+      return NextResponse.json({ success: false, error: 'Datos incompletos.' }, { status: 400 });
     }
 
-    // Validate Anti-bot Captcha
+    // Anti-bot check
     if (captchaAnswer !== undefined && captchaExpected !== undefined) {
       if (Number(captchaAnswer) !== Number(captchaExpected)) {
         return NextResponse.json({ success: false, error: 'Respuesta Anti-bot incorrecta.' }, { status: 400 });
       }
     }
 
-    const emailStr = email.toLowerCase().trim();
+    let targetEmail = email ? email.toLowerCase().trim() : '';
 
-    // Verify OTP code
-    const isCodeValid = verifyCode(emailStr, code);
-    if (!isCodeValid) {
-      return NextResponse.json({ success: false, error: 'Código de verificación incorrecto o expirado.' }, { status: 400 });
+    // Verify token if provided
+    if (token) {
+      const verification = verifyResetToken(token);
+      if (!verification.valid || !verification.email) {
+        return NextResponse.json({ success: false, error: 'El enlace de recuperación es inválido o ha expirado.' }, { status: 400 });
+      }
+      targetEmail = verification.email;
+      consumeResetToken(token);
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: emailStr },
+      where: { email: targetEmail },
     });
 
     if (!user) {
-      return NextResponse.json({ success: false, error: 'No se encontró una cuenta asociada a este correo.' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'No se encontró una cuenta para este correo.' }, { status: 404 });
     }
 
     const passwordHash = await hash(newPassword, 10);
@@ -42,9 +46,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Contraseña actualizada correctamente. Ahora puedes iniciar sesión.',
+      message: 'Contraseña restablecida exitosamente. Ya puedes iniciar sesión.',
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Error al restablecer contraseña.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al actualizar la contraseña.' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import { compare, hash } from 'bcryptjs';
 
 let prismaClient: any = null;
@@ -17,6 +18,14 @@ const DEFAULT_ADMIN_PASS = 'Mineria99*';
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   providers: [
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
     Credentials({
       name: 'credentials',
       credentials: {
@@ -60,7 +69,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               });
             }
 
-            // Verify if password matches 'Mineria99*' or current hash
             const isValidAdmin = inputPass === DEFAULT_ADMIN_PASS || (await compare(inputPass, user.passwordHash));
             if (isValidAdmin) {
               return {
@@ -98,6 +106,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === 'google' && user?.email) {
+        const emailStr = user.email.toLowerCase().trim();
+        try {
+          const prisma = await getPrisma();
+          let dbUser = await prisma.user.findUnique({
+            where: { email: emailStr },
+          });
+
+          if (!dbUser) {
+            // Auto-register new Google user as 'client' role (or 'super_admin' if anchillo00@gmail.com)
+            const randomPass = await hash(Math.random().toString(36), 10);
+            dbUser = await prisma.user.create({
+              data: {
+                email: emailStr,
+                fullName: user.name || 'Cliente Google',
+                avatarUrl: user.image || undefined,
+                passwordHash: randomPass,
+                role: emailStr === SUPER_ADMIN_EMAIL ? 'super_admin' : 'client',
+                isActive: true,
+              },
+            });
+          }
+          return true;
+        } catch (err) {
+          console.error('Google auto-register error:', err);
+          return true;
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -109,10 +148,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           try {
             const prisma = await getPrisma();
             const dbUser = await prisma.user.findUnique({
-              where: { id: user.id },
-              select: { role: true, isActive: true },
+              where: { email: userEmail },
+              select: { id: true, role: true, isActive: true },
             });
             if (dbUser) {
+              token.id = dbUser.id;
               token.role = dbUser.role || 'client';
               token.isActive = dbUser.isActive;
             }
