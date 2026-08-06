@@ -19,10 +19,10 @@ export async function GET(request: NextRequest, { params }: Props) {
       series: invoice.invoiceNumber.split('-')[0] || 'F001',
       date: invoice.createdAt.toISOString().split('T')[0] || '',
       customer: {
-        name: invoice.customer?.fullName || 'CLIENTE VARIADO',
-        docType: invoice.customer?.documentType || 'DNI',
-        docNumber: invoice.customer?.documentNumber || '00000000',
-        address: invoice.customer?.address || undefined,
+        name: invoice.customer?.fullName || invoice.customer?.companyName || 'CLIENTE VARIADO',
+        docType: (invoice.customer?.taxId && invoice.customer.taxId.length === 11) ? 'RUC' : 'DNI',
+        docNumber: invoice.customer?.taxId || '00000000',
+        address: (invoice.customer?.billingAddress as any)?.street || undefined,
       },
       items: invoice.items.map((item: any) => ({
         code: item.productVariantId || '001',
