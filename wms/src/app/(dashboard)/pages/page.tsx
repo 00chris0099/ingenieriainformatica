@@ -201,52 +201,98 @@ function CreatePageModal({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <Modal open={true} onClose={onClose} title="Nueva Pagina" size="lg"
+    <Modal open={true} onClose={onClose} title="Crear Nueva Tienda o Página Web" size="xl"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button loading={saving} onClick={handleSubmit as any}>Crear</Button>
+          <Button loading={saving} onClick={handleSubmit as any}>
+            {form.templateId ? 'Crear desde Plantilla' : 'Crear desde Cero'}
+          </Button>
         </>
       }>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <Input
-          label="Titulo"
+          label="Nombre de la Tienda / Página"
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="Mi nueva pagina"
+          placeholder="Ej: Tienda Adrisu Kids - Moda Infantil"
           autoFocus
         />
-        <div>
-          <label className="form-label">Tipo</label>
-          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="select-field">
-            <option value="landing">Landing Page</option>
-            <option value="page">Pagina</option>
-            <option value="store">Tienda</option>
-            <option value="blog">Blog</option>
-          </select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Tipo de Contenido</label>
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="select-field">
+              <option value="store">Tienda Virtual E-Commerce</option>
+              <option value="landing">Landing Page Alta Conversión</option>
+              <option value="page">Página Informativa</option>
+              <option value="blog">Blog / Noticias</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Descripción Breve</label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Ej: Tienda principal de ropa para niños"
+              className="input-field"
+            />
+          </div>
         </div>
+
+        {/* Galería Visual de Plantillas */}
         <div>
-          <label className="form-label">Template (opcional)</label>
-          <select value={form.templateId} onChange={(e) => setForm({ ...form, templateId: e.target.value })} className="select-field">
-            <option value="">Sin template (empezar de cero)</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>{t.name} — {t.industry}</option>
+          <label className="form-label mb-2 block font-semibold text-sm">
+            Selecciona una Plantilla Prediseñada (Recomendado)
+          </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+            <div
+              onClick={() => setForm({ ...form, templateId: '', type: 'store' })}
+              className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                form.templateId === ''
+                  ? 'border-pink-500 bg-pink-500/5 shadow-sm'
+                  : 'border-gray-200 dark:border-gray-800 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-sm text-gray-900 dark:text-gray-100">En Blanco</span>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                  Custom
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 line-clamp-2">Comienza con un lienzo vacío y agrega los bloques que prefieras uno a uno.</p>
+            </div>
+
+            {templates.map((t) => (
+              <div
+                key={t.id}
+                onClick={() => setForm({ ...form, templateId: t.id, type: 'store' })}
+                className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                  form.templateId === t.id
+                    ? 'border-pink-500 bg-pink-500/5 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-gray-900 dark:text-gray-100">{t.name}</span>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-pink-500/20 text-pink-500">
+                    {t.industry}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 line-clamp-2">{t.description}</p>
+              </div>
             ))}
-          </select>
+          </div>
+
           {form.templateId && (
-            <p className="form-hint">Se creara la pagina con los bloques y configuracion del template seleccionado.</p>
+            <p className="text-xs text-pink-500 font-medium mt-2">
+              ✨ Se creará la tienda clonando la estructura, colores, botones y secciones de la plantilla seleccionada.
+            </p>
           )}
         </div>
-        <div>
-          <label className="form-label">Descripcion (opcional)</label>
-          <textarea
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="Breve descripcion de la pagina"
-            rows={2}
-            className="textarea-field"
-          />
-        </div>
+
         {error && <p className="form-error">{error}</p>}
       </form>
     </Modal>
