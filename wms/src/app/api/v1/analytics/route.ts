@@ -142,9 +142,9 @@ export async function GET(request: NextRequest) {
           status: s.status,
           count: s._count,
         })),
-        revenueByMonth,
-        topProducts,
-        ordersByDay: ordersByDay.map((d) => ({
+        revenueByMonth: (revenueByMonth as any[]),
+        topProducts: (topProducts as any[]),
+        ordersByDay: (ordersByDay as any[]).map((d: any) => ({
           day: getDayName(Number(d.day)),
           count: Number(d.count),
         })),
