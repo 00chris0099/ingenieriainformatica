@@ -10,6 +10,7 @@ COPY packages/blocks/package.json ./packages/blocks/
 COPY packages/ai/package.json ./packages/ai/
 COPY packages/config/package.json ./packages/config/
 COPY packages/templates/package.json ./packages/templates/
+COPY packages/ui/package.json ./packages/ui/
 COPY tienda/package.json ./tienda/
 RUN pnpm install --frozen-lockfile
 
