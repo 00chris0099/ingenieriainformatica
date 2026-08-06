@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@repo/prisma';
 
 export async function GET() {
   const checks: Record<string, string> = {};
 
   // Check PostgreSQL
   try {
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
     await prisma.$queryRaw`SELECT 1`;
     checks.postgresql = 'ok';
-    await prisma.$disconnect();
   } catch {
     checks.postgresql = 'error';
   }
