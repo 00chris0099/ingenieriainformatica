@@ -17,8 +17,12 @@ function generateSecret(): string {
 function generateTOTP(secret: string): string {
   const epoch = Math.floor(Date.now() / 30000);
   const hash = crypto.createHmac('sha1', secret).update(epoch.toString()).digest();
-  const offset = hash[hash.length - 1] & 0x0f;
-  const code = ((hash[offset] & 0x7f) << 24) | ((hash[offset + 1] & 0xff) << 16) | ((hash[offset + 2] & 0xff) << 8) | (hash[offset + 3] & 0xff);
+  const offset = (hash[hash.length - 1] ?? 0) & 0x0f;
+  const b0 = hash[offset] ?? 0;
+  const b1 = hash[offset + 1] ?? 0;
+  const b2 = hash[offset + 2] ?? 0;
+  const b3 = hash[offset + 3] ?? 0;
+  const code = ((b0 & 0x7f) << 24) | ((b1 & 0xff) << 16) | ((b2 & 0xff) << 8) | (b3 & 0xff);
   return (code % 1000000).toString().padStart(6, '0');
 }
 
