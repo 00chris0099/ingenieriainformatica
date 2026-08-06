@@ -20,13 +20,19 @@ export async function POST(request: NextRequest, { params }: Props) {
     if (!invoice) return apiError('Invoice not found', 404);
     if (invoice.status !== 'draft') return apiError('Solo se pueden enviar facturas en estado borrador', 400);
 
-    const docType = invoice.documentType === 'BOLETA' ? '03' : '01';
-    const serie = invoice.documentType === 'BOLETA' ? 'B001' : 'F001';
+    const isBoleta = invoice.invoiceNumber.startsWith('B');
+    const docType = isBoleta ? '03' : '01';
+    const serie = invoice.invoiceNumber.split('-')[0] || (isBoleta ? 'B001' : 'F001');
+
+    const taxId = invoice.customer?.taxId || '';
+    const customerDocType = taxId.length === 11 ? 6 : taxId.length === 8 ? 1 : 0;
+    const customerDocNumber = taxId || '00000000';
+    const customerName = invoice.customer?.fullName || invoice.customer?.companyName || 'CLIENTE VARIADO';
 
     const nubefactResult = await createInvoice({
-      customerDocType: invoice.customer?.documentType === 'RUC' ? 6 : invoice.customer?.documentType === 'DNI' ? 1 : 0,
-      customerDocNumber: invoice.customer?.documentNumber || '00000000',
-      customerName: invoice.customer?.fullName || 'CLIENTE VARIADO',
+      customerDocType,
+      customerDocNumber,
+      customerName,
       documentType: docType as any,
       serie,
       items: invoice.items.map((item: any) => ({
