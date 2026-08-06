@@ -121,9 +121,9 @@ export function isValidRuc(ruc: string): boolean {
   const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
   let sum = 0;
   for (let i = 0; i < 10; i++) {
-    sum += parseInt(ruc[i]) * weights[i];
+    sum += parseInt(ruc[i] || '0') * (weights[i] || 0);
   }
   const remainder = sum % 11;
   const checkDigit = remainder < 2 ? remainder : 11 - remainder;
-  return checkDigit === parseInt(ruc[10]);
+  return checkDigit === parseInt(ruc[10] || '0');
 }
