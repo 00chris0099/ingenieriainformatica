@@ -7,6 +7,11 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @repo/prisma db:generate
+ARG GOOGLE_CLIENT_ID
+ARG GOOGLE_CLIENT_SECRET
+ENV GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+ENV GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+
 RUN pnpm --filter @repo/wms build
 
 ENV NODE_ENV=production

@@ -15,14 +15,18 @@ async function getPrisma() {
 const SUPER_ADMIN_EMAIL = 'anchillo00@gmail.com';
 const DEFAULT_ADMIN_PASS = 'Mineria99*';
 
+// Read Google OAuth environment variables dynamically
+const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.AUTH_GOOGLE_ID || '';
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.AUTH_GOOGLE_SECRET || '';
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   providers: [
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(googleClientId && googleClientSecret
       ? [
           Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
           }),
         ]
       : []),
@@ -116,7 +120,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
 
           if (!dbUser) {
-            // Auto-register new Google user as 'client' role (or 'super_admin' if anchillo00@gmail.com)
             const randomPass = await hash(Math.random().toString(36), 10);
             dbUser = await prisma.user.create({
               data: {
@@ -178,5 +181,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     error: '/login',
   },
   session: { strategy: 'jwt' },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || 'adriskids-wms-production-secret-key-2026',
 });
