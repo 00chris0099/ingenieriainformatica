@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: Props) {
     const nextVersion = (lastVersion?.version || 0) + 1;
 
     // Create snapshot
-    const snapshot = {
+    const snapshot: Record<string, any> = {
       ...product,
       price: Number(product.price),
       stock: product.stock,
