@@ -474,7 +474,9 @@ export function ProductFormProvider({ initialData, productId, onAutoSave, childr
     setState(prev => {
       const newImages = [...prev.productImages];
       const [moved] = newImages.splice(from, 1);
-      newImages.splice(to, 0, moved);
+      if (moved !== undefined) {
+        newImages.splice(to, 0, moved);
+      }
       let newMainIndex = prev.mainImageIndex;
       if (from === prev.mainImageIndex) {
         newMainIndex = to;
