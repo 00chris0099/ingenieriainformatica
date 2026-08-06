@@ -88,13 +88,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={`flex items-center h-16 shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : 'px-5'}`}
           style={{ borderBottom: '1px solid var(--color-border)' }}
         >
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-accent-muted)' }}>
-              <span className="text-sm font-bold" style={{ color: 'var(--color-accent)' }}>PB</span>
-            </div>
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <img src="/images/brand-logo.svg" alt="Brand Logo" className="h-8 w-auto shrink-0" />
             {!sidebarCollapsed && (
-              <span className="text-sm font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-                PageBuilder
+              <span className="text-sm font-extrabold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+                E-STORE <span className="text-red-500 font-normal text-xs uppercase tracking-wider block">Platform</span>
               </span>
             )}
           </button>

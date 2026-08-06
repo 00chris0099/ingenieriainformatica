@@ -40,6 +40,8 @@ const statusVariant: Record<string, 'warning' | 'info' | 'accent' | 'success' | 
   cancelled: 'error',
 }
 
+import ClientOnboardingModal from '@/components/onboarding/ClientOnboardingModal'
+
 export default function DashboardPage() {
   const { data: session } = useSession()
   const userRole = (session?.user as any)?.role || ''
@@ -48,6 +50,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [orders, setOrders] = useState<RecentOrder[]>([])
   const [loading, setLoading] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  useEffect(() => {
+    // Check if new client user needs onboarding
+    if (session?.user && !isSuperAdmin) {
+      const completed = localStorage.getItem(`onboarding_completed_${session.user.id}`)
+      if (!completed) setShowOnboarding(true)
+    }
+  }, [session, isSuperAdmin])
 
   useEffect(() => {
     async function fetchData() {
@@ -306,6 +317,18 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+
+      {showOnboarding && (
+        <ClientOnboardingModal
+          userName={session?.user?.name || 'Cliente'}
+          onComplete={() => {
+            if (session?.user?.id) {
+              localStorage.setItem(`onboarding_completed_${session.user.id}`, 'true')
+            }
+            setShowOnboarding(false)
+          }}
+        />
+      )}
     </div>
   )
 }

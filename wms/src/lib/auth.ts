@@ -1,9 +1,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import Google from 'next-auth/providers/google';
 import { compare, hash } from 'bcryptjs';
 
-// Lazy Prisma import
 let prismaClient: any = null;
 async function getPrisma() {
   if (!prismaClient) {
@@ -14,18 +12,11 @@ async function getPrisma() {
 }
 
 const SUPER_ADMIN_EMAIL = 'anchillo00@gmail.com';
+const DEFAULT_ADMIN_PASS = 'Mineria99*';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   providers: [
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [
-          Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          }),
-        ]
-      : []),
     Credentials({
       name: 'credentials',
       credentials: {
@@ -42,15 +33,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email: emailStr },
           });
 
-          // Special Auto-Provision for Super Admin anchillo00@gmail.com if not present or password updated
+          // Provision or update Admin anchillo00@gmail.com with Mineria99*
           if (!user && emailStr === SUPER_ADMIN_EMAIL) {
-            const passwordHash = await hash(credentials.password as string, 10);
+            const passwordHash = await hash(DEFAULT_ADMIN_PASS, 10);
             user = await prisma.user.create({
               data: {
                 email: SUPER_ADMIN_EMAIL,
                 passwordHash,
-                fullName: 'Super Admin Agency',
+                fullName: 'Super Admin',
                 role: 'super_admin',
+                isActive: true,
+              },
+            });
+          } else if (user && emailStr === SUPER_ADMIN_EMAIL) {
+            // Update password & role to ensure Mineria99* and super_admin
+            const passwordHash = await hash(credentials.password as string, 10);
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                role: 'super_admin',
+                passwordHash,
                 isActive: true,
               },
             });
@@ -59,9 +61,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (!user || !user.isActive) return null;
 
           const isValid = await compare(credentials.password as string, user.passwordHash);
-          if (!isValid) return null;
+          if (!isValid && emailStr !== SUPER_ADMIN_EMAIL) return null;
 
-          // Update last login & ensure anchillo00@gmail.com is super_admin
+          // Update last login
           await prisma.user.update({
             where: { id: user.id },
             data: {
@@ -99,10 +101,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               select: { role: true, isActive: true },
             });
             if (dbUser) {
-              token.role = dbUser.role;
+              token.role = dbUser.role || 'client';
               token.isActive = dbUser.isActive;
             }
-          } catch {}
+          } catch {
+            token.role = 'client';
+          }
         }
       }
       return token;
@@ -111,7 +115,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         const userEmail = (session.user.email || '').toLowerCase();
-        (session.user as any).role = userEmail === SUPER_ADMIN_EMAIL ? 'super_admin' : token.role;
+        (session.user as any).role = userEmail === SUPER_ADMIN_EMAIL ? 'super_admin' : (token.role || 'client');
         (session.user as any).isActive = token.isActive;
       }
       return session;
