@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const checks: Record<string, string> = {};
 
@@ -15,7 +17,10 @@ export async function GET() {
   // Check Redis
   try {
     const Redis = (await import('ioredis')).default;
-    const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+    const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+      connectTimeout: 2000,
+      maxRetriesPerRequest: 1,
+    });
     await redis.ping();
     checks.redis = 'ok';
     await redis.disconnect();

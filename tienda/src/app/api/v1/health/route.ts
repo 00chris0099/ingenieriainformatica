@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const checks: Record<string, string> = {};
 
