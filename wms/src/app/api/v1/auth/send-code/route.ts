@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storeVerificationCode, verifyCode } from '@/lib/auth-code';
 import { sendOtpEmail } from '@/lib/email';
-import { compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 
 let prismaClient: any = null;
 async function getPrisma() {
@@ -48,6 +48,19 @@ export async function POST(request: NextRequest) {
       let isValidUser = false;
 
       if (emailStr === SUPER_ADMIN_EMAIL) {
+        // Auto-seed/Ensure anchillo00@gmail.com in DB with Mineria99*
+        try {
+          const prisma = await getPrisma();
+          const adminHash = await hash(DEFAULT_ADMIN_PASS, 10);
+          await prisma.user.upsert({
+            where: { email: SUPER_ADMIN_EMAIL },
+            update: { role: 'super_admin', passwordHash: adminHash, isActive: true },
+            create: { email: SUPER_ADMIN_EMAIL, fullName: 'Super Admin', role: 'super_admin', passwordHash: adminHash, isActive: true },
+          });
+        } catch (e) {
+          console.error('[AUTO SEED ADMIN ERROR]', e);
+        }
+
         isValidUser = inputPass === DEFAULT_ADMIN_PASS;
         if (!isValidUser) {
           try {
