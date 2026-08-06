@@ -18,6 +18,7 @@ if (wpHostname) {
 }
 
 const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: imagePatterns,
   },
