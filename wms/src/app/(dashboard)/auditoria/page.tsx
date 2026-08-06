@@ -3,9 +3,10 @@
 import { Shield, Search, User, Clock, Edit, Plus, Trash2, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 
+const defaultConfig = { color: 'bg-blue-500/20 text-blue-400', icon: Edit };
 const actionConfig: Record<string, { color: string; icon: any }> = {
   create: { color: 'bg-green-500/20 text-green-400', icon: Plus },
-  update: { color: 'bg-blue-500/20 text-blue-400', icon: Edit },
+  update: defaultConfig,
   delete: { color: 'bg-red-500/20 text-red-400', icon: Trash2 },
 };
 
@@ -42,7 +43,7 @@ export default function AuditoriaPage() {
       ) : (
         <div className="space-y-2">
           {logs.map((log) => {
-            const ac = actionConfig[log.action] || actionConfig.update;
+            const ac = (log.action && actionConfig[log.action]) || defaultConfig;
             const Icon = ac.icon;
             return (
               <div key={log.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors">
