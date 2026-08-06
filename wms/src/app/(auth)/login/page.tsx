@@ -83,7 +83,7 @@ function LoginForm() {
     try {
       const result = await signIn('credentials', {
         email: email.trim().toLowerCase(),
-        password,
+        password: password.trim(),
         redirect: false,
       });
 
@@ -91,8 +91,7 @@ function LoginForm() {
         setError('Correo o contraseña incorrectos.');
         generateCaptcha();
       } else {
-        router.push(callbackUrl);
-        router.refresh();
+        window.location.href = callbackUrl || '/';
       }
     } catch {
       setError('Error al procesar el inicio de sesión.');

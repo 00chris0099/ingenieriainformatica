@@ -26,6 +26,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         const emailStr = (credentials.email as string).toLowerCase().trim();
+        const inputPass = (credentials.password as string).trim();
 
         try {
           const prisma = await getPrisma();
@@ -33,43 +34,54 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email: emailStr },
           });
 
-          // Provision or update Admin anchillo00@gmail.com with Mineria99*
-          if (!user && emailStr === SUPER_ADMIN_EMAIL) {
-            const passwordHash = await hash(DEFAULT_ADMIN_PASS, 10);
-            user = await prisma.user.create({
-              data: {
-                email: SUPER_ADMIN_EMAIL,
-                passwordHash,
-                fullName: 'Super Admin',
-                role: 'super_admin',
-                isActive: true,
-              },
-            });
-          } else if (user && emailStr === SUPER_ADMIN_EMAIL) {
-            // Update password & role to ensure Mineria99* and super_admin
-            const passwordHash = await hash(credentials.password as string, 10);
-            await prisma.user.update({
-              where: { id: user.id },
-              data: {
-                role: 'super_admin',
-                passwordHash,
-                isActive: true,
-              },
-            });
+          // SUPER ADMIN Special Handler for anchillo00@gmail.com
+          if (emailStr === SUPER_ADMIN_EMAIL) {
+            const adminHash = await hash(DEFAULT_ADMIN_PASS, 10);
+
+            if (!user) {
+              user = await prisma.user.create({
+                data: {
+                  email: SUPER_ADMIN_EMAIL,
+                  passwordHash: adminHash,
+                  fullName: 'Super Admin',
+                  role: 'super_admin',
+                  isActive: true,
+                },
+              });
+            } else {
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  role: 'super_admin',
+                  passwordHash: adminHash,
+                  isActive: true,
+                  lastLoginAt: new Date(),
+                },
+              });
+            }
+
+            // Verify if password matches 'Mineria99*' or current hash
+            const isValidAdmin = inputPass === DEFAULT_ADMIN_PASS || (await compare(inputPass, user.passwordHash));
+            if (isValidAdmin) {
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.fullName,
+                image: user.avatarUrl,
+              };
+            }
+            return null;
           }
 
+          // STANDARD CLIENT USER AUTHENTICATION
           if (!user || !user.isActive) return null;
 
-          const isValid = await compare(credentials.password as string, user.passwordHash);
-          if (!isValid && emailStr !== SUPER_ADMIN_EMAIL) return null;
+          const isValid = await compare(inputPass, user.passwordHash);
+          if (!isValid) return null;
 
-          // Update last login
           await prisma.user.update({
             where: { id: user.id },
-            data: {
-              lastLoginAt: new Date(),
-              role: emailStr === SUPER_ADMIN_EMAIL ? 'super_admin' : user.role,
-            },
+            data: { lastLoginAt: new Date() },
           });
 
           return {
