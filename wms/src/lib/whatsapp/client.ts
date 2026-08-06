@@ -3,7 +3,7 @@
  * Handles sending messages and managing conversations
  */
 
-import { ConversationState, WhatsAppMessage, defaultFlows, ChatbotFlow, ChatbotStep } from './flows';
+import { ConversationState, WhatsAppMessage, defaultFlows, ChatbotFlow, ChatbotStep, ChatbotAction } from './flows';
 
 // In-memory conversation store (use Redis in production)
 const conversations = new Map<string, ConversationState>();
