@@ -7,7 +7,7 @@
     "dev": "pnpm run --parallel wms:dev tienda:dev",
     "build:wms": "pnpm --filter @repo/wms build",
     "build:tienda": "pnpm --filter @repo/tienda build",
-    "build": "pnpm run --parallel build:wms build:tienda",
+    "build": "pnpm --filter @repo/wms build && pnpm --filter @repo/tienda build",
     "test": "pnpm --filter @repo/wms test",
     "lint": "echo 'Lint passed'",
     "db:generate": "pnpm --filter @repo/prisma db:generate",
