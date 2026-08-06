@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storeVerificationCode, verifyCode } from '@/lib/auth-code';
+import { sendOtpEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,16 +21,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Otherwise generate and store code
+    // Generate code
     const generatedCode = storeVerificationCode(emailStr);
-    console.log(`[VERIFICATION CODE SENT] Email: ${emailStr} | Code: ${generatedCode} | Type: ${type || 'general'}`);
+
+    // Try sending email via SMTP / Resend
+    const emailSent = await sendOtpEmail({
+      to: emailStr,
+      code: generatedCode,
+      type: type || 'admin_login',
+    });
+
+    console.log(`[VERIFICATION CODE GENERATED] Email: ${emailStr} | Code: ${generatedCode} | EmailSent: ${emailSent}`);
 
     return NextResponse.json({
       success: true,
-      message: `Código de verificación enviado a ${emailStr}`,
+      emailSent,
+      message: emailSent
+        ? `Código enviado al correo ${emailStr}`
+        : `Código de verificación generado para ${emailStr}`,
       devCode: generatedCode,
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Error al generar código' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al procesar la verificación' }, { status: 500 });
   }
 }
