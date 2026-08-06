@@ -42,7 +42,6 @@ const ADMIN_ONLY_API_ROUTES = [
   '/api/v1/users',
   '/api/v1/config/ai',
   '/api/v1/settings',
-  '/api/v1/tax-config',
   '/api/v1/audit',
 ];
 
