@@ -21,22 +21,22 @@ interface NavGroup {
 // Dedicated Super Admin Agency Navigation Groups
 const superAdminNavGroups: NavGroup[] = [
   {
-    label: '🚀 AGENCIA & DISEÑO WEB',
+    label: 'AGENCIA & DISEÑO WEB',
     items: [
       { href: '/', label: 'Dashboard General', icon: LayoutDashboard },
-      { href: '/builder', label: 'Diseñador Visual AI', icon: Wand2 },
+      { href: '/builder', label: 'Diseñador Visual', icon: Wand2 },
       { href: '/pages', label: 'Páginas & Landing Pages', icon: FileText },
     ],
   },
   {
-    label: '👥 GESTIÓN DE CLIENTES VPS',
+    label: 'GESTIÓN DE CLIENTES',
     items: [
-      { href: '/clientes', label: 'Clientes & Tiendas VPS', icon: Users },
+      { href: '/clientes', label: 'Clientes Registrados', icon: Users },
       { href: '/finanzas', label: 'Finanzas & Facturación', icon: DollarSign },
     ],
   },
   {
-    label: '🛡️ CONTROL PRIVADO SUPER ADMIN',
+    label: 'CONTROL SUPER ADMIN',
     items: [
       { href: '/configuracion', label: 'Configuración & Dominios', icon: Settings },
       { href: '/auditoria', label: 'Auditoría & Logs', icon: ShieldAlert },
