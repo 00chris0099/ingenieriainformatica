@@ -14,8 +14,8 @@ function generateSecret(): string {
 }
 
 // Simple TOTP generation (6 digits, 30s window)
-function generateTOTP(secret: string): string {
-  const epoch = Math.floor(Date.now() / 30000);
+function generateTOTP(secret: string, epochOffset = 0): string {
+  const epoch = Math.floor(Date.now() / 30000) + epochOffset;
   const hash = crypto.createHmac('sha1', secret).update(epoch.toString()).digest();
   const offset = (hash[hash.length - 1] ?? 0) & 0x0f;
   const b0 = hash[offset] ?? 0;
@@ -69,9 +69,10 @@ export async function POST(request: NextRequest) {
       const expectedCode = generateTOTP(secret);
 
       // Allow 1 window before and after (±30s)
-      const prevCode = generateTOTP(crypto.createHmac('sha1', secret).update(Math.floor(Date.now() / 30000) - 1).digest().toString('hex'));
+      const prevCode = generateTOTP(secret, -1);
+      const nextCode = generateTOTP(secret, 1);
 
-      if (code === expectedCode || code === prevCode) {
+      if (code === expectedCode || code === prevCode || code === nextCode) {
         // Enable 2FA
         await prisma.user.update({
           where: { id: session.user.id },
