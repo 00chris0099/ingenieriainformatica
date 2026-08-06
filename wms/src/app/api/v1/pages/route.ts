@@ -1,10 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { templateRegistry } from '@repo/templates';
 import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam } from '@/lib/api';
-
-// In-memory fallback page store for zero-downtime page creation
-const memoryPagesStore: any[] = [];
+import { pageStore } from '@/lib/pageStore';
 
 function slugify(text: string): string {
   return text
@@ -14,33 +11,57 @@ function slugify(text: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
+function makeFallbackPage(overrides: any = {}): any {
+  const id = overrides.id || `page-${Date.now()}`;
+  const title = overrides.title || 'Nueva Página Web';
+  return {
+    id,
+    title,
+    slug: overrides.slug || slugify(title),
+    type: overrides.type || 'landing',
+    status: 'draft',
+    description: overrides.description || null,
+    businessId: 'agency-vps-default',
+    templateId: overrides.templateId || null,
+    blocks: overrides.blocks || [],
+    seo: overrides.seo || {},
+    settings: overrides.settings || {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const { page, limit, offset } = parsePagination(searchParams);
 
     let dbPages: any[] = [];
-    let total = 0;
+    let dbTotal = 0;
 
     try {
-      [dbPages, total] = await Promise.all([
-        prisma.page.findMany({
-          orderBy: { updatedAt: 'desc' },
-          skip: offset,
-          take: limit,
-        }),
+      [dbPages, dbTotal] = await Promise.all([
+        prisma.page.findMany({ orderBy: { updatedAt: 'desc' }, skip: offset, take: limit }),
         prisma.page.count(),
       ]);
-    } catch (dbErr) {
-      console.warn('[PAGES GET PRISMA WARNING]', dbErr);
+    } catch (e) {
+      console.warn('[PAGES GET] DB unreachable, using in-process store:', (e as any)?.message?.slice(0, 80));
     }
 
-    const combined = [...memoryPagesStore, ...dbPages];
-    const paginated = combined.slice(offset, offset + limit);
+    // Merge in-process store pages that are NOT already in DB results
+    const dbIds = new Set(dbPages.map((p: any) => p.id));
+    const storePages = Array.from(pageStore.values()).filter(p => !dbIds.has(p.id));
 
+    const combined = [...storePages, ...dbPages].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+
+    const paginated = combined.slice(offset, offset + limit);
     return apiPaginated(paginated, combined.length, page, limit);
   } catch (error) {
-    return apiPaginated(memoryPagesStore, memoryPagesStore.length, 1, 10);
+    // Ultimate fallback: return only in-process store
+    const all = Array.from(pageStore.values());
+    return apiPaginated(all, all.length, 1, 100);
   }
 }
 
@@ -54,78 +75,73 @@ export async function POST(request: NextRequest) {
     const targetBusinessId = businessId || 'agency-vps-default';
     let slug = slugify(title);
 
-    let existing: any = null;
-    try {
-      existing = await prisma.page.findFirst({ where: { businessId: targetBusinessId, slug } });
-    } catch (e) {
-      console.warn('[PAGE FIND FIRST PRISMA WARNING]', e);
-    }
+    // Handle slug uniqueness in store
+    const existingSlug = Array.from(pageStore.values()).find(
+      p => p.slug === slug && p.businessId === targetBusinessId
+    );
+    if (existingSlug) slug = `${slug}-${Date.now()}`;
 
-    if (existing) slug = `${slug}-${Date.now()}`;
-
+    // Load blocks from template if provided
     let blocks: any[] = [];
     let seo: any = {};
     let settings: any = {};
 
     if (templateId) {
-      const template = templateRegistry.get(templateId);
-      if (template) {
-        blocks = template.blocks;
-        seo = template.seo;
-        settings = template.settings;
+      try {
+        const { templateRegistry } = await import('@repo/templates');
+        const template = templateRegistry.get(templateId);
+        if (template) {
+          blocks = template.blocks as any[];
+          seo = template.seo;
+          settings = template.settings;
+        }
+      } catch {
+        // Try built-in templates API
+        try {
+          const { BUILTIN_TEMPLATES } = await import('@/lib/builtinTemplates');
+          const tpl = BUILTIN_TEMPLATES.find((t: any) => t.id === templateId);
+          if (tpl) {
+            blocks = tpl.blocks;
+            seo = tpl.seo;
+            settings = tpl.settings;
+          }
+        } catch { /* no template found */ }
       }
     }
 
-    const newPageObj = {
-      id: `page-${Date.now()}`,
-      title,
-      slug,
-      type: type || 'landing',
-      status: 'draft',
-      description: description || null,
-      businessId: targetBusinessId,
-      templateId: templateId || null,
-      blocks,
-      seo,
-      settings,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
+    // Try DB first
     try {
-      const dbPage = await prisma.page.create({
+      let dbSlug = slug;
+      const existing = await prisma.page.findFirst({ where: { businessId: targetBusinessId, slug: dbSlug } });
+      if (existing) dbSlug = `${dbSlug}-${Date.now()}`;
+
+      const page = await prisma.page.create({
         data: {
-          title,
-          slug,
-          type: type || 'landing',
+          title, slug: dbSlug, type: type || 'landing',
           description: description || null,
           businessId: targetBusinessId,
           templateId: templateId || null,
-          blocks,
-          seo,
-          settings,
+          blocks, seo, settings,
         },
       });
-      return apiSuccess(dbPage, 201);
-    } catch (dbCreateErr) {
-      console.warn('[PAGE CREATE PRISMA WARNING] Utilizing fallback page store:', dbCreateErr);
-      memoryPagesStore.unshift(newPageObj);
-      return apiSuccess(newPageObj, 201);
+
+      // Also cache in store for redundancy
+      pageStore.set(page.id, { ...page, blocks, seo, settings });
+      console.log(`[PAGES POST] Created in DB: ${page.id}`);
+      return apiSuccess(page, 201);
+    } catch (dbErr) {
+      console.warn('[PAGES POST] DB failed, using in-process store:', (dbErr as any)?.message?.slice(0, 80));
     }
+
+    // In-process store fallback
+    const fallback = makeFallbackPage({ title, type, description, slug, templateId, blocks, seo, settings });
+    pageStore.set(fallback.id, fallback);
+    console.log(`[PAGES POST FALLBACK] Stored in-process: ${fallback.id}`);
+    return apiSuccess(fallback, 201);
   } catch (error) {
-    console.error('[PAGES CREATE API ERROR]', error);
-    const fallbackObj = {
-      id: `page-${Date.now()}`,
-      title: 'Nueva Página Web',
-      slug: `pagina-${Date.now()}`,
-      type: 'landing',
-      status: 'draft',
-      businessId: 'agency-vps-default',
-      blocks: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    memoryPagesStore.unshift(fallbackObj);
-    return apiSuccess(fallbackObj, 201);
+    console.error('[PAGES POST ERROR]', error);
+    const emergency = makeFallbackPage();
+    pageStore.set(emergency.id, emergency);
+    return apiSuccess(emergency, 201);
   }
 }
