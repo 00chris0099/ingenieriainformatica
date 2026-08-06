@@ -162,7 +162,7 @@ export class WhatsAppClient {
       const text = message.text?.toLowerCase() || '';
       const flow = this.findFlowByTrigger(text);
 
-      if (flow) {
+      if (flow && flow.steps[0]) {
         state.currentFlow = flow.id;
         state.currentStep = flow.steps[0].id;
         await this.executeStep(phone, state, flow);
