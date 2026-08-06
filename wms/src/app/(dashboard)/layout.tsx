@@ -1,21 +1,8 @@
-'use client'
-
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
-import NotificationBell from '@/components/notifications/NotificationBell'
-import ThemeToggle from '@/components/ui/ThemeToggle'
-import {
-  LayoutDashboard, Package, ShoppingCart, Users,
-  Settings, Menu, X, ChevronRight, ChevronDown,
-  UserCog, DollarSign, FileText, LogOut, User,
-  PanelLeftClose, PanelLeft, Search
-} from 'lucide-react'
-import { useState, Fragment } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface NavGroup {
   label: string
-  items: Array<{ href: string; label: string; icon: any }>
+  items: Array<{ href: string; label: string; icon: any; superAdminOnly?: boolean }>
 }
 
 const navGroups: NavGroup[] = [
@@ -23,11 +10,11 @@ const navGroups: NavGroup[] = [
     label: 'Principal',
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/pages', label: 'Pages', icon: FileText },
+      { href: '/pages', label: 'Pages & Builder', icon: FileText, superAdminOnly: true },
     ],
   },
   {
-    label: 'Operaciones',
+    label: 'Operaciones de Tienda',
     items: [
       { href: '/catalogo', label: 'Catalogo', icon: Package },
       { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
@@ -35,11 +22,11 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Administracion',
+    label: 'Administracion Agencia',
     items: [
-      { href: '/finanzas', label: 'Finanzas', icon: DollarSign },
-      { href: '/usuarios', label: 'Usuarios', icon: UserCog },
-      { href: '/configuracion', label: 'Configuracion', icon: Settings },
+      { href: '/finanzas', label: 'Finanzas', icon: DollarSign, superAdminOnly: true },
+      { href: '/usuarios', label: 'Usuarios', icon: UserCog, superAdminOnly: true },
+      { href: '/configuracion', label: 'Configuracion', icon: Settings, superAdminOnly: true },
     ],
   },
 ]
@@ -48,6 +35,10 @@ const allNavItems = navGroups.flatMap(g => g.items)
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const userRole = (session?.user as any)?.role || ''
+  const isSuperAdmin = ['super_admin', 'admin'].includes(userRole)
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -120,8 +111,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
                 {(!sidebarCollapsed && isCollapsed) ? null : (
                   <div className="space-y-0.5">
-                    {group.items.map((item) => {
-                      const active = isActive(item.href)
+                    {group.items
+                      .filter((item) => !item.superAdminOnly || isSuperAdmin)
+                      .map((item) => {
+                        const active = isActive(item.href)
                       return (
                         <Link
                           key={item.href}

@@ -17,10 +17,27 @@ function addCorsHeaders(response: NextResponse, origin: string | null) {
   return response;
 }
 
-const PUBLIC_ROUTES = ['/login', '/api/auth', '/api/v1/health'];
-const READ_ONLY_PUBLIC_ROUTES = ['/api/v1/products', '/api/v1/categories'];
+const PUBLIC_ROUTES = [
+  '/login',
+  '/api/auth',
+  '/api/v1/health',
+  '/api/v1/store',
+];
 
-// Routes that require admin or super_admin role
+const READ_ONLY_PUBLIC_ROUTES = [
+  '/api/v1/products',
+  '/api/v1/categories',
+];
+
+// Routes reserved exclusively for Super Admin / Agency Admin
+const SUPER_ADMIN_ONLY_PAGES = [
+  '/builder',
+  '/pages',
+  '/configuracion',
+  '/auditoria',
+  '/admin',
+];
+
 const ADMIN_ONLY_API_ROUTES = [
   '/api/v1/users',
   '/api/v1/config/ai',
@@ -29,7 +46,6 @@ const ADMIN_ONLY_API_ROUTES = [
   '/api/v1/audit',
 ];
 
-// Routes that require minimum admin role for mutations
 const ADMIN_MUTATION_ROUTES = [
   '/api/v1/business',
 ];
@@ -38,6 +54,19 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
   const origin = req.headers.get('origin');
+
+  // Extract host and subdomain for multi-tenant VPS resolution
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+  const rootDomain = (process.env.WMS_URL || 'localhost:3000')
+    .replace(/^https?:\/\//, '')
+    .split(':')[0];
+
+  let tenantSubdomain: string | null = null;
+  const cleanHost = host.split(':')[0];
+
+  if (cleanHost && rootDomain && cleanHost !== rootDomain && cleanHost.endsWith(`.${rootDomain}`)) {
+    tenantSubdomain = cleanHost.replace(`.${rootDomain}`, '');
+  }
 
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -53,11 +82,15 @@ export default auth((req) => {
       return NextResponse.redirect(new URL('/', req.url));
     }
     const response = NextResponse.next();
+    if (tenantSubdomain) response.headers.set('x-tenant-subdomain', tenantSubdomain);
+    response.headers.set('x-tenant-host', cleanHost || '');
     return addCorsHeaders(response, origin);
   }
 
   if (isReadOnlyPublic && req.method === 'GET') {
     const response = NextResponse.next();
+    if (tenantSubdomain) response.headers.set('x-tenant-subdomain', tenantSubdomain);
+    response.headers.set('x-tenant-host', cleanHost || '');
     return addCorsHeaders(response, origin);
   }
 
@@ -71,18 +104,28 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // RBAC: check admin-only routes
+  // RBAC Roles Check
   const userRole = (session.user as any)?.role as string | undefined;
+  const isSuperAdmin = ['super_admin', 'admin'].includes(userRole || '');
+
+  // Restrict Super Admin pages (Visual Builder, Theme settings, Audit, System Users) from Store Clients
+  const isSuperAdminPage = SUPER_ADMIN_ONLY_PAGES.some((p) => pathname.startsWith(p));
+  if (isSuperAdminPage && !isSuperAdmin) {
+    // Redirect store client to their simplified merchant portal (/catalogo or /pedidos)
+    return NextResponse.redirect(new URL('/catalogo', req.url));
+  }
+
+  // Restrict Super Admin APIs
   const isAdminRoute = ADMIN_ONLY_API_ROUTES.some((r) => pathname.startsWith(r));
   const isAdminMutationRoute = ADMIN_MUTATION_ROUTES.some((r) => pathname.startsWith(r));
 
-  if (isAdminRoute && !['super_admin', 'admin'].includes(userRole || '')) {
-    const response = NextResponse.json({ success: false, error: 'Forbidden: admin access required' }, { status: 403 });
+  if (isAdminRoute && !isSuperAdmin) {
+    const response = NextResponse.json({ success: false, error: 'Forbidden: super_admin access required' }, { status: 403 });
     return addCorsHeaders(response, origin);
   }
 
-  if (isAdminMutationRoute && req.method !== 'GET' && !['super_admin', 'admin'].includes(userRole || '')) {
-    const response = NextResponse.json({ success: false, error: 'Forbidden: admin access required' }, { status: 403 });
+  if (isAdminMutationRoute && req.method !== 'GET' && !isSuperAdmin) {
+    const response = NextResponse.json({ success: false, error: 'Forbidden: super_admin access required' }, { status: 403 });
     return addCorsHeaders(response, origin);
   }
 
@@ -93,6 +136,8 @@ export default auth((req) => {
   }
 
   const response = NextResponse.next();
+  if (tenantSubdomain) response.headers.set('x-tenant-subdomain', tenantSubdomain);
+  response.headers.set('x-tenant-host', cleanHost || '');
   return addCorsHeaders(response, origin);
 });
 
