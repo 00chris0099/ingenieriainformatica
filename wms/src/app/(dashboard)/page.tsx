@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { StatCardSkeleton } from '@/components/ui/Skeleton'
 
+import { useSession } from 'next-auth/react'
+
 interface DashboardStats {
   totalProducts: number
   activeProducts: number
@@ -39,6 +41,10 @@ const statusVariant: Record<string, 'warning' | 'info' | 'accent' | 'success' | 
 }
 
 export default function DashboardPage() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as any)?.role || ''
+  const isSuperAdmin = ['super_admin', 'admin'].includes(userRole)
+
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [orders, setOrders] = useState<RecentOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,10 +92,46 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 stagger-children">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Dashboard</h2>
-        <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>Resumen de tu negocio</p>
+      {/* Header Banner Adaptativo */}
+      <div className="p-5 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        style={{
+          background: 'linear-gradient(135deg, rgba(236,72,153,0.08) 0%, rgba(59,130,246,0.08) 100%)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md text-pink-400 bg-pink-500/10 border border-pink-500/20">
+              {isSuperAdmin ? 'Agencia Super Admin' : 'Portal de Tienda Virtual'}
+            </span>
+          </div>
+          <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+            Bienvenido, {session?.user?.name || 'Comerciante'}
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+            {isSuperAdmin
+              ? 'Gestión centralizada de páginas, plantillas, clientes y subdominios.'
+              : 'Administra tus productos, precios, inventario y atiende los pedidos de tu tienda.'}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isSuperAdmin ? (
+            <Link
+              href="/pages"
+              className="px-4 py-2 text-xs font-semibold text-white bg-pink-600 hover:bg-pink-700 rounded-xl transition-all shadow-md flex items-center gap-2"
+            >
+              <Plus size={14} /> Crear Nueva Página / Tienda
+            </Link>
+          ) : (
+            <Link
+              href="/catalogo"
+              className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md flex items-center gap-2"
+            >
+              <Package size={14} /> Gestionar Mis Productos
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}
