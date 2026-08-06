@@ -1,5 +1,3 @@
-import nodemailer from 'nodemailer';
-
 interface SendOtpEmailOptions {
   to: string;
   code: string;
@@ -18,15 +16,15 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background-color: #090d16; color: #ffffff; border-radius: 20px; border: 1px solid #1f2937;">
       <div style="text-align: center; margin-bottom: 25px;">
-        <h1 style="color: #ef4444; font-size: 24px; font-weight: 800; margin: 0; tracking: -0.5px;">E-STORE PLATFORM</h1>
+        <h1 style="color: #ef4444; font-size: 24px; font-weight: 800; margin: 0;">E-STORE PLATFORM</h1>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 4px; font-weight: 600; text-transform: uppercase;">Seguridad de la Plataforma</p>
       </div>
 
       <div style="background-color: #111827; padding: 20px; border-radius: 14px; border: 1px solid #374151; margin-bottom: 25px;">
         <h2 style="font-size: 16px; margin: 0 0 10px 0; color: #f3f4f6;">${subject}</h2>
-        <p style="font-size: 13px; color: #9ca3af; margin: 0 0 15px 0;">Tu código de seguridad único de 6 dígitos es:</p>
+        <p style="font-size: 13px; color: #9ca3af; margin: 0 0 15px 0;">Tu código de seguridad único es:</p>
 
-        <div style="background-color: #000000; border: 2px border-style: solid; border-color: #ef4444; border-radius: 12px; padding: 15px; text-align: center;">
+        <div style="background-color: #000000; border: 2px solid #ef4444; border-radius: 12px; padding: 15px; text-align: center;">
           <span style="font-family: monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #ef4444;">${code}</span>
         </div>
 
@@ -39,17 +37,18 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
     </div>
   `;
 
-  // 1. Try sending via Resend API if RESEND_API_KEY exists
-  if (process.env.RESEND_API_KEY) {
+  // 1. Primary: Send via Resend HTTP API (Fast, Zero Extra Dependencies)
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Authorization': `Bearer ${resendKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || 'Seguridad <no-reply@resend.dev>',
+          from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
           to: [to],
           subject,
           html: htmlContent,
@@ -57,17 +56,21 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
       });
 
       if (res.ok) {
-        console.log(`[RESEND EMAIL SUCCESS] Code sent to ${to}`);
+        console.log(`[RESEND API SUCCESS] Email sent to ${to}`);
         return true;
+      } else {
+        const errorData = await res.json();
+        console.error('[RESEND API FAILED]', errorData);
       }
     } catch (err) {
-      console.error('[RESEND EMAIL ERROR]', err);
+      console.error('[RESEND API EXCEPTION]', err);
     }
   }
 
-  // 2. Try sending via SMTP (Gmail / Custom SMTP) if SMTP credentials exist
+  // 2. Secondary: Dynamic import of Nodemailer if installed
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
+      const nodemailer = await import('nodemailer');
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT) || 587,
@@ -92,6 +95,6 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
     }
   }
 
-  console.log(`[EMAIL DISPATCHER] No active SMTP/Resend API key found. Code ${code} logged safely.`);
+  console.log(`[EMAIL DISPATCHER] Code ${code} generated for ${to}`);
   return false;
 }
