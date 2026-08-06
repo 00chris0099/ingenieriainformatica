@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
           status: p.status,
           price: Number(p.price || 0),
           stock: p.stock || 0,
-          createdAt: p.createdAt.toISOString().split('T')[0],
+          createdAt: p.createdAt.toISOString().split('T')[0] || '',
         });
       });
     } else if (type === 'orders') {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
           customer: o.customer?.fullName || '-',
           status: o.status,
           total: Number(o.total),
-          date: o.createdAt.toISOString().split('T')[0],
+          date: o.createdAt.toISOString().split('T')[0] || '',
         });
       });
     } else if (type === 'inventory') {

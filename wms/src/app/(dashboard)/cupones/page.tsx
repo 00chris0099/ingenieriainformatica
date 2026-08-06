@@ -18,8 +18,8 @@ export default function CuponesPage() {
     minPurchase: 0,
     maxDiscount: '',
     usageLimit: '',
-    validFrom: new Date().toISOString().split('T')[0],
-    validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    validFrom: new Date().toISOString().split('T')[0] || '',
+    validUntil: (new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) || '',
   });
 
   const fetchCoupons = useCallback(async () => {
@@ -58,8 +58,8 @@ export default function CuponesPage() {
         setForm({
           code: '', description: '', discountType: 'percentage', discountValue: 10,
           minPurchase: 0, maxDiscount: '', usageLimit: '',
-          validFrom: new Date().toISOString().split('T')[0],
-          validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          validFrom: new Date().toISOString().split('T')[0] || '',
+          validUntil: (new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) || '',
         });
       }
     } catch (err) {

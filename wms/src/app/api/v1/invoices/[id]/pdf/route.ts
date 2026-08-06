@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: Props) {
     const pdfData: InvoicePDFData = {
       number: invoice.invoiceNumber.split('-')[1] || invoice.invoiceNumber,
       series: invoice.invoiceNumber.split('-')[0] || 'F001',
-      date: invoice.createdAt.toISOString().split('T')[0],
+      date: invoice.createdAt.toISOString().split('T')[0] || '',
       customer: {
         name: invoice.customer?.fullName || 'CLIENTE VARIADO',
         docType: invoice.customer?.documentType || 'DNI',
