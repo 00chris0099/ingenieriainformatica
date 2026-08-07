@@ -145,12 +145,12 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
   }
 
   const handleAddBlock = (type: string) => {
-    const defaultData = blockRegistry.getDefaults(type as any)
+    const config = blockRegistry.get(type as any)
     const newBlock: Block = {
       id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       type,
-      settings: defaultData.settings,
-      content: defaultData.content,
+      settings: config?.defaultSettings || {},
+      content: config?.defaultContent || {},
     }
     const updated = [...blocks, newBlock]
     updateBlocks(updated)
