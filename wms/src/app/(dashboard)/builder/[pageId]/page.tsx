@@ -327,6 +327,96 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         `
       }
 
+      if (b.type === 'testimonials') {
+        const items = Array.isArray(c.items) ? c.items : []
+        return `
+          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+            <div style="max-width: 1000px; margin:0 auto; text-align:center;">
+              <h2 style="font-size:26px; font-weight:800; margin-bottom:36px;">${c.title || 'Opiniones de nuestros Clientes'}</h2>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
+                ${items.map((t: any) => `
+                  <div style="padding:20px; border-radius:16px; background:#f8fafc; border:1px solid #e2e8f0; text-align:left;">
+                    <div style="color:#f59e0b; margin-bottom:8px;">★★★★★</div>
+                    <p style="font-size:13px; color:#334155; font-style:italic; margin-bottom:12px;">"${t.text || t.comment || ''}"</p>
+                    <div style="font-weight:700; font-size:13px; color:#0f172a;">${t.name || 'Cliente'}</div>
+                    <div style="font-size:11px; opacity:0.6; color:#64748b;">${t.role || 'Comprador verificado'}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `
+      }
+
+      if (b.type === 'pricing') {
+        const items = Array.isArray(c.items) ? c.items : []
+        return `
+          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+            <div style="max-width:1100px; margin:0 auto; text-align:center;">
+              <h2 style="font-size:28px; font-weight:800; margin-bottom:12px;">${c.title || 'Planes de Precios'}</h2>
+              <p style="font-size:14px; opacity:0.7; margin-bottom:40px;">${c.subtitle || ''}</p>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px;">
+                ${items.map((p: any) => `
+                  <div style="padding:32px 24px; background:#fff; border-radius:20px; border:${p.highlighted ? '2px solid ' + (s.accentColor || '#ec4899') : '1px solid #e2e8f0'}; position:relative;">
+                    ${p.highlighted ? `<span style="position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:${s.accentColor || '#ec4899'}; color:#fff; font-size:10px; font-weight:800; padding:4px 12px; border-radius:12px; text-transform:uppercase;">Popular</span>` : ''}
+                    <h3 style="font-size:18px; font-weight:800; margin-bottom:12px;">${p.name || 'Plan'}</h3>
+                    <div style="font-size:36px; font-weight:900; color:${s.accentColor || '#ec4899'}; margin-bottom:16px;">S/ ${p.price} <span style="font-size:12px; opacity:0.6;">${p.period || '/mes'}</span></div>
+                    <button style="width:100%; background:${p.highlighted ? (s.accentColor || '#ec4899') : '#0f172a'}; color:#fff; border:none; padding:12px; border-radius:12px; font-weight:800; cursor:pointer;">Elegir Plan</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `
+      }
+
+      if (b.type === 'faq') {
+        const items = Array.isArray(c.items) ? c.items : []
+        return `
+          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+            <div style="max-width:800px; margin:0 auto;">
+              <h2 style="font-size:26px; font-weight:800; text-align:center; margin-bottom:32px;">${c.title || 'Preguntas Frecuentes'}</h2>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                ${items.map((f: any) => `
+                  <div style="padding:16px 20px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
+                    <h3 style="font-size:14px; font-weight:700; margin-bottom:6px;">❓ ${f.question || ''}</h3>
+                    <p style="font-size:13px; color:#475569; line-height:1.5;">${f.answer || ''}</p>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `
+      }
+
+      if (b.type === 'contact') {
+        return `
+          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 72}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+            <div style="max-width:600px; margin:0 auto;">
+              <h2 style="font-size:28px; font-weight:800; margin-bottom:12px;">${c.title || 'Contacto & Pedidos Directos'}</h2>
+              <p style="font-size:14px; opacity:0.8; margin-bottom:24px;">Atención inmediata por WhatsApp o formulario</p>
+              <button style="background:#22c55e; color:#fff; border:none; padding:14px 32px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;">💬 ${c.buttonText || 'Pedir por WhatsApp'}</button>
+            </div>
+          </section>
+        `
+      }
+
+      if (b.type === 'gallery') {
+        const items = Array.isArray(c.items) ? c.items : ['📸', '👗', '👟', '✨']
+        return `
+          <section style="background:${s.backgroundColor || '#fafafa'}; padding:${s.paddingY || 64}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+            <div style="max-width:1000px; margin:0 auto;">
+              <h2 style="font-size:24px; font-weight:800; margin-bottom:24px;">${c.title || 'Galería de Imágenes'}</h2>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px;">
+                ${items.map((img: any) => `
+                  <div style="height:140px; background:#e2e8f0; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:40px;">${typeof img === 'string' ? img : '📸'}</div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `
+      }
+
       if (b.type === 'cta') {
         return `
           <section style="background:${s.accentColor || '#ec4899'}; color:#fff; padding:${s.paddingY || 80}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #000; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
@@ -343,7 +433,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         return `
           <footer style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 48}px 24px; text-align:center; border-top:1px solid rgba(255,255,255,0.1); ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
             <div style="max-width:1100px; margin:0 auto;">
-              <h3 style="font-size:20px; font-weight:900; margin-bottom:16px; letter-spacing:1px;">${c.brandName || 'ADRISU KIDS'}</h3>
+              <h3 style="font-size:20px; font-weight:900; margin-bottom:16px; letter-spacing:1px;">${c.brandName || 'MI TIENDA'}</h3>
               <p style="font-size:13px; opacity:0.6; margin-bottom:24px;">${c.copyright || '© 2026 Todos los derechos reservados.'}</p>
             </div>
           </footer>
