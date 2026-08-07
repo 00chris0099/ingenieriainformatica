@@ -5,7 +5,7 @@ import {
   Home, MessageSquare, Flame, CheckCircle2, Star, Cpu, ArrowRight, X, ChevronRight, Sliders
 } from 'lucide-react'
 
-const iconMap: Record<string, React.FC<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
+const iconMap: Record<string, React.ComponentType<any>> = {
   Shirt, Sparkles, Footprints, Baby, ShieldCheck, Palette, Leaf, Truck,
   RefreshCw, Headphones, Watch, Zap, Wine, Utensils, Gift, ShoppingBag,
   Home, MessageSquare, Flame, CheckCircle2, Star, Cpu, ArrowRight, X, ChevronRight, Sliders
