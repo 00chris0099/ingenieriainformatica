@@ -24,10 +24,10 @@ export default function ClientesList() {
       const res = await fetch(`/api/v1/customers?${params}`);
       if (res.ok) {
         const data = await res.json();
-        const items = Array.isArray(data.data?.items)
-          ? data.data.items
-          : Array.isArray(data.data)
+        const items = Array.isArray(data.data)
           ? data.data
+          : Array.isArray(data.data?.items)
+          ? data.data.items
           : Array.isArray(data)
           ? data
           : [];
