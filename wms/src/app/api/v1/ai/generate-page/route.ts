@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { apiSuccess, apiError } from '@/lib/api';
-import { aiConfigStore } from '@/app/api/v1/config/ai/route';
+import { aiConfigStore } from '@/lib/aiConfigStore';
 
 export async function POST(request: NextRequest) {
   try {
