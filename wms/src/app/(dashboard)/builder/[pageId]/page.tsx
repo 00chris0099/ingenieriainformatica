@@ -125,16 +125,22 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
   const handleUndo = () => {
     if (historyIndex > 0) {
       const prevIndex = historyIndex - 1
-      setHistoryIndex(prevIndex)
-      setBlocks(history[prevIndex])
+      const target = history[prevIndex]
+      if (target) {
+        setHistoryIndex(prevIndex)
+        setBlocks(target)
+      }
     }
   }
 
   const handleRedo = () => {
     if (historyIndex < history.length - 1) {
       const nextIndex = historyIndex + 1
-      setHistoryIndex(nextIndex)
-      setBlocks(history[nextIndex])
+      const target = history[nextIndex]
+      if (target) {
+        setHistoryIndex(nextIndex)
+        setBlocks(target)
+      }
     }
   }
 
