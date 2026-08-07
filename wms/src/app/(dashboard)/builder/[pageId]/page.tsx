@@ -355,8 +355,14 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
                   <div style="border:1px solid #e2e8f0; border-radius:20px; padding:20px; background:#fff; text-align:left; box-shadow:0 4px 20px rgba(0,0,0,0.03); position:relative; display:flex; flex-direction:column; justify-content:space-between;">
                     ${p.discountBadge ? `<span style="position:absolute; top:12px; right:12px; background:#fff1f2; color:#f43f5e; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #fecdd3;">${p.discountBadge}</span>` : ''}
                     <div>
-                      <div style="height:140px; background:#f8fafc; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; border:1px solid #f1f5f9;">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                      <div style="height:180px; background:#f8fafc; border-radius:14px; overflow:hidden; margin-bottom:16px; border:1px solid #f1f5f9;">
+                        ${p.imageUrl ? `
+                          <img src="${p.imageUrl}" alt="${p.name}" style="width:100%; height:100%; object-fit:cover;" />
+                        ` : `
+                          <div style="display:flex; height:100%; align-items:center; justify-content:center;">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                          </div>
+                        `}
                       </div>
                       <h3 style="font-size:15px; font-weight:800; margin-bottom:6px; color:#0f172a; line-height:1.3;">${p.name}</h3>
                       <p style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.4;">${p.description || ''}</p>

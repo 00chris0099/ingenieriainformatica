@@ -182,8 +182,12 @@ export default async function PublicPageRenderer({ params }: { params: { id: str
                             </span>
                           )}
                           <div>
-                            <div className="h-44 mb-5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform text-rose-500">
-                              <IconRenderer name={p.iconName || 'Shirt'} size={56} />
+                            <div className="h-48 mb-5 rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform text-rose-500">
+                              {p.imageUrl ? (
+                                <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <IconRenderer name={p.iconName || 'Shirt'} size={56} />
+                              )}
                             </div>
                             <h3 className="font-extrabold text-base mb-1.5 text-slate-900 leading-snug">{p.name}</h3>
                             {p.description && <p className="text-xs text-slate-500 mb-3 leading-relaxed">{p.description}</p>}

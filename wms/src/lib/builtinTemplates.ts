@@ -1,11 +1,11 @@
 export const BUILTIN_TEMPLATES = [
   {
     id: 'tpl-adrisu-kids',
-    name: 'Adrisu Kids - Moda Infantil (Multi-Ventana Enterprise)',
-    description: 'Tienda virtual de alta gama con navegación por ventanas (Inicio, Niños, Niñas, Bebés, Ofertas), barra de anuncios fija, filtro de catálogo por categorías, modal de vista rápida, selector de tallas y compra directa por WhatsApp.',
+    name: 'Adrisu Kids - Moda Infantil (Enterprise Multi-Ventana)',
+    description: 'Tienda virtual de alta gama con imágenes fotográficas en HD, navegación por ventanas (Inicio, Niños, Niñas, Bebés, Ofertas), filtro por categorías, tallas y compra directa por WhatsApp.',
     industry: 'moda_infantil',
     category: 'ecommerce',
-    thumbnail: null,
+    thumbnail: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=800&auto=format&fit=crop',
     seo: {
       title: 'Adrisu Kids - Tienda Virtual Oficial de Moda Infantil',
       description: 'Prendas exclusivas en algodón 100% antialérgico para niños, niñas y bebés.',
@@ -43,6 +43,7 @@ export const BUILTIN_TEMPLATES = [
           subtitle: 'Diseños allergy-free en algodón 100% orgánico. Confort, resistencia y estilo para acompañar sus mejores aventuras.',
           buttonText: 'Ver Catálogo Completo',
           secondaryButtonText: 'Explorar Ofertas (30% OFF)',
+          heroImage: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=1000&auto=format&fit=crop',
         },
       },
       {
@@ -67,9 +68,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 59.90',
               originalPrice: 'S/ 89.90',
               discountBadge: '-33% OFF',
-              iconName: 'Shirt',
+              imageUrl: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=600&auto=format&fit=crop',
               sizes: ['2T', '4T', '6T', '8T'],
-              colors: ['#3b82f6', '#10b981', '#f59e0b'],
               description: 'Algodón peruano 100% peinado, transpirable y súper suave.',
             },
             {
@@ -79,9 +79,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 79.90',
               originalPrice: 'S/ 110.00',
               discountBadge: '-27% OFF',
-              iconName: 'Sparkles',
+              imageUrl: 'https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?w=600&auto=format&fit=crop',
               sizes: ['4T', '6T', '8T', '10T'],
-              colors: ['#f43f5e', '#ec4899', '#fef08a'],
               description: 'Forro de franela suave con tul fantasía de alta durabilidad.',
             },
             {
@@ -91,9 +90,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 99.90',
               originalPrice: 'S/ 139.90',
               discountBadge: '-28% OFF',
-              iconName: 'Footprints',
+              imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&auto=format&fit=crop',
               sizes: ['24', '26', '28', '30'],
-              colors: ['#000000', '#2563eb', '#dc2626'],
               description: 'Suela antideslizante con batería LED recargable de larga duración.',
             },
             {
@@ -103,9 +101,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 45.00',
               originalPrice: 'S/ 65.00',
               discountBadge: '-30% OFF',
-              iconName: 'Baby',
+              imageUrl: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=600&auto=format&fit=crop',
               sizes: ['0-3M', '3-6M', '6-12M', '12-18M'],
-              colors: ['#fbbf24', '#60a5fa', '#f472b6'],
               description: 'Cierre bidireccional para cambio rápido de pañal.',
             },
             {
@@ -115,9 +112,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 89.90',
               originalPrice: 'S/ 120.00',
               discountBadge: '-25% OFF',
-              iconName: 'ShieldCheck',
+              imageUrl: 'https://images.unsplash.com/photo-1544441893-675973e31985?w=600&auto=format&fit=crop',
               sizes: ['4T', '6T', '8T', '12T'],
-              colors: ['#1e293b', '#0284c7', '#d97706'],
               description: 'Interior térmico de polar antipeeling y tela 100% repelente al agua.',
             },
             {
@@ -127,9 +123,8 @@ export const BUILTIN_TEMPLATES = [
               price: 'S/ 49.90',
               originalPrice: 'S/ 75.00',
               discountBadge: '-33% OFF',
-              iconName: 'Palette',
+              imageUrl: 'https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=600&auto=format&fit=crop',
               sizes: ['2T', '4T', '6T', '8T'],
-              colors: ['#f43f5e', '#a855f7', '#06b6d4'],
               description: 'Colores duraderos que soportan más de 50 lavadas sin decolorar.',
             },
           ],
@@ -185,11 +180,11 @@ export const BUILTIN_TEMPLATES = [
   },
   {
     id: 'tpl-tech-vibes',
-    name: 'TechVibes - Electrónica & Gadgets (Multi-Ventana Enterprise)',
-    description: 'Tienda de tecnología con navegación por ventanas (Audio, Wearables, Gaming, Carga Rápida), dark mode neón y botones de compra instantánea.',
+    name: 'TechVibes - Electrónica & Gadgets (Enterprise Multi-Ventana)',
+    description: 'Tienda de tecnología con fotografía HD de gadgets, ventanas de categorías (Audio, Wearables, Gaming, Carga), dark mode neón y botones de compra instantánea.',
     industry: 'tecnologia',
     category: 'ecommerce',
-    thumbnail: null,
+    thumbnail: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop',
     seo: {
       title: 'TechVibes - Tienda Oficial de Gadgets & Tecnología',
       description: 'Audífonos inalámbricos, smartwatches y accesorios tech con 12 meses de garantía.',
@@ -221,11 +216,12 @@ export const BUILTIN_TEMPLATES = [
         type: 'hero',
         settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 96 },
         content: {
-          badge: 'TECNOLOGÍA DE Nivel ENTERPRISE 2026',
+          badge: 'TECNOLOGÍA DE NIVEL ENTERPRISE 2026',
           title: 'TechVibes — Experiencia Audiovisual de Siguiente Nivel',
           subtitle: 'Audífonos Hi-Fi con Cancelación Activa de Ruido (ANC), Relojes Inteligentes AMOLED y Periféricos Gamer con Garantía Oficial.',
           buttonText: 'Explorar Gadgets Tech',
           secondaryButtonText: 'Ofertas Relámpago',
+          heroImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1000&auto=format&fit=crop',
         },
       },
       {
@@ -233,7 +229,8 @@ export const BUILTIN_TEMPLATES = [
         type: 'product-grid',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 72 },
         content: {
-          title: 'Parrilla Tecnológica — Navega por Ventanas',
+          title: 'Parrilla Tecnológica — Selecciona tu Ventana',
+          subtitle: 'Gadgets seleccionados con prueba de rendimiento y despacho inmediato',
           categoryTabs: [
             { id: 'all', label: 'Todos los Gadgets' },
             { id: 'audio', label: 'Audio Hi-Fi' },
@@ -241,11 +238,48 @@ export const BUILTIN_TEMPLATES = [
             { id: 'carga', label: 'Carga Rápida GaN' },
           ],
           products: [
-            { id: 't1', category: 'audio', name: 'Audífonos ANC Pro Bass Noise Cancelling 5.3', price: 'S/ 189.00', originalPrice: 'S/ 260.00', discountBadge: '-27% OFF', iconName: 'Headphones', description: 'Autonomía de 40 horas continuas y driver dinámico de 40mm.' },
-            { id: 't2', category: 'watches', name: 'Smartwatch AMOLED Ultra Fit 2 GPS', price: 'S/ 229.00', originalPrice: 'S/ 310.00', discountBadge: '-26% OFF', iconName: 'Watch', description: 'Monitoreo cardíaco 24/7, SpO2 y resistencia al agua 5 ATM.' },
-            { id: 't3', category: 'carga', name: 'Cargador Carga Rápida GaN 65W Triple Puerto', price: 'S/ 89.00', originalPrice: 'S/ 120.00', discountBadge: '-25% OFF', iconName: 'Zap', description: 'Carga tu laptop y smartphone en simultáneo con protocolo PD 3.0.' },
-            { id: 't4', category: 'audio', name: 'Teclado Mecánico RGB Wireless Hot-Swap 60%', price: 'S/ 249.00', originalPrice: 'S/ 320.00', discountBadge: '-22% OFF', iconName: 'Cpu', description: 'Switches mecánicos amarillos silenciosos con latencia ultra baja de 1ms.' },
+            { id: 't1', category: 'audio', name: 'Audífonos ANC Pro Bass Noise Cancelling 5.3', price: 'S/ 189.00', originalPrice: 'S/ 260.00', discountBadge: '-27% OFF', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop', description: 'Autonomía de 40 horas continuas y driver dinámico de 40mm.' },
+            { id: 't2', category: 'watches', name: 'Smartwatch AMOLED Ultra Fit 2 GPS', price: 'S/ 229.00', originalPrice: 'S/ 310.00', discountBadge: '-26% OFF', imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop', description: 'Monitoreo cardíaco 24/7, SpO2 y resistencia al agua 5 ATM.' },
+            { id: 't3', category: 'carga', name: 'Cargador Carga Rápida GaN 65W Triple Puerto', price: 'S/ 89.00', originalPrice: 'S/ 120.00', discountBadge: '-25% OFF', imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&auto=format&fit=crop', description: 'Carga tu laptop y smartphone en simultáneo con protocolo PD 3.0.' },
+            { id: 't4', category: 'audio', name: 'Teclado Mecánico RGB Wireless Hot-Swap 60%', price: 'S/ 249.00', originalPrice: 'S/ 320.00', discountBadge: '-22% OFF', imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop', description: 'Switches mecánicos amarillos silenciosos con latencia ultra baja de 1ms.' },
           ],
+        },
+      },
+      {
+        id: 'tv-features',
+        type: 'features',
+        settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
+        content: {
+          title: 'La Garantía TechVibes',
+          items: [
+            { iconName: 'ShieldCheck', title: 'Garantía Real 12 Meses', description: 'Reemplazo directo de producto si presenta algún defecto de fábrica.' },
+            { iconName: 'Truck', title: 'Envío Express 2 Horas', description: 'Envíos veloces en Lima Metropolitana y despachos diarios a provincias.' },
+            { iconName: 'CreditCard', title: 'Pago Contra Entrega', description: 'Paga con Yape, Plin o efectivo al recibir tu pedido en la puerta de tu casa.' },
+            { iconName: 'RefreshCw', title: 'Soporte Técnico 24/7', description: 'Asesoría técnica para configuración y sincronización por WhatsApp.' },
+          ],
+        },
+      },
+      {
+        id: 'tv-testimonials',
+        type: 'testimonials',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', paddingY: 64 },
+        content: {
+          title: 'Reseñas de la Comunidad Tech',
+          items: [
+            { text: 'Los audífonos ANC cancelan el ruido del tráfico a la perfección. La batería me dura toda la semana laboral.', name: 'Renzo G.', role: 'Desarrollador Software (Miraflores)' },
+            { text: 'El reloj AMOLED mide mis carreras con GPS exacto. Llegó súper rápido a Arequipa.', name: 'Diego P.', role: 'Runner & Tech Enthusiast' },
+            { text: 'Excelente atención al cliente. Me dieron asesoría por WhatsApp para elegir el teclado mecánico perfecto.', name: 'Fiorella V.', role: 'Diseñadora Gamer' },
+          ],
+        },
+      },
+      {
+        id: 'tv-cta',
+        type: 'cta',
+        settings: { accentColor: '#3b82f6', paddingY: 80 },
+        content: {
+          title: 'OFERTAS FLASH HASTA 40% OFF',
+          description: 'Stock limitado. Haz tu pedido por WhatsApp antes de que se agoten las unidades promocionales.',
+          buttonText: 'Comprar por WhatsApp',
         },
       },
       {
@@ -261,11 +295,11 @@ export const BUILTIN_TEMPLATES = [
   },
   {
     id: 'tpl-boutique-gourmet',
-    name: 'Boutique Gourmet - Vinos & Cava (Multi-Ventana Enterprise)',
-    description: 'Diseño distinguido con ventanas de Cava, Quesos Madurados, Chocolateria Fina y Regalos Corporativos.',
+    name: 'Boutique Gourmet - Vinos & Cava (Enterprise Multi-Ventana)',
+    description: 'Diseño distinguido con fotografías HD de vinos de reserva, queso madurado y hampers, con navegación por ventanas de Cava y Regalos Corporativos.',
     industry: 'gastronomia',
     category: 'ecommerce',
-    thumbnail: null,
+    thumbnail: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&auto=format&fit=crop',
     seo: {
       title: 'Boutique Gourmet - Vinos & Delicatessen',
       description: 'Vinos de gran reserva, quesos madurados y hampers de regalo corporativo.',
@@ -296,10 +330,12 @@ export const BUILTIN_TEMPLATES = [
         type: 'hero',
         settings: { backgroundColor: '#1c1917', textColor: '#fef3c7', accentColor: '#d97706', paddingY: 96 },
         content: {
+          badge: 'COSECHA SELECCIONADA & CAVA DE AUTOR',
           title: 'Boutique Gourmet — El Arte de Maridar Exquisito',
           subtitle: 'Vinos de cosecha seleccionada, quesos trufados madurados y cajas de regalo de lujo.',
           buttonText: 'Explorar Cava & Delicatessen',
           secondaryButtonText: 'Hampers Corporativos',
+          heroImage: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=1000&auto=format&fit=crop',
         },
       },
       {
@@ -308,11 +344,55 @@ export const BUILTIN_TEMPLATES = [
         settings: { backgroundColor: '#ffffff', textColor: '#1c1917', accentColor: '#d97706', paddingY: 72 },
         content: {
           title: 'Nuestra Cava Seleccionada',
-          products: [
-            { id: 'g1', name: 'Vino Gran Reserva Malbec Mendoza 2018', price: 'S/ 165.00', originalPrice: 'S/ 210.00', discountBadge: '-21% OFF', iconName: 'Wine', description: 'Madurado 24 meses en barrica de roble francés.' },
-            { id: 'g2', name: 'Queso Trufado Artesanal Madurado 300g', price: 'S/ 85.00', originalPrice: 'S/ 110.00', discountBadge: '-22% OFF', iconName: 'Utensils', description: 'Elaborado con trufa negra silvestre importada.' },
-            { id: 'g3', name: 'Box Sommelier (Vino + 2 Quesos + Mermelada)', price: 'S/ 290.00', originalPrice: 'S/ 360.00', discountBadge: '-19% OFF', iconName: 'Gift', description: 'Caja de madera tallada a mano lista para obsequio VIP.' },
+          subtitle: 'Vinos y maridajes curados por nuestro Sommelier certificado',
+          categoryTabs: [
+            { id: 'all', label: 'Toda la Cava' },
+            { id: 'vinos', label: 'Vinos Reserva' },
+            { id: 'quesos', label: 'Quesos Madurados' },
+            { id: 'regalos', label: 'Hampers VIP' },
           ],
+          products: [
+            { id: 'g1', category: 'vinos', name: 'Vino Gran Reserva Malbec Mendoza 2018', price: 'S/ 165.00', originalPrice: 'S/ 210.00', discountBadge: '-21% OFF', imageUrl: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=600&auto=format&fit=crop', description: 'Madurado 24 meses en barrica de roble francés.' },
+            { id: 'g2', category: 'quesos', name: 'Queso Trufado Artesanal Madurado 300g', price: 'S/ 85.00', originalPrice: 'S/ 110.00', discountBadge: '-22% OFF', imageUrl: 'https://images.unsplash.com/photo-1452195100486-9cc805987862?w=600&auto=format&fit=crop', description: 'Elaborado con trufa negra silvestre importada.' },
+            { id: 'g3', category: 'regalos', name: 'Tabla Jamón Serrano 100% Ibérico Reserva', price: 'S/ 120.00', originalPrice: 'S/ 150.00', discountBadge: '-20% OFF', imageUrl: 'https://images.unsplash.com/photo-1524182576066-1d963e941b71?w=600&auto=format&fit=crop', description: 'Curado artesanal de 36 meses en bodega tradicional.' },
+            { id: 'g4', category: 'regalos', name: 'Box Sommelier (Vino + 2 Quesos + Mermelada)', price: 'S/ 290.00', originalPrice: 'S/ 360.00', discountBadge: '-19% OFF', imageUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop', description: 'Caja de madera tallada a mano lista para obsequio VIP.' },
+          ],
+        },
+      },
+      {
+        id: 'bg-features',
+        type: 'features',
+        settings: { backgroundColor: '#fef3c7', textColor: '#1c1917', accentColor: '#d97706', paddingY: 64 },
+        content: {
+          title: 'El Sello de Excelencia Gourmet',
+          items: [
+            { iconName: 'Wine', title: 'Cava con Control de Temperatura', description: 'Conservamos cada botella a 14°C constantes para preservar su aroma y notas de cata.' },
+            { iconName: 'Truck', title: 'Empaque Térmico Especial', description: 'Entregamos tus botellas y quesos en cajas isotérmicas con gel refrigerante.' },
+            { iconName: 'Gift', title: 'Tarjeta Grabada de Regalo', description: 'Incluimos dedicatoria elegante en papel textura con sello de lacre.' },
+            { iconName: 'ShieldCheck', title: 'Garantía de Maridaje', description: 'Asesoría en línea previa a tu compra con nuestro Sommelier.' },
+          ],
+        },
+      },
+      {
+        id: 'bg-testimonials',
+        type: 'testimonials',
+        settings: { backgroundColor: '#ffffff', textColor: '#1c1917', paddingY: 64 },
+        content: {
+          title: 'Opiniones de Catadores & Clientes VIP',
+          items: [
+            { text: 'El Malbec Gran Reserva llegó a la temperatura perfecta para el descorche. La caja de regalo superó las expectativas de mi cliente corporativo.', name: 'Carlos E.', role: 'Gerente General (San Isidro)' },
+            { text: 'El queso trufado es sensacional. Sin duda la mejor tienda delicatessen en Lima.', name: 'Lucía B.', role: 'Sommelier Aficionada' },
+          ],
+        },
+      },
+      {
+        id: 'bg-cta',
+        type: 'cta',
+        settings: { accentColor: '#d97706', paddingY: 80 },
+        content: {
+          title: 'HAMPERS & REGALOS CORPORATIVOS VIP',
+          description: 'Personalizamos tus cajas de regalo con grabado de marca y tarjeta personalizada.',
+          buttonText: 'Cotizar con Sommelier por WhatsApp',
         },
       },
       {
