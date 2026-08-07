@@ -3,6 +3,7 @@ import { prisma } from '@repo/prisma';
 import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam } from '@/lib/api';
 import { pageStore } from '@/lib/pageStore';
 import { ensureDefaultBusiness, DEFAULT_BUSINESS_ID } from '@/lib/business';
+import { BUILTIN_TEMPLATES } from '@/lib/builtinTemplates';
 import crypto from 'crypto';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,16 +96,32 @@ export async function POST(request: NextRequest) {
     let seo: any = {};
     let settings: any = {};
 
+    // Load blocks from template if templateId is provided
     if (templateId) {
-      try {
-        const { templateRegistry } = await import('@repo/templates');
-        const template = templateRegistry.get(templateId);
-        if (template) {
-          blocks = template.blocks as any[];
-          seo = template.seo;
-          settings = template.settings;
-        }
-      } catch { /* template registry unavailable */ }
+      const foundTpl = BUILTIN_TEMPLATES.find(t => t.id === templateId);
+      if (foundTpl) {
+        blocks = JSON.parse(JSON.stringify(foundTpl.blocks));
+        seo = foundTpl.seo || {};
+        settings = foundTpl.settings || {};
+      } else {
+        try {
+          const { templateRegistry } = await import('@repo/templates');
+          const template = templateRegistry.get(templateId);
+          if (template) {
+            blocks = template.blocks as any[];
+            seo = template.seo;
+            settings = template.settings;
+          }
+        } catch { /* template registry unavailable */ }
+      }
+    }
+
+    // If still 0 blocks (e.g. blank page creation), load default Adrisu Kids blocks for fashion store
+    if (blocks.length === 0 && (type === 'store' || type === 'ecommerce')) {
+      const defaultFashionTpl = BUILTIN_TEMPLATES[0];
+      blocks = JSON.parse(JSON.stringify(defaultFashionTpl.blocks));
+      seo = defaultFashionTpl.seo || {};
+      settings = defaultFashionTpl.settings || {};
     }
 
     // Try DB first with valid UUID fields only
@@ -127,7 +144,7 @@ export async function POST(request: NextRequest) {
       });
 
       pageStore.set(page.id, { ...page, blocks, seo, settings });
-      console.log(`[PAGES POST] Created in DB: ${page.id}`);
+      console.log(`[PAGES POST] Created in DB with ${blocks.length} blocks: ${page.id}`);
       return apiSuccess(page, 201);
     } catch (dbErr) {
       console.warn('[PAGES POST] DB error, using in-process store:', (dbErr as any)?.message?.slice(0, 100));
@@ -136,7 +153,7 @@ export async function POST(request: NextRequest) {
     // In-process store fallback
     const fallback = makeFallbackPage({ title, type, description, slug, templateId, blocks, seo, settings });
     pageStore.set(fallback.id, fallback);
-    console.log(`[PAGES POST FALLBACK] Stored in-process: ${fallback.id}`);
+    console.log(`[PAGES POST FALLBACK] Stored in-process with ${blocks.length} blocks: ${fallback.id}`);
     return apiSuccess(fallback, 201);
   } catch (error) {
     console.error('[PAGES POST ERROR]', error);
