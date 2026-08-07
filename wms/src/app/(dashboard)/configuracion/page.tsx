@@ -283,7 +283,9 @@ function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
                       value={provider.apiKey || ''}
                       onChange={(e) => {
                         const newProv = { ...config.providers }
-                        newProv[key].apiKey = e.target.value
+                        if (newProv[key]) {
+                          newProv[key] = { ...newProv[key], apiKey: e.target.value }
+                        }
                         setConfig({ ...config, providers: newProv })
                       }}
                       placeholder={`API Key ${provider.name}...`}
@@ -299,7 +301,9 @@ function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
                     value={provider.baseUrl || 'http://localhost:11434'}
                     onChange={(e) => {
                       const newProv = { ...config.providers }
-                      newProv[key].baseUrl = e.target.value
+                      if (newProv[key]) {
+                        newProv[key] = { ...newProv[key], baseUrl: e.target.value }
+                      }
                       setConfig({ ...config, providers: newProv })
                     }}
                     className="input-field text-xs font-mono"
