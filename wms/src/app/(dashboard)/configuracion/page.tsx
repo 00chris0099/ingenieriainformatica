@@ -374,25 +374,179 @@ function AppearanceTab({ business, setBusiness, onSave, saving, saved }: {
 }
 
 // ============================================================================
-// Domain Tab
+// Domain Tab (Full Enterprise Manager)
 // ============================================================================
 function DomainTab({ business, setBusiness, onSave, saving, saved }: {
   business: BusinessData; setBusiness: (b: BusinessData) => void; onSave: () => void; saving: boolean; saved: boolean
 }) {
+  const [domains, setDomains] = useState<any[]>([])
+  const [loadingDomains, setLoadingDomains] = useState(true)
+  const [newDomainInput, setNewDomainInput] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  useEffect(() => {
+    fetchDomains()
+  }, [])
+
+  const fetchDomains = async () => {
+    setLoadingDomains(true)
+    try {
+      const res = await fetch('/api/v1/domains')
+      if (res.ok) {
+        const data = await res.json()
+        setDomains(data.data || [])
+      }
+    } catch {
+      /* fallback */
+    } finally {
+      setLoadingDomains(false)
+    }
+  }
+
+  const handleAddDomain = async () => {
+    if (!newDomainInput.trim()) return
+    setAdding(true)
+    setErrorMsg('')
+    try {
+      const res = await fetch('/api/v1/domains', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: newDomainInput }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setNewDomainInput('')
+        fetchDomains()
+      } else {
+        setErrorMsg(data.error?.message || 'Error al agregar dominio')
+      }
+    } catch {
+      setErrorMsg('Error de red al registrar dominio')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleVerifyDomain = async (id: string) => {
+    setVerifyingId(id)
+    try {
+      const res = await fetch(`/api/v1/domains/${id}`, { method: 'POST' })
+      if (res.ok) {
+        fetchDomains()
+      }
+    } catch {}
+    finally {
+      setVerifyingId(null)
+    }
+  }
+
+  const handleDeleteDomain = async (id: string) => {
+    try {
+      await fetch(`/api/v1/domains/${id}`, { method: 'DELETE' })
+      fetchDomains()
+    } catch {}
+  }
+
   return (
     <div className="space-y-6">
-      <Section title="Subdominio VPS Asignado" description="Dirección web gratuita en la plataforma">
+      <Section title="Subdominio VPS Asignado" description="Dirección web gratuita asignada en la plataforma">
         <div className="flex items-center gap-2">
-          <Input value={business.subdomain} className="flex-1"
-            onChange={e => setBusiness({ ...business, subdomain: e.target.value })} placeholder="mi-tienda" />
+          <Input
+            value={business.subdomain || 'mi-tienda'}
+            className="flex-1"
+            onChange={e => setBusiness({ ...business, subdomain: e.target.value })}
+            placeholder="mi-tienda"
+          />
           <span className="text-xs font-bold text-[var(--color-text-tertiary)]">.tudominio.com</span>
         </div>
       </Section>
 
-      <Section title="Conexión de Dominio Propio" description="Configura tu propio dominio .com, .pe o .net">
-        <Input label="Nombre de Dominio" value={business.domain}
-          onChange={e => setBusiness({ ...business, domain: e.target.value })} placeholder="www.mitienda.com" />
+      <Section title="Agregar Dominio Personalizado" description="Conecta tu propio dominio (.com, .pe, .net, .store)">
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              value={newDomainInput}
+              onChange={e => setNewDomainInput(e.target.value)}
+              placeholder="Ejemplo: adriskids.com"
+              className="flex-1 font-mono text-xs"
+            />
+            <Button loading={adding} onClick={handleAddDomain} icon={<Globe size={14} />}>
+              Conectar Dominio
+            </Button>
+          </div>
+          {errorMsg && (
+            <p className="text-xs font-semibold text-rose-500">{errorMsg}</p>
+          )}
+        </div>
       </Section>
+
+      <Section title="Registros DNS para Configurar en tu Proveedor (GoDaddy, Namecheap, Cloudflare)" description="Apunta estos registros DNS para activar el enrutamiento y tu Certificado SSL gratis">
+        <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-base)] space-y-3">
+          <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border)]">
+            <span className="font-bold text-[var(--color-text-primary)]">Registro Tipo A (Dominio Raíz)</span>
+            <span className="font-mono text-emerald-500 font-extrabold">187.77.57.116</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-[var(--color-text-primary)]">Registro CNAME (Subdominio www)</span>
+            <span className="font-mono text-blue-500 font-bold truncate max-w-[260px]">aimachristian-tiendawms.ajcxjb.easypanel.host</span>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Mis Dominios Conectados" description="Estado en tiempo real del DNS y Certificado SSL Let's Encrypt">
+        {loadingDomains ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-accent)]" />
+          </div>
+        ) : domains.length === 0 ? (
+          <div className="text-center p-6 border border-dashed rounded-xl text-xs text-[var(--color-text-tertiary)]">
+            No tienes dominios personalizados conectados aún.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {domains.map((d: any) => (
+              <div key={d.id} className="p-4 rounded-xl border border-[var(--color-border)] surface-card flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm font-mono text-[var(--color-text-primary)]">{d.domain}</span>
+                    <Badge variant={d.sslStatus === 'active' ? 'success' : 'warning'}>
+                      {d.sslStatus === 'active' ? 'SSL Activo (HTTPS)' : 'Emitiendo SSL'}
+                    </Badge>
+                    <Badge variant={d.status === 'verified' ? 'success' : 'neutral'}>
+                      {d.status === 'verified' ? 'DNS Verificado' : 'Pendiente DNS'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+                    CNAME: {d.cnameTarget || 'aimachristian-tiendawms.ajcxjb.easypanel.host'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleVerifyDomain(d.id)}
+                    disabled={verifyingId === d.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border hover:bg-[var(--color-bg-hover)] transition-all"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    {verifyingId === d.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                    Verificar DNS
+                  </button>
+                  <button
+                    onClick={() => handleDeleteDomain(d.id)}
+                    className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    title="Eliminar dominio"
+                  >
+                    <Globe size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
       <SaveBar onSave={onSave} saving={saving} saved={saved} />
     </div>
   )
