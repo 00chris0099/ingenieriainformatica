@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiPaginated, parsePagination, getSearchParam } from '@/lib/api'
 
 // 3 Complete E-Commerce Store Templates (Shopify/Framer level quality)
-export const BUILTIN_TEMPLATES = [
+const BUILTIN_TEMPLATES = [
   {
     id: 'tpl-adrisu-kids',
     name: 'Adrisu Kids - Moda Infantil',
