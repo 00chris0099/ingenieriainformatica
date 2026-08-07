@@ -24,7 +24,11 @@ export default function BuilderIndexPage() {
   useEffect(() => {
     fetch('/api/v1/pages?limit=50')
       .then(r => r.json())
-      .then(d => { setPages(d.data?.items || []); setLoading(false) })
+      .then(d => {
+        const items = Array.isArray(d.data) ? d.data : Array.isArray(d.data?.items) ? d.data.items : []
+        setPages(items)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [])
 

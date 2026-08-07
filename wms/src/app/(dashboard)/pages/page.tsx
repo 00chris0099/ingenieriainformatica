@@ -43,7 +43,8 @@ export default function PagesPage() {
       const res = await fetch('/api/v1/pages?limit=100')
       if (res.ok) {
         const data = await res.json()
-        setPages(data.data?.items || [])
+        const items = Array.isArray(data.data) ? data.data : Array.isArray(data.data?.items) ? data.data.items : []
+        setPages(items)
       }
     } catch (error) {
       console.error('Error fetching pages:', error)
@@ -170,7 +171,10 @@ function CreatePageModal({ onClose, onCreated }: { onClose: () => void; onCreate
   useEffect(() => {
     fetch('/api/v1/templates')
       .then(res => res.json())
-      .then(data => setTemplates(data.data?.items || []))
+      .then(data => {
+        const items = Array.isArray(data.data) ? data.data : Array.isArray(data.data?.items) ? data.data.items : []
+        setTemplates(items)
+      })
       .catch(() => {})
   }, [])
 
