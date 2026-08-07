@@ -3,6 +3,12 @@ import { prisma } from '@repo/prisma';
 import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam } from '@/lib/api';
 import { pageStore } from '@/lib/pageStore';
 import { ensureDefaultBusiness, DEFAULT_BUSINESS_ID } from '@/lib/business';
+import crypto from 'crypto';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(str: string): boolean {
+  return typeof str === 'string' && UUID_REGEX.test(str);
+}
 
 function slugify(text: string): string {
   return text
@@ -13,7 +19,7 @@ function slugify(text: string): string {
 }
 
 function makeFallbackPage(overrides: any = {}): any {
-  const id = overrides.id || `page-${Date.now()}`;
+  const id = (overrides.id && isUuid(overrides.id)) ? overrides.id : crypto.randomUUID();
   const title = overrides.title || 'Nueva Página Web';
   return {
     id,
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     // Ensure valid business UUID
     let targetBusinessId = businessId;
-    if (!targetBusinessId || targetBusinessId === 'agency-vps-default' || targetBusinessId.length < 32) {
+    if (!targetBusinessId || targetBusinessId === 'agency-vps-default' || !isUuid(targetBusinessId)) {
       targetBusinessId = await ensureDefaultBusiness();
     }
 
@@ -101,18 +107,21 @@ export async function POST(request: NextRequest) {
       } catch { /* template registry unavailable */ }
     }
 
-    // Try DB first with valid business UUID
+    // Try DB first with valid UUID fields only
     try {
       let dbSlug = slug;
       const existing = await prisma.page.findFirst({ where: { businessId: targetBusinessId, slug: dbSlug } });
       if (existing) dbSlug = `${dbSlug}-${Date.now()}`;
+
+      // Only pass templateId to Prisma if it is a valid UUID
+      const validTemplateId = (templateId && isUuid(templateId)) ? templateId : null;
 
       const page = await prisma.page.create({
         data: {
           title, slug: dbSlug, type: type || 'landing',
           description: description || null,
           businessId: targetBusinessId,
-          templateId: templateId || null,
+          templateId: validTemplateId,
           blocks, seo, settings,
         },
       });

@@ -3,6 +3,12 @@ import { prisma } from '@repo/prisma';
 import { apiError, apiSuccess } from '@/lib/api';
 import { pageStore } from '@/lib/pageStore';
 import { ensureDefaultBusiness, DEFAULT_BUSINESS_ID } from '@/lib/business';
+import crypto from 'crypto';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(str: string): boolean {
+  return typeof str === 'string' && UUID_REGEX.test(str);
+}
 
 function syntheticPage(id: string): any {
   return {
@@ -29,23 +35,24 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   }
 
   try {
-    const page = await prisma.page.findUnique({ where: { id } });
+    let page: any = null;
+    if (isUuid(id)) {
+      page = await prisma.page.findUnique({ where: { id } });
+    } else {
+      page = await prisma.page.findFirst({ where: { slug: id } });
+    }
+
     if (page) {
-      pageStore.set(id, page);
+      pageStore.set(page.id, page);
       return apiSuccess(page);
     }
   } catch (e) {
     console.warn(`[PAGE GET ${id}] DB error:`, (e as any)?.message?.slice(0, 80));
   }
 
-  if (id.startsWith('page-') || id.length < 36) {
-    console.warn(`[PAGE GET ${id}] Not found in DB/store — returning synthetic blank page`);
-    const synthetic = syntheticPage(id);
-    pageStore.set(id, synthetic);
-    return apiSuccess(synthetic);
-  }
-
-  return apiError('Página no encontrada', 404);
+  const synthetic = syntheticPage(id);
+  pageStore.set(id, synthetic);
+  return apiSuccess(synthetic);
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
@@ -64,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (blocks !== undefined) data.blocks = blocks;
     if (seo !== undefined) data.seo = seo;
     if (settings !== undefined) data.settings = settings;
-    if (templateId !== undefined) data.templateId = templateId;
+    if (templateId !== undefined && isUuid(templateId)) data.templateId = templateId;
     data.updatedAt = new Date();
 
     const current = pageStore.get(id) || syntheticPage(id);
@@ -73,7 +80,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     try {
       let dbPage: any;
-      const existing = await prisma.page.findUnique({ where: { id } });
+      let existing: any = null;
+
+      if (isUuid(id)) {
+        existing = await prisma.page.findUnique({ where: { id } });
+      }
 
       if (existing) {
         if (status === 'published' && existing.status !== 'published') {
@@ -84,7 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         const targetBizId = await ensureDefaultBusiness();
         dbPage = await prisma.page.create({
           data: {
-            id: id.length === 36 ? id : undefined, // only pass ID if valid UUID
+            id: isUuid(id) ? id : crypto.randomUUID(),
             title: updated.title,
             slug: updated.slug,
             type: updated.type || 'landing',
@@ -98,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         });
       }
 
-      pageStore.set(id, dbPage);
+      pageStore.set(dbPage.id, dbPage);
       return apiSuccess(dbPage);
     } catch (dbErr) {
       console.warn(`[PAGE PUT ${id}] DB error, returning store version:`, (dbErr as any)?.message?.slice(0, 100));
@@ -116,7 +127,11 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   pageStore.delete(id);
 
   try {
-    await prisma.page.delete({ where: { id } });
+    if (isUuid(id)) {
+      await prisma.page.delete({ where: { id } });
+    } else {
+      await prisma.page.deleteMany({ where: { slug: id } });
+    }
   } catch (e) {
     console.warn(`[PAGE DELETE ${id}] DB delete failed:`, (e as any)?.message?.slice(0, 80));
   }
