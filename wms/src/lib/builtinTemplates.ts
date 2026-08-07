@@ -1,14 +1,14 @@
 export const BUILTIN_TEMPLATES = [
   {
     id: 'tpl-adrisu-kids',
-    name: 'Adrisu Kids - Moda Infantil',
-    description: 'Tienda virtual e-commerce completa especializada en moda, calzado y ropa infantil. Incluye hero alegre, barra de anuncios, parrilla de vestidos/conjuntos, insignias de descuento, garantía de envío gratis y testimonios de mamás.',
+    name: 'Adrisu Kids - Moda Infantil (Multi-Ventana Enterprise)',
+    description: 'Tienda virtual de alta gama con navegación por ventanas (Inicio, Niños, Niñas, Bebés, Ofertas), barra de anuncios fija, filtro de catálogo por categorías, modal de vista rápida, selector de tallas y compra directa por WhatsApp.',
     industry: 'moda_infantil',
     category: 'ecommerce',
     thumbnail: null,
     seo: {
-      title: 'Adrisu Kids - Moda & Tendencias Infantiles',
-      description: 'Ropa de alta calidad en algodón 100% antialérgico para niños y bebés.',
+      title: 'Adrisu Kids - Tienda Virtual Oficial de Moda Infantil',
+      description: 'Prendas exclusivas en algodón 100% antialérgico para niños, niñas y bebés.',
     },
     settings: {
       primaryColor: '#f43f5e',
@@ -17,83 +17,182 @@ export const BUILTIN_TEMPLATES = [
     },
     blocks: [
       {
-        id: 'ak-hero', type: 'hero',
+        id: 'ak-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#ffffff', textColor: '#111827', accentColor: '#f43f5e' },
+        content: {
+          announcement: '✨ ¡ENVÍO GRATIS A TODO EL PERÚ EN COMPRAS MAYORES A S/ 120! 📦',
+          brandName: 'ADRISU KIDS',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Colección Niños', windowId: 'ninos', iconName: 'Shirt' },
+            { label: 'Colección Niñas', windowId: 'ninas', iconName: 'Sparkles' },
+            { label: 'Ropa Bebés', windowId: 'bebes', iconName: 'Baby' },
+            { label: 'Ofertas Flash', windowId: 'ofertas', iconName: 'Flame' },
+            { label: 'Contacto WhatsApp', windowId: 'whatsapp', iconName: 'MessageSquare' },
+          ],
+        },
+      },
+      {
+        id: 'ak-hero',
+        type: 'hero',
         settings: { backgroundColor: '#fff1f2', textColor: '#881337', accentColor: '#f43f5e', paddingY: 96 },
         content: {
-          title: 'Adrisu Kids — Moda Feliz para los Pequeños',
-          subtitle: 'Colecciones cómodas, divertidas y duraderas para niños de 0 a 14 años. Envíos el mismo día en Lima y provincias.',
-          buttonText: 'Ver Ropa de Niños',
-          secondaryButtonText: 'Ver Ofertas de Temporada',
-        }
+          badge: 'NUEVA COLECCIÓN PRIMAVERA - VERANO 2026',
+          title: 'Moda Feliz y Exclusiva para los Pequeños',
+          subtitle: 'Diseños allergy-free en algodón 100% orgánico. Confort, resistencia y estilo para acompañar sus mejores aventuras.',
+          buttonText: 'Ver Catálogo Completo',
+          secondaryButtonText: 'Explorar Ofertas (30% OFF)',
+        },
       },
       {
-        id: 'ak-products', type: 'product-grid',
+        id: 'ak-products',
+        type: 'product-grid',
         settings: { backgroundColor: '#ffffff', textColor: '#111827', accentColor: '#f43f5e', paddingY: 72 },
         content: {
-          title: 'Lo Más Vendido en Adrisu Kids',
+          title: 'Catálogo de Moda Infantil — Selecciona tu Ventana',
+          subtitle: 'Explora nuestras categorías exclusivas de ropa, calzado y accesorios',
+          categoryTabs: [
+            { id: 'all', label: 'Todos los Productos' },
+            { id: 'ninos', label: 'Niños (2-14 años)' },
+            { id: 'ninas', label: 'Niñas (2-14 años)' },
+            { id: 'bebes', label: 'Bebés (0-24 meses)' },
+            { id: 'ofertas', label: 'Ofertas Flash (30% OFF)' },
+          ],
           products: [
-            { name: 'Conjunto Algodón Orgánico (2-6 años)', price: 'S/ 59.90', emoji: '👕' },
-            { name: 'Vestido Fiesta Primavera Florcita', price: 'S/ 79.90', emoji: '👗' },
-            { name: 'Zapatillas Luces Led Confort', price: 'S/ 99.90', emoji: '👟' },
-            { name: 'Pijama Enterizo Térmico Bebé', price: 'S/ 45.00', emoji: '👶' },
-            { name: 'Casaca Impermeable Capucha Osito', price: 'S/ 89.90', emoji: '🧥' },
-            { name: 'Set 3 Polos Manga Corta Disney', price: 'S/ 49.90', emoji: '🎨' },
-          ]
-        }
+            {
+              id: 'p1',
+              category: 'ninos',
+              name: 'Conjunto Algodón Orgánico Dino Explorer',
+              price: 'S/ 59.90',
+              originalPrice: 'S/ 89.90',
+              discountBadge: '-33% OFF',
+              iconName: 'Shirt',
+              sizes: ['2T', '4T', '6T', '8T'],
+              colors: ['#3b82f6', '#10b981', '#f59e0b'],
+              description: 'Algodón peruano 100% peinado, transpirable y súper suave.',
+            },
+            {
+              id: 'p2',
+              category: 'ninas',
+              name: 'Vestido Fiesta Primavera Florcita Rose',
+              price: 'S/ 79.90',
+              originalPrice: 'S/ 110.00',
+              discountBadge: '-27% OFF',
+              iconName: 'Sparkles',
+              sizes: ['4T', '6T', '8T', '10T'],
+              colors: ['#f43f5e', '#ec4899', '#fef08a'],
+              description: 'Forro de franela suave con tul fantasía de alta durabilidad.',
+            },
+            {
+              id: 'p3',
+              category: 'ninos',
+              name: 'Zapatillas Luces LED Confort Runner',
+              price: 'S/ 99.90',
+              originalPrice: 'S/ 139.90',
+              discountBadge: '-28% OFF',
+              iconName: 'Footprints',
+              sizes: ['24', '26', '28', '30'],
+              colors: ['#000000', '#2563eb', '#dc2626'],
+              description: 'Suela antideslizante con batería LED recargable de larga duración.',
+            },
+            {
+              id: 'p4',
+              category: 'bebes',
+              name: 'Pijama Enterizo Térmico Bebé Osito Velvet',
+              price: 'S/ 45.00',
+              originalPrice: 'S/ 65.00',
+              discountBadge: '-30% OFF',
+              iconName: 'Baby',
+              sizes: ['0-3M', '3-6M', '6-12M', '12-18M'],
+              colors: ['#fbbf24', '#60a5fa', '#f472b6'],
+              description: 'Cierre bidireccional para cambio rápido de pañal.',
+            },
+            {
+              id: 'p5',
+              category: 'ninos',
+              name: 'Casaca Impermeable Capucha Osito Térmico',
+              price: 'S/ 89.90',
+              originalPrice: 'S/ 120.00',
+              discountBadge: '-25% OFF',
+              iconName: 'ShieldCheck',
+              sizes: ['4T', '6T', '8T', '12T'],
+              colors: ['#1e293b', '#0284c7', '#d97706'],
+              description: 'Interior térmico de polar antipeeling y tela 100% repelente al agua.',
+            },
+            {
+              id: 'p6',
+              category: 'ninas',
+              name: 'Set x3 Polos Manga Corta Algodón Supima',
+              price: 'S/ 49.90',
+              originalPrice: 'S/ 75.00',
+              discountBadge: '-33% OFF',
+              iconName: 'Palette',
+              sizes: ['2T', '4T', '6T', '8T'],
+              colors: ['#f43f5e', '#a855f7', '#06b6d4'],
+              description: 'Colores duraderos que soportan más de 50 lavadas sin decolorar.',
+            },
+          ],
+        },
       },
       {
-        id: 'ak-features', type: 'features',
+        id: 'ak-features',
+        type: 'features',
         settings: { backgroundColor: '#fff8f6', textColor: '#111827', accentColor: '#f43f5e', paddingY: 64 },
         content: {
-          title: 'Por qué las Mamás Eligen Adrisu Kids',
+          title: '¿Por qué la Plataforma Adrisu Kids es la Elegida por las Familias?',
           items: [
-            { icon: '🌿', title: 'Algodón 100% Antialérgico', description: 'Cuidamos la piel sensible de tus hijos con telas orgánicas y suaves.' },
-            { icon: '🚚', title: 'Envío Gratis desde S/ 120', description: 'Repartos a todo el Perú por Olva Courier y Shalom.' },
-            { icon: '🔄', title: 'Cambio de Talla Sin Costo', description: 'Si la prenda no le queda, te la cambiamos de inmediato.' },
-          ]
-        }
+            { iconName: 'Leaf', title: 'Algodón 100% Antialérgico', description: 'Cuidamos la piel sensible de tus hijos con tejidos orgánicos certificados sin químicos agresivos.' },
+            { iconName: 'Truck', title: 'Envío Gratis a Nivel Nacional', description: 'Despachos en 24h para Lima y envíos asegurados por Olva Courier y Shalom a todo el Perú.' },
+            { iconName: 'RefreshCw', title: 'Cambio de Talla Sin Costo Extra', description: 'Si la prenda no le queda perfecta a tu pequeño, realizamos el cambio a domicilio totalmente gratis.' },
+            { iconName: 'ShieldCheck', title: 'Garantía Total de Satisfacción', description: 'Más de 15,000 mamás satisfechas respaldan la calidad de nuestros acabados.' },
+          ],
+        },
       },
       {
-        id: 'ak-testimonials', type: 'testimonials',
+        id: 'ak-testimonials',
+        type: 'testimonials',
         settings: { backgroundColor: '#ffffff', textColor: '#111827', paddingY: 64 },
         content: {
-          title: 'Lo que dicen las Mamás Adrisu',
+          title: 'Reseñas Verificadas de Compradoras',
           items: [
-            { text: 'La ropa de Adrisu Kids es hermosísima y no se descolora al lavar. Mis hijos están felices.', name: 'Claudia M.', role: 'Mamá de 2 pequeños (San Borja)' },
-            { text: 'Llegó en menos de 24 horas a Trujillo. La calidad del algodón superó mis expectativas.', name: 'Valeria S.', role: 'Mamá (Trujillo)' },
-            { text: 'Atención A1 por WhatsApp. Me ayudaron a elegir la talla perfecta para mi bebé.', name: 'Patricia L.', role: 'Mamá de Mateo' },
-          ]
-        }
+            { text: 'La ropa de Adrisu Kids es hermosísima y no se descolora al lavar. El algodón es súper suave y mis hijos están encantados.', name: 'Claudia M.', role: 'Mamá Verificada (San Borja)' },
+            { text: 'Llegó en menos de 24 horas a Trujillo. La atención por WhatsApp fue muy amable y el empaque vino hermoso listo para regalo.', name: 'Valeria S.', role: 'Mamá Verificada (Trujillo)' },
+            { text: 'Pedí 4 casacas y 2 conjuntos de dinosaurio. La talla fue exacta gracias a su guía y la calidad es nivel exportación.', name: 'Patricia L.', role: 'Mamá de Mateo (Surco)' },
+          ],
+        },
       },
       {
-        id: 'ak-cta', type: 'cta',
+        id: 'ak-cta',
+        type: 'cta',
         settings: { accentColor: '#f43f5e', paddingY: 80 },
         content: {
-          title: '¡CUPÓN 15% OFF EN TU PRIMERA COMPRA!',
-          description: 'Únete al Club Adrisu Kids y recibe novedades exclusivas y regalos en el cumpleaños de tus hijos.',
-          buttonText: 'Pedir por WhatsApp',
-        }
+          title: '¡CUPÓN 15% OFF EXTRA EN TU PRIMERA COMPRA!',
+          description: 'Únete al Club VIP Adrisu Kids por WhatsApp y recibe cupones de descuento exclusivos y sorpresas en el cumpleaños de tus hijos.',
+          buttonText: 'Pedir por WhatsApp Ahora',
+        },
       },
       {
-        id: 'ak-footer', type: 'footer',
+        id: 'ak-footer',
+        type: 'footer',
         settings: { backgroundColor: '#881337', textColor: '#ffffff', paddingY: 48 },
         content: {
-          brandName: 'ADRISU KIDS PERÚ',
-          copyright: '© 2026 Adrisu Kids. Todos los derechos reservados.',
-        }
-      }
-    ]
+          brandName: 'ADRISU KIDS PERÚ — OFICIAL',
+          copyright: '© 2026 Adrisu Kids Perú. Todos los derechos reservados. Impulsado por WMS Enterprise Platform.',
+        },
+      },
+    ],
   },
   {
     id: 'tpl-tech-vibes',
-    name: 'TechVibes - Gadgets & Electrónica',
-    description: 'Tienda de alta conversión en modo oscuro neón especializada en audífonos inalámbricos, smartwatches y accesorios tech.',
+    name: 'TechVibes - Electrónica & Gadgets (Multi-Ventana Enterprise)',
+    description: 'Tienda de tecnología con navegación por ventanas (Audio, Wearables, Gaming, Carga Rápida), dark mode neón y botones de compra instantánea.',
     industry: 'tecnologia',
     category: 'ecommerce',
     thumbnail: null,
     seo: {
-      title: 'TechVibes - Gadgets & Tecnología',
-      description: 'Audífonos, smartwatches y accesorios inteligentes con garantía oficial.',
+      title: 'TechVibes - Tienda Oficial de Gadgets & Tecnología',
+      description: 'Audífonos inalámbricos, smartwatches y accesorios tech con 12 meses de garantía.',
     },
     settings: {
       primaryColor: '#3b82f6',
@@ -102,69 +201,74 @@ export const BUILTIN_TEMPLATES = [
     },
     blocks: [
       {
-        id: 'tv-hero', type: 'hero',
+        id: 'tv-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6' },
+        content: {
+          announcement: '⚡ GARANTÍA OFICIAL 12 MESES + ENVÍO EXPRESS EN 2 HORAS EN LIMA 🚀',
+          brandName: 'TECHVIBES',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Audio & Headsets', windowId: 'audio', iconName: 'Headphones' },
+            { label: 'Smartwatches', windowId: 'watches', iconName: 'Watch' },
+            { label: 'Carga & Energía', windowId: 'carga', iconName: 'Zap' },
+            { label: 'Ofertas Flash', windowId: 'ofertas', iconName: 'Flame' },
+          ],
+        },
+      },
+      {
+        id: 'tv-hero',
+        type: 'hero',
         settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 96 },
         content: {
-          title: 'TechVibes — Tecnología de Siguiente Nivel',
-          subtitle: 'Audífonos con cancelación de ruido, smartwatches y periféricos gamer con garantía oficial 12 meses.',
-          buttonText: 'Ver Gadgets en Tendencia',
-          secondaryButtonText: 'Ofertas Flash',
-        }
+          badge: 'TECNOLOGÍA DE Nivel ENTERPRISE 2026',
+          title: 'TechVibes — Experiencia Audiovisual de Siguiente Nivel',
+          subtitle: 'Audífonos Hi-Fi con Cancelación Activa de Ruido (ANC), Relojes Inteligentes AMOLED y Periféricos Gamer con Garantía Oficial.',
+          buttonText: 'Explorar Gadgets Tech',
+          secondaryButtonText: 'Ofertas Relámpago',
+        },
       },
       {
-        id: 'tv-products', type: 'product-grid',
+        id: 'tv-products',
+        type: 'product-grid',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 72 },
         content: {
-          title: 'Novedades TechVibes',
+          title: 'Parrilla Tecnológica — Navega por Ventanas',
+          categoryTabs: [
+            { id: 'all', label: 'Todos los Gadgets' },
+            { id: 'audio', label: 'Audio Hi-Fi' },
+            { id: 'watches', label: 'Smartwatches' },
+            { id: 'carga', label: 'Carga Rápida GaN' },
+          ],
           products: [
-            { name: 'Audífonos ANC Pro Bass Wireless', price: 'S/ 189.00', emoji: '🎧' },
-            { name: 'Smartwatch AMOLED Ultra Fit 2', price: 'S/ 229.00', emoji: '⌚' },
-            { name: 'Cargador Carga Rápida GaN 65W', price: 'S/ 89.00', emoji: '⚡' },
-            { name: 'Teclado Mecánico RGB Wireless 60%', price: 'S/ 249.00', emoji: '⌨️' },
-          ]
-        }
+            { id: 't1', category: 'audio', name: 'Audífonos ANC Pro Bass Noise Cancelling 5.3', price: 'S/ 189.00', originalPrice: 'S/ 260.00', discountBadge: '-27% OFF', iconName: 'Headphones', description: 'Autonomía de 40 horas continuas y driver dinámico de 40mm.' },
+            { id: 't2', category: 'watches', name: 'Smartwatch AMOLED Ultra Fit 2 GPS', price: 'S/ 229.00', originalPrice: 'S/ 310.00', discountBadge: '-26% OFF', iconName: 'Watch', description: 'Monitoreo cardíaco 24/7, SpO2 y resistencia al agua 5 ATM.' },
+            { id: 't3', category: 'carga', name: 'Cargador Carga Rápida GaN 65W Triple Puerto', price: 'S/ 89.00', originalPrice: 'S/ 120.00', discountBadge: '-25% OFF', iconName: 'Zap', description: 'Carga tu laptop y smartphone en simultáneo con protocolo PD 3.0.' },
+            { id: 't4', category: 'audio', name: 'Teclado Mecánico RGB Wireless Hot-Swap 60%', price: 'S/ 249.00', originalPrice: 'S/ 320.00', discountBadge: '-22% OFF', iconName: 'Cpu', description: 'Switches mecánicos amarillos silenciosos con latencia ultra baja de 1ms.' },
+          ],
+        },
       },
       {
-        id: 'tv-features', type: 'features',
-        settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
-        content: {
-          title: 'La Garantía TechVibes',
-          items: [
-            { icon: '🛡️', title: 'Garantía Real 12 Meses', description: 'Reemplazo directo de producto si presenta algún defecto de fábrica.' },
-            { icon: '⚡', title: 'Envío Express 2 Horas', description: 'Envíos veloces en Lima Metropolitana y despachos diarios a provincias.' },
-            { icon: '🔒', title: 'Pago Contra Entrega', description: 'Paga con Yape, Plin o efectivo al recibir tu pedido en la puerta de tu casa.' },
-          ]
-        }
-      },
-      {
-        id: 'tv-cta', type: 'cta',
-        settings: { accentColor: '#3b82f6', paddingY: 80 },
-        content: {
-          title: 'OFERTAS FLASH HASTA 40% OFF',
-          description: 'Stock limitado. Haz tu pedido por WhatsApp antes de que se agoten las unidades promocionales.',
-          buttonText: 'Comprar por WhatsApp',
-        }
-      },
-      {
-        id: 'tv-footer', type: 'footer',
+        id: 'tv-footer',
+        type: 'footer',
         settings: { backgroundColor: '#030712', textColor: '#ffffff', paddingY: 48 },
         content: {
           brandName: 'TECHVIBES STORE',
           copyright: '© 2026 TechVibes. Impulsado por WMS Platform.',
-        }
-      }
-    ]
+        },
+      },
+    ],
   },
   {
     id: 'tpl-boutique-gourmet',
-    name: 'Boutique Gourmet - Vinos & Delicatessen',
-    description: 'Diseño ultra elegante para tiendas de vinos, quesos madurados, chocolates finos y regalos gourmet corporativos.',
+    name: 'Boutique Gourmet - Vinos & Cava (Multi-Ventana Enterprise)',
+    description: 'Diseño distinguido con ventanas de Cava, Quesos Madurados, Chocolateria Fina y Regalos Corporativos.',
     industry: 'gastronomia',
     category: 'ecommerce',
     thumbnail: null,
     seo: {
       title: 'Boutique Gourmet - Vinos & Delicatessen',
-      description: 'Vinos de reserva, licores finos y cajas de regalo corporativas.',
+      description: 'Vinos de gran reserva, quesos madurados y hampers de regalo corporativo.',
     },
     settings: {
       primaryColor: '#78350f',
@@ -173,45 +277,53 @@ export const BUILTIN_TEMPLATES = [
     },
     blocks: [
       {
-        id: 'bg-hero', type: 'hero',
+        id: 'bg-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#1c1917', textColor: '#fef3c7', accentColor: '#d97706' },
+        content: {
+          announcement: '🍷 ATENCIÓN SOMMELIER PERSONALIZADA & PACKS CORPORATIVOS 🎁',
+          brandName: 'BOUTIQUE GOURMET',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Cava & Vinos', windowId: 'vinos', iconName: 'Wine' },
+            { label: 'Quesos Artisanal', windowId: 'quesos', iconName: 'Utensils' },
+            { label: 'Cajas Regalo', windowId: 'regalos', iconName: 'Gift' },
+          ],
+        },
+      },
+      {
+        id: 'bg-hero',
+        type: 'hero',
         settings: { backgroundColor: '#1c1917', textColor: '#fef3c7', accentColor: '#d97706', paddingY: 96 },
         content: {
-          title: 'Boutique Gourmet — El Placer de lo Exquisito',
-          subtitle: 'Vinos de gran reserva, quesos artesanales, aceites de oliva virgen extra y hampers corporativos de lujo.',
+          title: 'Boutique Gourmet — El Arte de Maridar Exquisito',
+          subtitle: 'Vinos de cosecha seleccionada, quesos trufados madurados y cajas de regalo de lujo.',
           buttonText: 'Explorar Cava & Delicatessen',
-          secondaryButtonText: 'Packs de Regalo',
-        }
+          secondaryButtonText: 'Hampers Corporativos',
+        },
       },
       {
-        id: 'bg-products', type: 'product-grid',
+        id: 'bg-products',
+        type: 'product-grid',
         settings: { backgroundColor: '#ffffff', textColor: '#1c1917', accentColor: '#d97706', paddingY: 72 },
         content: {
-          title: 'Selección del Sommelier',
+          title: 'Nuestra Cava Seleccionada',
           products: [
-            { name: 'Vino Gran Reserva Malbec Mendoza 2018', price: 'S/ 165.00', emoji: '🍷' },
-            { name: 'Queso Trufado Artesanal Madurado', price: 'S/ 85.00', emoji: '🧀' },
-            { name: 'Tabla Jamón Serrano 100% Ibérico', price: 'S/ 120.00', emoji: '🥓' },
-            { name: 'Box Sommelier (Vino + 2 Quesos + Mermelada)', price: 'S/ 290.00', emoji: '🎁' },
-          ]
-        }
+            { id: 'g1', name: 'Vino Gran Reserva Malbec Mendoza 2018', price: 'S/ 165.00', originalPrice: 'S/ 210.00', discountBadge: '-21% OFF', iconName: 'Wine', description: 'Madurado 24 meses en barrica de roble francés.' },
+            { id: 'g2', name: 'Queso Trufado Artesanal Madurado 300g', price: 'S/ 85.00', originalPrice: 'S/ 110.00', discountBadge: '-22% OFF', iconName: 'Utensils', description: 'Elaborado con trufa negra silvestre importada.' },
+            { id: 'g3', name: 'Box Sommelier (Vino + 2 Quesos + Mermelada)', price: 'S/ 290.00', originalPrice: 'S/ 360.00', discountBadge: '-19% OFF', iconName: 'Gift', description: 'Caja de madera tallada a mano lista para obsequio VIP.' },
+          ],
+        },
       },
       {
-        id: 'bg-cta', type: 'cta',
-        settings: { accentColor: '#d97706', paddingY: 80 },
-        content: {
-          title: 'HAMPERS & REGALOS CORPORATIVOS',
-          description: 'Personalizamos tus cajas de regalo con grabado de marca y tarjeta personalizada.',
-          buttonText: 'Cotizar con Sommelier',
-        }
-      },
-      {
-        id: 'bg-footer', type: 'footer',
+        id: 'bg-footer',
+        type: 'footer',
         settings: { backgroundColor: '#0c0a09', textColor: '#fef3c7', paddingY: 48 },
         content: {
           brandName: 'BOUTIQUE GOURMET PERÚ',
           copyright: '© 2026 Boutique Gourmet.',
-        }
-      }
-    ]
-  }
-];
+        },
+      },
+    ],
+  },
+]

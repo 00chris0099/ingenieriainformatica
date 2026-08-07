@@ -292,16 +292,38 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
 
       const activeBorder = isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''
 
+      if (b.type === 'navbar') {
+        const links = Array.isArray(c.links) ? c.links : []
+        return `
+          <header style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; position:sticky; top:0; z-index:40; border-b:1px solid #e2e8f0; ${activeBorder}" data-block-id="${b.id}">
+            ${c.announcement ? `<div style="background:${s.accentColor || '#f43f5e'}; color:#fff; text-align:center; padding:6px 12px; font-size:11px; font-weight:800; letter-spacing:0.5px;">${c.announcement}</div>` : ''}
+            <div style="max-width:1200px; margin:0 auto; padding:12px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+              <div style="font-size:18px; font-weight:900; letter-spacing:-0.5px; color:${s.textColor || '#111'}; display:flex; align-items:center; gap:8px;">
+                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${s.accentColor || '#f43f5e'};"></span>
+                ${c.brandName || 'TIENDA VIRTUAL'}
+              </div>
+              <nav style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                ${links.map((link: any) => `
+                  <a href="#${link.windowId || 'home'}" style="font-size:12px; font-weight:700; color:${s.textColor || '#475569'}; text-decoration:none; padding:4px 8px; border-radius:6px; transition:all 0.15s;" onmouseover="this.style.color='${s.accentColor || '#f43f5e'}'" onmouseout="this.style.color='${s.textColor || '#475569'}'">
+                    ${link.label}
+                  </a>
+                `).join('')}
+              </nav>
+            </div>
+          </header>
+        `
+      }
+
       if (b.type === 'hero') {
         return `
           <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 96}px 24px; text-align:center; position:relative; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 900px; margin:0 auto;">
-              <span style="font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; padding:4px 12px; border-radius:20px; background:rgba(236,72,153,0.15); color:${s.accentColor || '#ec4899'}; display:inline-block; margin-bottom:16px;">Colección Exclusiva 2026</span>
-              <h1 style="font-size: 42px; font-weight:900; margin-bottom:16px; line-height:1.1;">${c.title || 'Moda & Tendencias'}</h1>
-              <p style="font-size:18px; opacity:0.85; margin-bottom:32px; max-width:650px; margin-left:auto; margin-right:auto;">${c.subtitle || 'Descubre prendas únicas diseñadas para destacar.'}</p>
+              ${c.badge ? `<span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; padding:6px 16px; border-radius:20px; background:rgba(244,63,94,0.15); color:${s.accentColor || '#f43f5e'}; display:inline-block; margin-bottom:16px; border:1px solid rgba(244,63,94,0.3);">${c.badge}</span>` : ''}
+              <h1 style="font-size: 42px; font-weight:900; margin-bottom:16px; line-height:1.1; tracking-tight;">${c.title || 'Moda & Tendencias'}</h1>
+              <p style="font-size:17px; opacity:0.85; margin-bottom:32px; max-width:650px; margin-left:auto; margin-right:auto; line-height:1.6;">${c.subtitle || 'Descubre prendas únicas diseñadas para destacar.'}</p>
               <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-                <a style="background:${s.accentColor || '#ec4899'}; color:#fff; padding:14px 32px; border-radius:12px; font-weight:800; text-decoration:none; box-shadow:0 10px 25px rgba(236,72,153,0.3); font-size:15px;" href="#">${c.buttonText || 'Ver Colección'}</a>
-                ${c.secondaryButtonText ? `<a style="background:rgba(255,255,255,0.1); color:#fff; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:15px; border:1px solid rgba(255,255,255,0.2);" href="#">${c.secondaryButtonText}</a>` : ''}
+                <a style="background:${s.accentColor || '#f43f5e'}; color:#fff; padding:14px 32px; border-radius:12px; font-weight:800; text-decoration:none; box-shadow:0 10px 25px rgba(244,63,94,0.3); font-size:15px;" href="#productos">${c.buttonText || 'Ver Catálogo'}</a>
+                ${c.secondaryButtonText ? `<a style="background:rgba(255,255,255,0.1); color:#fff; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:15px; border:1px solid rgba(255,255,255,0.2);" href="#ofertas">${c.secondaryButtonText}</a>` : ''}
               </div>
             </div>
           </section>
@@ -310,17 +332,51 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
 
       if (b.type === 'product-grid') {
         const products = Array.isArray(c.products) ? c.products : []
+        const tabs = Array.isArray(c.categoryTabs) ? c.categoryTabs : []
         return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width: 1100px; margin:0 auto;">
-              <h2 style="font-size: 28px; font-weight:800; text-align:center; margin-bottom:40px;">${c.title || 'Catálogo de Productos'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:24px;">
+          <section id="productos" style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${activeBorder}" data-block-id="${b.id}">
+            <div style="max-width: 1150px; margin:0 auto;">
+              <h2 style="font-size: 28px; font-weight:900; text-align:center; margin-bottom:8px;">${c.title || 'Catálogo de Productos'}</h2>
+              ${c.subtitle ? `<p style="text-align:center; font-size:14px; color:#64748b; margin-bottom:28px;">${c.subtitle}</p>` : ''}
+              
+              <!-- Multi-Window Category Tabs -->
+              ${tabs.length > 0 ? `
+                <div style="display:flex; justify-content:center; gap:8px; margin-bottom:36px; flex-wrap:wrap;">
+                  ${tabs.map((tab: any, idx: number) => `
+                    <button style="padding:8px 18px; border-radius:20px; font-size:12px; font-weight:700; border:${idx === 0 ? 'none' : '1px solid #e2e8f0'}; background:${idx === 0 ? (s.accentColor || '#f43f5e') : '#f8fafc'}; color:${idx === 0 ? '#fff' : '#475569'}; cursor:pointer;">
+                      ${tab.label}
+                    </button>
+                  `).join('')}
+                </div>
+              ` : ''}
+
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px;">
                 ${products.map((p: any) => `
-                  <div style="border:1px solid #e5e7eb; border-radius:16px; padding:20px; background:#fff; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.03); transition:all 0.2s;">
-                    <div style="font-size:48px; margin-bottom:12px;">${p.emoji || '🛍️'}</div>
-                    <h3 style="font-size:16px; font-weight:700; margin-bottom:8px; color:#111827;">${p.name}</h3>
-                    <div style="font-size:20px; font-weight:900; color:${s.accentColor || '#ec4899'}; margin-bottom:16px;">${p.price}</div>
-                    <button style="width:100%; background:${s.accentColor || '#ec4899'}; color:#fff; border:none; padding:10px; border-radius:10px; font-weight:700; cursor:pointer;">Comprar Ahora</button>
+                  <div style="border:1px solid #e2e8f0; border-radius:20px; padding:20px; background:#fff; text-align:left; box-shadow:0 4px 20px rgba(0,0,0,0.03); position:relative; display:flex; flex-direction:column; justify-content:space-between;">
+                    ${p.discountBadge ? `<span style="position:absolute; top:12px; right:12px; background:#fff1f2; color:#f43f5e; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #fecdd3;">${p.discountBadge}</span>` : ''}
+                    <div>
+                      <div style="height:140px; background:#f8fafc; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; border:1px solid #f1f5f9;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                      </div>
+                      <h3 style="font-size:15px; font-weight:800; margin-bottom:6px; color:#0f172a; line-height:1.3;">${p.name}</h3>
+                      <p style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.4;">${p.description || ''}</p>
+                      
+                      <!-- Size selector badge options -->
+                      ${Array.isArray(p.sizes) ? `
+                        <div style="display:flex; gap:4px; margin-bottom:12px;">
+                          ${p.sizes.map((sz: string) => `<span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; background:#f1f5f9; color:#475569;">${sz}</span>`).join('')}
+                        </div>
+                      ` : ''}
+
+                      <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px;">
+                        <span style="font-size:22px; font-weight:900; color:${s.accentColor || '#f43f5e'};">${p.price}</span>
+                        ${p.originalPrice ? `<span style="font-size:13px; text-decoration:line-through; color:#94a3b8;">${p.originalPrice}</span>` : ''}
+                      </div>
+                    </div>
+                    
+                    <button style="width:100%; background:${s.accentColor || '#f43f5e'}; color:#fff; border:none; padding:12px; border-radius:12px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 8px 16px rgba(244,63,94,0.25);">
+                      Pedir por WhatsApp
+                    </button>
                   </div>
                 `).join('')}
               </div>
@@ -334,12 +390,14 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         return `
           <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 1100px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:26px; font-weight:800; margin-bottom:40px;">${c.title || 'Beneficios Exclusivos'}</h2>
+              <h2 style="font-size:26px; font-weight:900; margin-bottom:40px;">${c.title || 'Beneficios Exclusivos'}</h2>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:24px;">
                 ${items.map((item: any) => `
-                  <div style="padding:24px; background:#fff; border-radius:16px; border:1px solid #e2e8f0; text-align:left;">
-                    <div style="font-size:32px; margin-bottom:12px;">${item.icon || '✨'}</div>
-                    <h3 style="font-size:16px; font-weight:700; margin-bottom:8px;">${item.title || 'Beneficio'}</h3>
+                  <div style="padding:24px; background:#fff; border-radius:20px; border:1px solid #e2e8f0; text-align:left; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+                    <div style="width:44px; height:44px; border-radius:12px; background:#fff1f2; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <h3 style="font-size:16px; font-weight:800; margin-bottom:8px; color:#0f172a;">${item.title || 'Beneficio'}</h3>
                     <p style="font-size:13px; color:#64748b; line-height:1.5;">${item.description || ''}</p>
                   </div>
                 `).join('')}
