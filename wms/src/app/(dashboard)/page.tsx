@@ -36,6 +36,7 @@ interface RecentUser {
 interface AgencyPage {
   id: string
   title: string
+  slug?: string
   type: string
   status: string
   updatedAt: string
