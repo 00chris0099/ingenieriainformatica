@@ -1,247 +1,241 @@
 import { NextRequest } from 'next/server'
 import { apiPaginated, parsePagination, getSearchParam } from '@/lib/api'
 
-// Built-in templates hardcoded — work even when DB is down
-const BUILTIN_TEMPLATES = [
+// 3 Complete E-Commerce Store Templates (Shopify/Framer level quality)
+export const BUILTIN_TEMPLATES = [
   {
-    id: 'tpl-moda-tienda',
-    name: 'Tienda de Moda',
-    description: 'Plantilla completa para tiendas de ropa, zapatos y accesorios. Incluye hero, catálogo, testimonios, CTA y footer.',
-    industry: 'moda',
+    id: 'tpl-adrisu-kids',
+    name: 'Adrisu Kids - Moda Infantil',
+    description: 'Tienda virtual e-commerce completa especializada en moda, calzado y ropa infantil. Incluye hero alegre, barra de anuncios, parrilla de vestidos/conjuntos, insignias de descuento, garantía de envío gratis y testimonios de mamás.',
+    industry: 'moda_infantil',
+    category: 'ecommerce',
     thumbnail: null,
     blocks: [
       {
-        id: 'b1', type: 'hero',
-        settings: { backgroundColor: '#0f0f0f', textColor: '#ffffff', accentColor: '#f43f5e', paddingY: 100 },
+        id: 'ak-hero', type: 'hero',
+        settings: { backgroundColor: '#fff1f2', textColor: '#881337', accentColor: '#f43f5e', paddingY: 96 },
         content: {
-          title: 'Moda que Transforma tu Estilo',
-          subtitle: 'Descubre colecciones exclusivas diseñadas para destacar en cada ocasión.',
-          buttonText: 'Ver Colección',
-          secondaryButtonText: 'Ver Lookbook',
+          title: 'Adrisu Kids — Moda Feliz para los Pequeños',
+          subtitle: 'Colecciones cómodas, divertidas y duraderas para niños de 0 a 14 años. Envíos el mismo día en Lima y provincias.',
+          buttonText: 'Ver Ropa de Niños',
+          secondaryButtonText: 'Ver Ofertas de Temporada',
         }
       },
       {
-        id: 'b2', type: 'product-grid',
-        settings: { backgroundColor: '#ffffff', textColor: '#111111', accentColor: '#f43f5e', paddingY: 72 },
+        id: 'ak-products', type: 'product-grid',
+        settings: { backgroundColor: '#ffffff', textColor: '#111827', accentColor: '#f43f5e', paddingY: 72 },
         content: {
-          title: 'Nuevos Ingresos',
+          title: 'Lo Más Vendido en Adrisu Kids',
           products: [
-            { name: 'Vestido Verano', price: 'S/ 89.90', emoji: '👗' },
-            { name: 'Zapatillas Sport', price: 'S/ 129.90', emoji: '👟' },
-            { name: 'Bolso Cuero', price: 'S/ 199.90', emoji: '👜' },
-            { name: 'Gorra Premium', price: 'S/ 49.90', emoji: '🧢' },
+            { name: 'Conjunto Algodón Orgánico (2-6 años)', price: 'S/ 59.90', emoji: '👕' },
+            { name: 'Vestido Fiesta Primavera Florcita', price: 'S/ 79.90', emoji: '👗' },
+            { name: 'Zapatillas Luces Led Confort', price: 'S/ 99.90', emoji: '👟' },
+            { name: 'Pijama Enterizo Térmico Bebé', price: 'S/ 45.00', emoji: '👶' },
+            { name: 'Casaca Impermeable Capucha Osito', price: 'S/ 89.90', emoji: '🧥' },
+            { name: 'Set 3 Polos Manga Corta Disney', price: 'S/ 49.90', emoji: '🎨' },
           ]
         }
       },
       {
-        id: 'b3', type: 'features',
-        settings: { backgroundColor: '#fafafa', textColor: '#111111', accentColor: '#f43f5e', paddingY: 64 },
+        id: 'ak-features', type: 'features',
+        settings: { backgroundColor: '#fff8f6', textColor: '#111827', accentColor: '#f43f5e', paddingY: 64 },
         content: {
-          title: 'Por qué elegirnos',
+          title: 'Por qué las Mamás Eligen Adrisu Kids',
           items: [
-            { icon: '🚚', title: 'Envío Gratis', description: 'En compras mayores a S/ 100 a todo el Perú.' },
-            { icon: '↩️', title: 'Devoluciones', description: '30 días para cambios y devoluciones sin preguntas.' },
-            { icon: '🔒', title: 'Pago Seguro', description: 'Yape, Plin, tarjetas y contra entrega.' },
+            { icon: '🌿', title: 'Algodón 100% Antialérgico', description: 'Cuidamos la piel sensible de tus hijos con telas orgánicas y suaves.' },
+            { icon: '🚚', title: 'Envío Gratis desde S/ 120', description: 'Repartos a todo el Perú por Olva Courier y Shalom.' },
+            { icon: '🔄', title: 'Cambio de Talla Sin Costo', description: 'Si la prenda no le queda, te la cambiamos de inmediato.' },
           ]
         }
       },
       {
-        id: 'b4', type: 'testimonials',
-        settings: { backgroundColor: '#ffffff', textColor: '#111111', paddingY: 64 },
+        id: 'ak-testimonials', type: 'testimonials',
+        settings: { backgroundColor: '#ffffff', textColor: '#111827', paddingY: 64 },
         content: {
-          title: 'Clientes Felices',
+          title: 'Lo que dicen las Mamás Adrisu',
           items: [
-            { text: 'La calidad es increíble, llegó súper rápido y el empaque es hermoso.', name: 'Lucía M.', role: 'Lima' },
-            { text: 'Ya voy por mi cuarto pedido. Siempre me sorprenden con prendas únicas.', name: 'Carla V.', role: 'Arequipa' },
-            { text: 'Los mejores precios y atención al cliente de primera.', name: 'Sofía R.', role: 'Trujillo' },
+            { text: 'La ropa de Adrisu Kids es hermosísima y no se descolora al lavar. Mis hijos están felices.', name: 'Claudia M.', role: 'Mamá de 2 pequeños (San Borja)' },
+            { text: 'Llegó en menos de 24 horas a Trujillo. La calidad del algodón superó mis expectativas.', name: 'Valeria S.', role: 'Mamá (Trujillo)' },
+            { text: 'Atención A1 por WhatsApp. Me ayudaron a elegir la talla perfecta para mi bebé.', name: 'Patricia L.', role: 'Mamá de Mateo' },
           ]
         }
       },
       {
-        id: 'b5', type: 'cta',
+        id: 'ak-cta', type: 'cta',
         settings: { accentColor: '#f43f5e', paddingY: 80 },
-        content: { title: '¡Nueva Colección Disponible!', description: 'Registra tu correo y sé el primero en conocer nuestros nuevos diseños.', buttonText: 'Quiero Enterarme' }
+        content: {
+          title: '¡Únete al Club Adrisu y recibe 15% OFF!',
+          description: 'Déjanos tu WhatsApp o correo y recibe tu cupón de regalo para tu primera compra.',
+          buttonText: 'Obtener Mi Descuento 15% OFF'
+        }
       },
       {
-        id: 'b6', type: 'footer',
-        settings: { backgroundColor: '#0f0f0f', textColor: '#ffffff', paddingY: 48 },
+        id: 'ak-footer', type: 'footer',
+        settings: { backgroundColor: '#881337', textColor: '#ffffff', paddingY: 48 },
         content: {
-          brandName: 'MI TIENDA',
-          copyright: '© 2025 Mi Tienda. Todos los derechos reservados.',
+          brandName: 'ADRISU KIDS',
+          copyright: '© 2026 Adrisu Kids. Moda Infantil de Alta Calidad. Todos los derechos reservados.',
           links: [
             { label: 'Inicio', href: '#' },
-            { label: 'Colecciones', href: '#' },
-            { label: 'Contacto', href: '#' },
-            { label: 'Políticas', href: '#' },
+            { label: 'Niños', href: '#' },
+            { label: 'Niñas', href: '#' },
+            { label: 'Bebés', href: '#' },
+            { label: 'Contacto WhatsApp', href: '#' },
           ]
         }
       },
     ],
-    seo: { title: 'Mi Tienda de Moda', description: 'Moda exclusiva al mejor precio.' },
-    settings: { theme: 'dark-accent', primaryColor: '#f43f5e' },
-    createdAt: new Date('2025-01-01').toISOString(),
+    seo: { title: 'Adrisu Kids - Tienda de Moda Infantil', description: 'La mejor ropa y calzado para niños y bebés.' },
+    settings: { theme: 'pink-rose', primaryColor: '#f43f5e' },
+    createdAt: new Date('2026-01-01').toISOString(),
   },
 
   {
-    id: 'tpl-servicios-landing',
-    name: 'Landing de Servicios',
-    description: 'Ideal para agencias, consultoras y profesionales. Hero impactante, features, precios y formulario de contacto.',
-    industry: 'servicios',
+    id: 'tpl-techvibes',
+    name: 'TechVibes - Gadgets & Electrónica',
+    description: 'E-Commerce futurista neón en modo oscuro para gadgets, smartphones, audífonos bluetooth y tecnología de vanguardia. Incluye hero neón, ofertas relámpago, grid de specs y garantía oficial.',
+    industry: 'tecnologia',
+    category: 'ecommerce',
     thumbnail: null,
     blocks: [
       {
-        id: 's1', type: 'hero',
-        settings: { backgroundColor: '#1e1b4b', textColor: '#ffffff', accentColor: '#8b5cf6', backgroundImage: '', paddingY: 100 },
+        id: 'tv-hero', type: 'hero',
+        settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 100 },
         content: {
-          title: 'Soluciones Profesionales para tu Negocio',
-          subtitle: 'Diseñamos estrategias digitales que convierten visitantes en clientes fieles.',
-          buttonText: 'Solicitar Cotización',
-          secondaryButtonText: 'Ver Casos de Éxito',
+          title: 'TechVibes — El Futuro de la Tecnología en tus Manos',
+          subtitle: 'Encuentra los gadgets más potentes, audífonos anc, smartwatch y accesorios gaming con garantía real.',
+          buttonText: 'Ver Lanzamientos 2026',
+          secondaryButtonText: 'Ofertas Relámpago',
         }
       },
       {
-        id: 's2', type: 'features',
-        settings: { backgroundColor: '#ffffff', textColor: '#111111', accentColor: '#8b5cf6', paddingY: 72 },
+        id: 'tv-products', type: 'product-grid',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 72 },
         content: {
-          title: 'Nuestros Servicios',
-          subtitle: 'Todo lo que necesitas para crecer en el mundo digital.',
-          items: [
-            { icon: '🌐', title: 'Diseño Web', description: 'Sitios web modernos y optimizados para ventas.' },
-            { icon: '📱', title: 'Marketing Digital', description: 'Estrategias en redes sociales y Google Ads.' },
-            { icon: '🤖', title: 'Automatización IA', description: 'Chatbots y flujos automáticos para tu negocio.' },
-            { icon: '📊', title: 'Analítica', description: 'Reportes y dashboards para decisiones inteligentes.' },
-            { icon: '🔐', title: 'Ciberseguridad', description: 'Protección completa de tu infraestructura digital.' },
-            { icon: '☁️', title: 'Cloud & Hosting', description: 'Servidores rápidos, seguros y escalables.' },
-          ]
-        }
-      },
-      {
-        id: 's3', type: 'pricing',
-        settings: { backgroundColor: '#f8f9fa', textColor: '#111111', accentColor: '#8b5cf6', paddingY: 72 },
-        content: {
-          title: 'Planes Transparentes',
-          subtitle: 'Sin letra chica. Elige el plan que se adapta a tu negocio.',
-          items: [
-            { name: 'Starter', price: '299', period: '/mes', features: ['1 sitio web', 'Hosting incluido', 'Soporte básico', '5 páginas'], highlighted: false },
-            { name: 'Pro', price: '799', period: '/mes', features: ['3 sitios web', 'Marketing digital', 'Soporte 24/7', 'Páginas ilimitadas', 'Chatbot IA'], highlighted: true },
-            { name: 'Enterprise', price: '1,999', period: '/mes', features: ['Sitios ilimitados', 'Manager dedicado', 'SLA 99.9%', 'Todo incluido'], highlighted: false },
-          ]
-        }
-      },
-      {
-        id: 's4', type: 'faq',
-        settings: { backgroundColor: '#ffffff', textColor: '#111111', paddingY: 64 },
-        content: {
-          title: 'Preguntas Frecuentes',
-          items: [
-            { question: '¿Cuánto tiempo toma implementar un proyecto?', answer: 'La mayoría de proyectos web se entregan en 2-4 semanas. Proyectos más complejos pueden tomar entre 4-8 semanas.' },
-            { question: '¿Puedo cancelar mi plan en cualquier momento?', answer: 'Sí, sin penalidades. Solo necesitas avisar con 15 días de anticipación.' },
-            { question: '¿Incluyen soporte post-lanzamiento?', answer: 'Todos los planes incluyen 30 días de soporte gratuito post-lanzamiento.' },
-          ]
-        }
-      },
-      {
-        id: 's5', type: 'contact',
-        settings: { backgroundColor: '#1e1b4b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 72 },
-        content: { title: 'Hablemos de tu Proyecto', buttonText: 'Enviar Mensaje' }
-      },
-      {
-        id: 's6', type: 'footer',
-        settings: { backgroundColor: '#111111', textColor: '#ffffff', paddingY: 40 },
-        content: {
-          brandName: 'AGENCIA DIGITAL',
-          copyright: '© 2025 Agencia Digital. RUC 12345678901',
-          links: [{ label: 'Servicios', href: '#' }, { label: 'Portafolio', href: '#' }, { label: 'Blog', href: '#' }, { label: 'Contacto', href: '#' }]
-        }
-      },
-    ],
-    seo: { title: 'Agencia Digital - Servicios Profesionales', description: 'Soluciones digitales para empresas.' },
-    settings: { theme: 'purple', primaryColor: '#8b5cf6' },
-    createdAt: new Date('2025-01-01').toISOString(),
-  },
-
-  {
-    id: 'tpl-restaurante',
-    name: 'Restaurante & Comida',
-    description: 'Perfecta para restaurantes, cafeterías, delivery y negocios de comida. Incluye menú, galería y reservas.',
-    industry: 'gastronomia',
-    thumbnail: null,
-    blocks: [
-      {
-        id: 'r1', type: 'hero',
-        settings: { backgroundColor: '#1a0a00', textColor: '#ffffff', accentColor: '#f97316', paddingY: 100 },
-        content: {
-          title: 'Sabores que Enamoran en Cada Bocado',
-          subtitle: 'Cocina artesanal con los mejores ingredientes. Delivery en 30 minutos.',
-          buttonText: 'Pedir Ahora',
-          secondaryButtonText: 'Ver Menú',
-        }
-      },
-      {
-        id: 'r2', type: 'features',
-        settings: { backgroundColor: '#fff7ed', textColor: '#111111', accentColor: '#f97316', paddingY: 64 },
-        content: {
-          title: 'Nuestra Propuesta',
-          items: [
-            { icon: '👨‍🍳', title: 'Chef Profesional', description: 'Cocineros con más de 10 años de experiencia.' },
-            { icon: '🌿', title: 'Ingredientes Frescos', description: 'Insumos orgánicos seleccionados cada mañana.' },
-            { icon: '🚀', title: 'Delivery Rápido', description: 'Tu pedido en 30 minutos o te descontamos el delivery.' },
-          ]
-        }
-      },
-      {
-        id: 'r3', type: 'product-grid',
-        settings: { backgroundColor: '#ffffff', textColor: '#111111', accentColor: '#f97316', paddingY: 72 },
-        content: {
-          title: 'Nuestro Menú Estrella',
+          title: 'Gadgets Más Buscados',
           products: [
-            { name: 'Ceviche Clásico', price: 'S/ 32.00', emoji: '🐟' },
-            { name: 'Lomo Saltado', price: 'S/ 38.00', emoji: '🥩' },
-            { name: 'Ají de Gallina', price: 'S/ 28.00', emoji: '🍛' },
-            { name: 'Causa Rellena', price: 'S/ 24.00', emoji: '🥘' },
-            { name: 'Arroz con Leche', price: 'S/ 12.00', emoji: '🍮' },
-            { name: 'Chicha Morada', price: 'S/ 8.00', emoji: '🍇' },
+            { name: 'Audífonos Bluetooth ANC Pro X', price: 'S/ 189.00', emoji: '🎧' },
+            { name: 'Smartwatch Ultra Amoled GPS', price: 'S/ 249.00', emoji: '⌚' },
+            { name: 'Parlante WaterProof 40W Bass', price: 'S/ 159.00', emoji: '🔊' },
+            { name: 'Cargador MagSafe Fast 65W', price: 'S/ 79.00', emoji: '⚡' },
+            { name: 'Teclado Mecánico RGB Wireless', price: 'S/ 219.00', emoji: '⌨️' },
+            { name: 'Cámara 4K Ultra Action Cam', price: 'S/ 329.00', emoji: '📷' },
           ]
         }
       },
       {
-        id: 'r4', type: 'gallery',
-        settings: { backgroundColor: '#fafafa', paddingY: 64 },
+        id: 'tv-features', type: 'features',
+        settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
         content: {
-          title: 'Nuestras Instalaciones',
-          items: ['🍽️', '👨‍🍳', '🥗', '🍷', '🌿', '🏮']
-        }
-      },
-      {
-        id: 'r5', type: 'testimonials',
-        settings: { backgroundColor: '#fff7ed', textColor: '#111111', paddingY: 64 },
-        content: {
-          title: 'Lo que Dicen Nuestros Clientes',
+          title: 'Experiencia TechVibes Premium',
           items: [
-            { text: 'El mejor ceviche de la ciudad. Fresco, sabroso y la atención es de 10.', name: 'Roberto P.', role: 'Cliente Frecuente' },
-            { text: 'Pido delivery todos los viernes. Siempre llega caliente y a tiempo.', name: 'Mariella F.', role: 'Lima Norte' },
-            { text: 'Celebramos el cumpleaños de mi mamá y fue una experiencia hermosa.', name: 'Andrés T.', role: 'Surco' },
+            { icon: '🛡️', title: 'Garantía 12 Meses Oficial', description: 'Todos los equipos cuentan con respaldo y soporte técnico local.' },
+            { icon: '⚡', title: 'Delivery Express 3 Horas', description: 'Entregas súper rápidas en Lima Metropolitana.' },
+            { icon: '💳', title: 'Pagos con Tarjeta o Yape', description: 'Paga con tarjeta de crédito, débito o billeteras digitales.' },
           ]
         }
       },
       {
-        id: 'r6', type: 'cta',
-        settings: { accentColor: '#f97316', paddingY: 72 },
-        content: { title: 'Haz tu Pedido Ahora', description: 'WhatsApp: +51 999 888 777 | Delivery disponible de 11am a 10pm', buttonText: 'Pedir por WhatsApp' }
+        id: 'tv-cta', type: 'cta',
+        settings: { accentColor: '#2563eb', paddingY: 80 },
+        content: {
+          title: '¿Quieres enterarte de los Drops Semanales?',
+          description: 'Suscríbete para recibir notificaciones de nuevos lanzamientos tecnológicos antes que nadie.',
+          buttonText: 'Unirme a la Comunidad Tech'
+        }
       },
       {
-        id: 'r7', type: 'footer',
-        settings: { backgroundColor: '#1a0a00', textColor: '#ffffff', paddingY: 40 },
+        id: 'tv-footer', type: 'footer',
+        settings: { backgroundColor: '#030712', textColor: '#ffffff', paddingY: 48 },
         content: {
-          brandName: 'EL BUEN SABOR',
-          copyright: '© 2025 El Buen Sabor. Todos los derechos reservados.',
-          links: [{ label: 'Menú', href: '#' }, { label: 'Reservas', href: '#' }, { label: 'Delivery', href: '#' }, { label: 'Contacto', href: '#' }]
+          brandName: 'TECHVIBES STORE',
+          copyright: '© 2026 TechVibes. Gadgets & High-Tech Store.',
+          links: [
+            { label: 'Lanzamientos', href: '#' },
+            { label: 'Audífonos', href: '#' },
+            { label: 'Smartwatches', href: '#' },
+            { label: 'Soporte Técnico', href: '#' },
+          ]
         }
       },
     ],
-    seo: { title: 'Restaurante El Buen Sabor', description: 'Cocina artesanal y delivery rápido.' },
-    settings: { theme: 'warm', primaryColor: '#f97316' },
-    createdAt: new Date('2025-01-01').toISOString(),
+    seo: { title: 'TechVibes - Tienda de Tecnología', description: 'Los mejores gadgets y electrónica al mejor precio.' },
+    settings: { theme: 'dark-blue', primaryColor: '#3b82f6' },
+    createdAt: new Date('2026-01-01').toISOString(),
+  },
+
+  {
+    id: 'tpl-boutique-gourmet',
+    name: 'Boutique Gourmet - Vinos & Delicatessen',
+    description: 'E-Commerce gastronómico refinado en tonos cálidos para tiendas de vinos, quesos artesanales, chocolates finos y charcutería. Incluye hero elegante, catálogo boutique, notas de cata y pedidos rápidos.',
+    industry: 'gastronomia',
+    category: 'ecommerce',
+    thumbnail: null,
+    blocks: [
+      {
+        id: 'bg-hero', type: 'hero',
+        settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#d97706', paddingY: 100 },
+        content: {
+          title: 'Boutique Gourmet — El Placer del Buen Gusto',
+          subtitle: 'Vinos de reserva, quesos madurados, aceites de oliva virgen extra y charcutería fina traídos de los mejores productores.',
+          buttonText: 'Ver Cava de Vinos',
+          secondaryButtonText: 'Armar Tabla Gourmet',
+        }
+      },
+      {
+        id: 'bg-products', type: 'product-grid',
+        settings: { backgroundColor: '#ffffff', textColor: '#1c1917', accentColor: '#d97706', paddingY: 72 },
+        content: {
+          title: 'Selección del Sommelier',
+          products: [
+            { name: 'Vino Malbec Gran Reserva 2020', price: 'S/ 120.00', emoji: '🍷' },
+            { name: 'Queso Gouda Madurado 12 Meses', price: 'S/ 48.00', emoji: '🧀' },
+            { name: 'Jamón Serrano Reserva Ibérico', price: 'S/ 85.00', emoji: '🥩' },
+            { name: 'Aceite de Oliva Extra Virgen 500ml', price: 'S/ 42.00', emoji: '🫒' },
+            { name: 'Chocolate Cacao 85% Orgánico', price: 'S/ 25.00', emoji: '🍫' },
+            { name: 'Pack Maridaje Especial Regalo', price: 'S/ 210.00', emoji: '🎁' },
+          ]
+        }
+      },
+      {
+        id: 'bg-features', type: 'features',
+        settings: { backgroundColor: '#fffbeb', textColor: '#1c1917', accentColor: '#d97706', paddingY: 64 },
+        content: {
+          title: 'Garantía de Frescura y Origen',
+          items: [
+            { icon: '🍇', title: 'Vinos Seleccionados', description: 'Guardados a temperatura controlada en nuestra cava.' },
+            { icon: '📦', title: 'Empaque Térmico Regalo', description: 'Presentaciones elegantes listas para obsequiar.' },
+            { icon: '🍷', title: 'Asesoría de Sommelier', description: 'Atención personalizada por WhatsApp para tus eventos.' },
+          ]
+        }
+      },
+      {
+        id: 'bg-cta', type: 'cta',
+        settings: { accentColor: '#d97706', paddingY: 80 },
+        content: {
+          title: '¿Planeas una Cena o Evento Especial?',
+          description: 'Escríbenos al WhatsApp y nuestro Sommelier te armará la tabla y maridaje perfecto.',
+          buttonText: 'Cotizar por WhatsApp'
+        }
+      },
+      {
+        id: 'bg-footer', type: 'footer',
+        settings: { backgroundColor: '#1c1917', textColor: '#ffffff', paddingY: 48 },
+        content: {
+          brandName: 'BOUTIQUE GOURMET',
+          copyright: '© 2026 Boutique Gourmet & Cava Fine Dining.',
+          links: [
+            { label: 'Cava de Vinos', href: '#' },
+            { label: 'Quesos & Charcutería', href: '#' },
+            { label: 'Packs Regalo', href: '#' },
+            { label: 'Contacto', href: '#' },
+          ]
+        }
+      },
+    ],
+    seo: { title: 'Boutique Gourmet - Vinos & Delicatessen', description: 'Vinos de reserva y productos delicatessen artesanales.' },
+    settings: { theme: 'amber-gold', primaryColor: '#d97706' },
+    createdAt: new Date('2026-01-01').toISOString(),
   },
 ]
 
@@ -252,17 +246,6 @@ export async function GET(request: NextRequest) {
   const { page, limit } = parsePagination(searchParams)
 
   let templates = [...BUILTIN_TEMPLATES]
-
-  // Try to merge from template registry (non-critical)
-  try {
-    const { templateRegistry } = await import('@repo/templates')
-    const dbTemplates = templateRegistry.getAll()
-    // Merge without duplicates (built-in take priority by id)
-    const builtinIds = new Set(templates.map(t => t.id))
-    for (const t of dbTemplates) {
-      if (!builtinIds.has(t.id)) templates.push(t as any)
-    }
-  } catch { /* template registry unavailable — built-ins are enough */ }
 
   if (industry) templates = templates.filter(t => t.industry === industry)
   if (query) {

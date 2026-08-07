@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check } from 'lucide-react'
+import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { Toggle } from '@/components/ui/Toggle'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -24,27 +23,36 @@ interface BusinessData {
   subdomain: string
 }
 
-interface AIConfig {
-  defaultProvider: string
-  providers: Record<string, { configured: boolean; model: string }>
+interface AIProviderConfig {
+  name: string
+  configured: boolean
+  apiKey?: string
+  maskedKey?: string
+  baseUrl?: string
+  models: string[]
+  selectedModel: string
+}
+
+interface AIConfigData {
+  activeProvider: string
+  activeModel: string
+  systemPrompt: string
+  providers: Record<string, AIProviderConfig>
 }
 
 const tabs: Array<{ id: Tab; label: string; icon: any }> = [
   { id: 'general', label: 'General', icon: Building2 },
-  { id: 'ai', label: 'Inteligencia Artificial', icon: Sparkles },
-  { id: 'appearance', label: 'Apariencia', icon: Palette },
-  { id: 'domain', label: 'Dominio', icon: Globe },
+  { id: 'ai', label: 'Conector Multi-IA', icon: Sparkles },
+  { id: 'appearance', label: 'Apariencia & Marca', icon: Palette },
+  { id: 'domain', label: 'Dominios & SSL', icon: Globe },
 ]
 
 const industries = [
-  { value: 'ecommerce', label: 'E-Commerce' },
-  { value: 'restaurant', label: 'Restaurante' },
-  { value: 'clinic', label: 'Clinica / Consultorio' },
-  { value: 'gym', label: 'Gimnasio / Fitness' },
-  { value: 'portfolio', label: 'Portafolio Personal' },
-  { value: 'saas', label: 'SaaS / Software' },
-  { value: 'education', label: 'Educacion / Cursos' },
-  { value: 'services', label: 'Servicios Profesionales' },
+  { value: 'ecommerce', label: 'E-Commerce / Tienda Virtual' },
+  { value: 'moda', label: 'Moda & Tendencias' },
+  { value: 'tecnologia', label: 'Tecnología & Electrónica' },
+  { value: 'gastronomia', label: 'Gastronomía & Vinos' },
+  { value: 'servicios', label: 'Servicios Profesionales' },
 ]
 
 export default function ConfiguracionPage() {
@@ -54,7 +62,14 @@ export default function ConfiguracionPage() {
     primaryColor: '#2563eb', secondaryColor: '#7c3aed', accentColor: '#f59e0b',
     domain: '', subdomain: '',
   })
-  const [aiConfig, setAIConfig] = useState<AIConfig>({ defaultProvider: 'openai', providers: {} })
+
+  const [aiConfig, setAIConfig] = useState<AIConfigData>({
+    activeProvider: 'gemini',
+    activeModel: 'gemini-1.5-flash',
+    systemPrompt: '',
+    providers: {},
+  })
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -67,19 +82,26 @@ export default function ConfiguracionPage() {
       if (bizRes.ok) {
         const biz = await bizRes.json()
         const d = biz.data
-        setBusiness({
-          name: d.name || '', slug: d.slug || '', industry: d.industry || 'ecommerce',
-          logoUrl: d.logoUrl || '', faviconUrl: d.faviconUrl || '',
-          primaryColor: d.primaryColor || '#2563eb', secondaryColor: d.secondaryColor || '#7c3aed',
-          accentColor: d.accentColor || '#f59e0b', domain: d.domain || '', subdomain: d.subdomain || '',
-        })
+        if (d) {
+          setBusiness({
+            name: d.name || '', slug: d.slug || '', industry: d.industry || 'ecommerce',
+            logoUrl: d.logoUrl || '', faviconUrl: d.faviconUrl || '',
+            primaryColor: d.primaryColor || '#2563eb', secondaryColor: d.secondaryColor || '#7c3aed',
+            accentColor: d.accentColor || '#f59e0b', domain: d.domain || '', subdomain: d.subdomain || '',
+          })
+        }
       }
       if (aiRes.ok) {
         const ai = await aiRes.json()
-        setAIConfig(ai.data)
+        if (ai.data) {
+          setAIConfig(ai.data)
+        }
       }
-    } catch (e) { console.error('Error fetching config:', e) }
-    finally { setLoading(false) }
+    } catch (e) {
+      console.error('Error fetching config:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function saveBusiness() {
@@ -97,11 +119,12 @@ export default function ConfiguracionPage() {
     setSaving(true); setSaved(false)
     try {
       const res = await fetch('/api/v1/config/ai', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ defaultProvider: aiConfig.defaultProvider }),
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aiConfig),
       })
       if (res.ok) setSaved(true)
-    } catch (e) { console.error('Error saving:', e) }
+    } catch (e) { console.error('Error saving AI config:', e) }
     finally { setSaving(false); setTimeout(() => setSaved(false), 2000) }
   }
 
@@ -122,22 +145,28 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="space-y-6 pb-20 lg:pb-0 animate-fade-in">
-      <div>
-        <h2 className="text-xl font-semibold text-[var(--color-text-primary)] tracking-tight">Configuracion</h2>
-        <p className="text-sm text-[var(--color-text-tertiary)]">Administra la configuracion de tu negocio</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-extrabold text-[var(--color-text-primary)] tracking-tight">
+            Centro de Configuración Enterprise
+          </h2>
+          <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
+            Administra los proveedores de IA, paleta de marca y conexión de dominios
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Tab Sidebar */}
-        <div className="lg:w-56 shrink-0">
+        <div className="lg:w-60 shrink-0">
           <nav className="surface-card p-2 space-y-1">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   activeTab === tab.id
-                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] shadow-sm'
                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]'
                 }`}
               >
@@ -154,7 +183,7 @@ export default function ConfiguracionPage() {
             <GeneralTab business={business} setBusiness={setBusiness} onSave={saveBusiness} saving={saving} saved={saved} />
           )}
           {activeTab === 'ai' && (
-            <AITab config={aiConfig} setConfig={setAIConfig} onSave={saveAIConfig} saving={saving} saved={saved} />
+            <AIMultiProviderTab config={aiConfig} setConfig={setAIConfig} onSave={saveAIConfig} saving={saving} saved={saved} />
           )}
           {activeTab === 'appearance' && (
             <AppearanceTab business={business} setBusiness={setBusiness} onSave={saveBusiness} saving={saving} saved={saved} />
@@ -169,6 +198,125 @@ export default function ConfiguracionPage() {
 }
 
 // ============================================================================
+// AI Multi-Provider Tab
+// ============================================================================
+function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
+  config: AIConfigData; setConfig: (c: AIConfigData) => void; onSave: () => void; saving: boolean; saved: boolean
+}) {
+  const activeP = config.providers[config.activeProvider]
+
+  return (
+    <div className="space-y-6">
+      <Section title="Motor Multi-IA de Generación" description="Conecta cualquier proveedor de Inteligencia Artificial para crear tiendas, imágenes y copys conversivos">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="form-label text-xs font-bold">Proveedor Activo Principal</label>
+            <select
+              value={config.activeProvider}
+              onChange={(e) => {
+                const prov = e.target.value
+                const defaultMod = config.providers[prov]?.models[0] || ''
+                setConfig({ ...config, activeProvider: prov, activeModel: defaultMod })
+              }}
+              className="select-field text-xs font-bold"
+            >
+              <option value="gemini">Google Gemini AI</option>
+              <option value="openai">OpenAI (GPT-4o)</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="deepseek">DeepSeek AI</option>
+              <option value="groq">Groq Cloud (Fast Llama)</option>
+              <option value="ollama">Ollama / Local AI Custom</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label text-xs font-bold">Modelo Seleccionado</label>
+            <select
+              value={config.activeModel}
+              onChange={(e) => setConfig({ ...config, activeModel: e.target.value })}
+              className="select-field text-xs"
+            >
+              {activeP?.models?.map(m => (
+                <option key={m} value={m}>{m}</option>
+              )) || <option value="default">Modelo por defecto</option>}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label text-xs font-bold">System Prompt Global</label>
+          <textarea
+            value={config.systemPrompt || ''}
+            onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
+            placeholder="Prompt personalizado para guiar la generación de tiendas..."
+            rows={3}
+            className="textarea-field text-xs"
+          />
+        </div>
+      </Section>
+
+      <Section title="Conexión de API Keys por Proveedor" description="Ingresa tus credenciales para habilitar la generación con cada motor de IA">
+        <div className="space-y-4">
+          {Object.entries(config.providers || {}).map(([key, provider]) => (
+            <div key={key} className="p-4 rounded-2xl border bg-[var(--color-bg-surface)] space-y-3" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bot size={16} className={config.activeProvider === key ? 'text-purple-500' : 'text-gray-400'} />
+                  <span className="text-xs font-bold text-[var(--color-text-primary)]">{provider.name}</span>
+                  {config.activeProvider === key && (
+                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-500">
+                      Activo
+                    </span>
+                  )}
+                </div>
+                <Badge variant={provider.configured ? 'success' : 'neutral'}>
+                  {provider.configured ? 'Conectado' : 'Sin Clave'}
+                </Badge>
+              </div>
+
+              {key !== 'ollama' ? (
+                <div>
+                  <label className="form-label text-[11px]">API Key ({provider.name})</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={provider.apiKey || ''}
+                      onChange={(e) => {
+                        const newProv = { ...config.providers }
+                        newProv[key].apiKey = e.target.value
+                        setConfig({ ...config, providers: newProv })
+                      }}
+                      placeholder={`API Key ${provider.name}...`}
+                      className="input-field text-xs flex-1 font-mono"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="form-label text-[11px]">Endpoint URL de Ollama / IA Local</label>
+                  <input
+                    type="text"
+                    value={provider.baseUrl || 'http://localhost:11434'}
+                    onChange={(e) => {
+                      const newProv = { ...config.providers }
+                      newProv[key].baseUrl = e.target.value
+                      setConfig({ ...config, providers: newProv })
+                    }}
+                    className="input-field text-xs font-mono"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <SaveBar onSave={onSave} saving={saving} saved={saved} />
+    </div>
+  )
+}
+
+// ============================================================================
 // General Tab
 // ============================================================================
 function GeneralTab({ business, setBusiness, onSave, saving, saved }: {
@@ -176,57 +324,15 @@ function GeneralTab({ business, setBusiness, onSave, saving, saved }: {
 }) {
   return (
     <div className="space-y-6">
-      <Section title="Informacion del Negocio" description="Datos basicos de tu empresa o proyecto">
-        <Input label="Nombre del negocio" value={business.name}
-          onChange={e => setBusiness({ ...business, name: e.target.value })} placeholder="Mi Negocio" />
-        <Input label="Slug (URL)" value={business.slug}
-          onChange={e => setBusiness({ ...business, slug: e.target.value })} placeholder="mi-negocio" />
-        <Select label="Industria" value={business.industry}
+      <Section title="Información General de la Agencia / Tienda" description="Datos principales del proyecto">
+        <Input label="Nombre del Negocio / Agencia" value={business.name}
+          onChange={e => setBusiness({ ...business, name: e.target.value })} placeholder="Mi Empresa VPS" />
+        <Input label="Slug de Identificación" value={business.slug}
+          onChange={e => setBusiness({ ...business, slug: e.target.value })} placeholder="mi-empresa" />
+        <Select label="Industria Principal" value={business.industry}
           onChange={e => setBusiness({ ...business, industry: e.target.value })}>
           {industries.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
         </Select>
-      </Section>
-      <SaveBar onSave={onSave} saving={saving} saved={saved} />
-    </div>
-  )
-}
-
-// ============================================================================
-// AI Tab
-// ============================================================================
-function AITab({ config, setConfig, onSave, saving, saved }: {
-  config: AIConfig; setConfig: (c: AIConfig) => void; onSave: () => void; saving: boolean; saved: boolean
-}) {
-  return (
-    <div className="space-y-6">
-      <Section title="Proveedor de IA" description="Configura el servicio de inteligencia artificial para generacion de contenido">
-        <Select label="Proveedor por defecto" value={config.defaultProvider}
-          onChange={e => setConfig({ ...config, defaultProvider: e.target.value })}>
-          <option value="openai">OpenAI (GPT)</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-        </Select>
-      </Section>
-
-      <Section title="Estado de Proveedores" description="Verifica que proveedores estan configurados">
-        <div className="space-y-3">
-          {Object.entries(config.providers).map(([id, provider]) => (
-            <div key={id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)]">
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${provider.configured ? 'bg-[var(--color-success)]' : 'bg-[var(--color-text-tertiary)]'}`} />
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)] capitalize">{id}</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)]">Modelo: {provider.model}</p>
-                </div>
-              </div>
-              <Badge variant={provider.configured ? 'success' : 'neutral'}>
-                {provider.configured ? 'Configurado' : 'No configurado'}
-              </Badge>
-            </div>
-          ))}
-        </div>
-        <p className="form-hint mt-3">
-          Las API keys se configuran en las variables de entorno del servidor (OPENAI_API_KEY, ANTHROPIC_API_KEY).
-        </p>
       </Section>
       <SaveBar onSave={onSave} saving={saving} saved={saved} />
     </div>
@@ -241,7 +347,7 @@ function AppearanceTab({ business, setBusiness, onSave, saving, saved }: {
 }) {
   return (
     <div className="space-y-6">
-      <Section title="Colores del Tema" description="Define la paleta de colores de tu marca">
+      <Section title="Paleta de Colores de la Marca" description="Define la identidad cromática del proyecto">
         <div className="grid grid-cols-3 gap-4">
           <ColorField label="Primario" value={business.primaryColor}
             onChange={c => setBusiness({ ...business, primaryColor: c })} />
@@ -250,20 +356,12 @@ function AppearanceTab({ business, setBusiness, onSave, saving, saved }: {
           <ColorField label="Acento" value={business.accentColor}
             onChange={c => setBusiness({ ...business, accentColor: c })} />
         </div>
-        <div className="mt-4 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)]">
-          <p className="text-xs text-[var(--color-text-tertiary)] mb-3">Vista previa</p>
-          <div className="flex gap-3">
-            <div className="w-12 h-12 rounded-lg" style={{ backgroundColor: business.primaryColor }} />
-            <div className="w-12 h-12 rounded-lg" style={{ backgroundColor: business.secondaryColor }} />
-            <div className="w-12 h-12 rounded-lg" style={{ backgroundColor: business.accentColor }} />
-          </div>
-        </div>
       </Section>
 
-      <Section title="Logos" description="Sube el logo y favicon de tu marca">
-        <Input label="URL del Logo" value={business.logoUrl}
+      <Section title="Identidad Visual (Logotipos)" description="Archivos de imagen de marca">
+        <Input label="URL del Logo Principal" value={business.logoUrl}
           onChange={e => setBusiness({ ...business, logoUrl: e.target.value })} placeholder="https://..." />
-        <Input label="URL del Favicon" value={business.faviconUrl}
+        <Input label="URL del Favicon (.ico)" value={business.faviconUrl}
           onChange={e => setBusiness({ ...business, faviconUrl: e.target.value })} placeholder="https://..." />
       </Section>
       <SaveBar onSave={onSave} saving={saving} saved={saved} />
@@ -279,23 +377,17 @@ function DomainTab({ business, setBusiness, onSave, saving, saved }: {
 }) {
   return (
     <div className="space-y-6">
-      <Section title="Subdominio" description="Tu sitio estara disponible en este subdominio">
+      <Section title="Subdominio VPS Asignado" description="Dirección web gratuita en la plataforma">
         <div className="flex items-center gap-2">
           <Input value={business.subdomain} className="flex-1"
-            onChange={e => setBusiness({ ...business, subdomain: e.target.value })} placeholder="mi-negocio" />
-          <span className="text-sm text-[var(--color-text-tertiary)]">.pagebuilder.com</span>
+            onChange={e => setBusiness({ ...business, subdomain: e.target.value })} placeholder="mi-tienda" />
+          <span className="text-xs font-bold text-[var(--color-text-tertiary)]">.tudominio.com</span>
         </div>
       </Section>
 
-      <Section title="Dominio Personalizado" description="Conecta tu propio dominio (opcional)">
-        <Input label="Dominio" value={business.domain}
-          onChange={e => setBusiness({ ...business, domain: e.target.value })} placeholder="www.minegocio.com" />
-        <div className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)]">
-          <p className="text-xs text-[var(--color-text-tertiary)]">
-            Para usar un dominio personalizado, agrega un registro CNAME que apunte a{' '}
-            <code className="text-[var(--color-accent)]">pages.pagebuilder.com</code>
-          </p>
-        </div>
+      <Section title="Conexión de Dominio Propio" description="Configura tu propio dominio .com, .pe o .net">
+        <Input label="Nombre de Dominio" value={business.domain}
+          onChange={e => setBusiness({ ...business, domain: e.target.value })} placeholder="www.mitienda.com" />
       </Section>
       <SaveBar onSave={onSave} saving={saving} saved={saved} />
     </div>
@@ -303,13 +395,15 @@ function DomainTab({ business, setBusiness, onSave, saving, saved }: {
 }
 
 // ============================================================================
-// Shared Components
+// Shared Utilities
 // ============================================================================
 function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="section-container">
-      <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{title}</h3>
-      <p className="text-xs text-[var(--color-text-tertiary)] mb-4">{description}</p>
+    <div className="surface-card p-5 space-y-4">
+      <div>
+        <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{title}</h3>
+        <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{description}</p>
+      </div>
       <div className="space-y-4">{children}</div>
     </div>
   )
@@ -318,10 +412,10 @@ function Section({ title, description, children }: { title: string; description:
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (c: string) => void }) {
   return (
     <div>
-      <label className="form-label">{label}</label>
+      <label className="form-label text-xs font-bold">{label}</label>
       <div className="flex items-center gap-2">
         <input type="color" value={value} onChange={e => onChange(e.target.value)}
-          className="w-10 h-10 rounded-lg border border-[var(--color-border)] cursor-pointer" />
+          className="w-9 h-9 rounded-xl border cursor-pointer shrink-0" style={{ borderColor: 'var(--color-border)' }} />
         <Input value={value} onChange={e => onChange(e.target.value)} className="flex-1 font-mono text-xs" />
       </div>
     </div>
@@ -330,14 +424,14 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
 
 function SaveBar({ onSave, saving, saved }: { onSave: () => void; saving: boolean; saved: boolean }) {
   return (
-    <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--color-border)]">
+    <div className="flex items-center justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
       {saved && (
-        <span className="flex items-center gap-1.5 text-sm text-[var(--color-success)]">
-          <Check size={14} /> Guardado
+        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--color-success)' }}>
+          <Check size={14} /> Cambios guardados correctamente
         </span>
       )}
       <Button onClick={onSave} loading={saving} icon={!saving ? <Save size={14} /> : undefined}>
-        Guardar Cambios
+        Guardar Configuración
       </Button>
     </div>
   )
