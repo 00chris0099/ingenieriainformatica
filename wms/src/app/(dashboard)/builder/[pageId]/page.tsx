@@ -1,15 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Save, Eye, ArrowLeft, Undo, Redo, Plus, Monitor, Tablet, Smartphone,
-  Wand2, Check, Sparkles, X, Send, Bot, Layers, Sliders, Play, Palette, Zap
+  Wand2, Check, Sparkles, X, Send, Bot, Layers, Sliders, Maximize2, Minimize2, ExternalLink
 } from 'lucide-react'
 import { Block, blockRegistry } from '@repo/blocks'
 import BlockEditor from '@/components/builder/BlockEditor'
 import { Button } from '@/components/ui/Button'
-import { UI_UX_SKILLS } from '@/lib/skills/ui-ux-skills'
 
 interface PageData {
   id: string
@@ -37,6 +36,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
   const [blocks, setBlocks] = useState<Block[]>([])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
+  const [fullScreen, setFullScreen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -54,12 +54,22 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
     {
       id: 'welcome',
       sender: 'ai',
-      text: '¡Hola! Soy tu Copiloto de IA para diseño de tiendas virtuales. Dime qué cambios deseas realizar (ej: "Agrega una colección de prendas de verano", "Aplica diseño modo oscuro neón", "Optimiza los botones de compra").',
+      text: '¡Hola! Soy tu Copiloto de IA para diseño de tiendas virtuales. Dime qué cambios deseas realizar (ej: "Agrega una colección de ropa de invierno con ofertas", "Cambia la paleta a tonos rosé", "Optimiza los botones de compra").',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ])
   const [inputPrompt, setInputPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
+
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'SELECT_BLOCK' && e.data.blockId) {
+        setSelectedBlockId(e.data.blockId)
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
 
   useEffect(() => {
     fetchPage()
@@ -193,6 +203,11 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
     finally { setSaving(false) }
   }
 
+  const openPublicView = () => {
+    savePage('published')
+    window.open(`/p/${pageId}`, '_blank')
+  }
+
   // AI Copilot Prompt Processing
   const handleAISend = async () => {
     if (!inputPrompt.trim() || aiGenerating) return
@@ -210,7 +225,6 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
     setAiGenerating(true)
 
     try {
-      // Call AI Generation API
       const res = await fetch('/api/v1/ai/generate-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,16 +277,18 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
     mobile: 'w-[395px] mx-auto shadow-2xl rounded-3xl overflow-hidden border-4 border-gray-800 my-4',
   }
 
-  // Generate Iframe srcDoc HTML
+  // Generate Iframe srcDoc HTML with interactive hover & click listeners
   const generatePreviewHtml = () => {
     const blocksHtml = blocks.map(b => {
       const s = b.settings || {}
       const c = b.content || {}
       const isSelected = b.id === selectedBlockId
 
+      const activeBorder = isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''
+
       if (b.type === 'hero') {
         return `
-          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 96}px 24px; text-align:center; position:relative; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 96}px 24px; text-align:center; position:relative; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 900px; margin:0 auto;">
               <span style="font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; padding:4px 12px; border-radius:20px; background:rgba(236,72,153,0.15); color:${s.accentColor || '#ec4899'}; display:inline-block; margin-bottom:16px;">Colección Exclusiva 2026</span>
               <h1 style="font-size: 42px; font-weight:900; margin-bottom:16px; line-height:1.1;">${c.title || 'Moda & Tendencias'}</h1>
@@ -289,7 +305,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
       if (b.type === 'product-grid') {
         const products = Array.isArray(c.products) ? c.products : []
         return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 1100px; margin:0 auto;">
               <h2 style="font-size: 28px; font-weight:800; text-align:center; margin-bottom:40px;">${c.title || 'Catálogo de Productos'}</h2>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:24px;">
@@ -310,7 +326,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
       if (b.type === 'features') {
         const items = Array.isArray(c.items) ? c.items : []
         return `
-          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 1100px; margin:0 auto; text-align:center;">
               <h2 style="font-size:26px; font-weight:800; margin-bottom:40px;">${c.title || 'Beneficios Exclusivos'}</h2>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:24px;">
@@ -330,7 +346,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
       if (b.type === 'testimonials') {
         const items = Array.isArray(c.items) ? c.items : []
         return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width: 1000px; margin:0 auto; text-align:center;">
               <h2 style="font-size:26px; font-weight:800; margin-bottom:36px;">${c.title || 'Opiniones de nuestros Clientes'}</h2>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
@@ -348,78 +364,9 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         `
       }
 
-      if (b.type === 'pricing') {
-        const items = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
-            <div style="max-width:1100px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:28px; font-weight:800; margin-bottom:12px;">${c.title || 'Planes de Precios'}</h2>
-              <p style="font-size:14px; opacity:0.7; margin-bottom:40px;">${c.subtitle || ''}</p>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px;">
-                ${items.map((p: any) => `
-                  <div style="padding:32px 24px; background:#fff; border-radius:20px; border:${p.highlighted ? '2px solid ' + (s.accentColor || '#ec4899') : '1px solid #e2e8f0'}; position:relative;">
-                    ${p.highlighted ? `<span style="position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:${s.accentColor || '#ec4899'}; color:#fff; font-size:10px; font-weight:800; padding:4px 12px; border-radius:12px; text-transform:uppercase;">Popular</span>` : ''}
-                    <h3 style="font-size:18px; font-weight:800; margin-bottom:12px;">${p.name || 'Plan'}</h3>
-                    <div style="font-size:36px; font-weight:900; color:${s.accentColor || '#ec4899'}; margin-bottom:16px;">S/ ${p.price} <span style="font-size:12px; opacity:0.6;">${p.period || '/mes'}</span></div>
-                    <button style="width:100%; background:${p.highlighted ? (s.accentColor || '#ec4899') : '#0f172a'}; color:#fff; border:none; padding:12px; border-radius:12px; font-weight:800; cursor:pointer;">Elegir Plan</button>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'faq') {
-        const items = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
-            <div style="max-width:800px; margin:0 auto;">
-              <h2 style="font-size:26px; font-weight:800; text-align:center; margin-bottom:32px;">${c.title || 'Preguntas Frecuentes'}</h2>
-              <div style="display:flex; flex-direction:column; gap:12px;">
-                ${items.map((f: any) => `
-                  <div style="padding:16px 20px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
-                    <h3 style="font-size:14px; font-weight:700; margin-bottom:6px;">❓ ${f.question || ''}</h3>
-                    <p style="font-size:13px; color:#475569; line-height:1.5;">${f.answer || ''}</p>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'contact') {
-        return `
-          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 72}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
-            <div style="max-width:600px; margin:0 auto;">
-              <h2 style="font-size:28px; font-weight:800; margin-bottom:12px;">${c.title || 'Contacto & Pedidos Directos'}</h2>
-              <p style="font-size:14px; opacity:0.8; margin-bottom:24px;">Atención inmediata por WhatsApp o formulario</p>
-              <button style="background:#22c55e; color:#fff; border:none; padding:14px 32px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;">💬 ${c.buttonText || 'Pedir por WhatsApp'}</button>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'gallery') {
-        const items = Array.isArray(c.items) ? c.items : ['📸', '👗', '👟', '✨']
-        return `
-          <section style="background:${s.backgroundColor || '#fafafa'}; padding:${s.paddingY || 64}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
-            <div style="max-width:1000px; margin:0 auto;">
-              <h2 style="font-size:24px; font-weight:800; margin-bottom:24px;">${c.title || 'Galería de Imágenes'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px;">
-                ${items.map((img: any) => `
-                  <div style="height:140px; background:#e2e8f0; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:40px;">${typeof img === 'string' ? img : '📸'}</div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
       if (b.type === 'cta') {
         return `
-          <section style="background:${s.accentColor || '#ec4899'}; color:#fff; padding:${s.paddingY || 80}px 24px; text-align:center; ${isSelected ? 'outline: 3px solid #000; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <section style="background:${s.accentColor || '#ec4899'}; color:#fff; padding:${s.paddingY || 80}px 24px; text-align:center; ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width:800px; margin:0 auto;">
               <h2 style="font-size:32px; font-weight:900; margin-bottom:16px;">${c.title || '¡Promoción Especial!'}</h2>
               <p style="font-size:16px; opacity:0.9; margin-bottom:28px;">${c.description || ''}</p>
@@ -431,7 +378,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
 
       if (b.type === 'footer') {
         return `
-          <footer style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 48}px 24px; text-align:center; border-top:1px solid rgba(255,255,255,0.1); ${isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''}" data-block-id="${b.id}">
+          <footer style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 48}px 24px; text-align:center; border-top:1px solid rgba(255,255,255,0.1); ${activeBorder}" data-block-id="${b.id}">
             <div style="max-width:1100px; margin:0 auto;">
               <h3 style="font-size:20px; font-weight:900; margin-bottom:16px; letter-spacing:1px;">${c.brandName || 'MI TIENDA'}</h3>
               <p style="font-size:13px; opacity:0.6; margin-bottom:24px;">${c.copyright || '© 2026 Todos los derechos reservados.'}</p>
@@ -452,8 +399,8 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
           <style>
             * { box-sizing: border-box; margin:0; padding:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
             body { background: #f8fafc; color: #0f172a; }
-            [data-block-id] { cursor: pointer; transition: outline 0.15s ease; }
-            [data-block-id]:hover { outline: 2px dashed #ec4899 !important; }
+            [data-block-id] { cursor: pointer; transition: all 0.2s ease; position: relative; }
+            [data-block-id]:hover { outline: 2px dashed #ec4899 !important; outline-offset: -2px; }
           </style>
         </head>
         <body>
@@ -509,7 +456,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
           ))}
         </div>
 
-        {/* Undo / Redo / AI Chat / Save */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
           <button onClick={handleUndo} disabled={historyIndex <= 0} className="p-2 rounded-xl hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-40" style={{ color: 'var(--color-text-secondary)' }} title="Deshacer">
             <Undo size={16} />
@@ -519,10 +466,27 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
           </button>
 
           <button
+            onClick={() => setFullScreen(!fullScreen)}
+            className={`p-2 rounded-xl border transition-all ${fullScreen ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] border-[var(--color-border)]'}`}
+            title={fullScreen ? "Salir de Pantalla Completa" : "Pantalla Completa (Ver Canvas Solo)"}
+          >
+            {fullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+
+          <button
             onClick={() => setShowAIChat(!showAIChat)}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${showAIChat ? 'bg-purple-600 text-white shadow-lg' : 'bg-purple-500/10 text-purple-500 border border-purple-500/20'}`}
           >
             <Sparkles size={14} /> Copiloto IA
+          </button>
+
+          <button
+            onClick={openPublicView}
+            className="px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 hover:bg-[var(--color-bg-hover)]"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+            title="Ver sitio público en vivo"
+          >
+            <Eye size={14} className="text-emerald-500" /> Ver Sitio Público
           </button>
 
           <Button
@@ -538,33 +502,35 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
 
       {/* ═══════════════ MAIN CANVAS & PANELS ═══════════════ */}
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
-        {/* Left Block Library Panel */}
-        <div className="w-64 border-r flex flex-col shrink-0" style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border)' }}>
-          <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>Secciones & Bloques</span>
-            <button onClick={() => setShowBlockPicker(true)} className="p-1 text-xs font-bold rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:opacity-80 transition-all flex items-center gap-1">
-              <Plus size={13} /> Añadir
-            </button>
-          </div>
+        {/* Left Block Library Panel (Hidden in FullScreen) */}
+        {!fullScreen && (
+          <div className="w-64 border-r flex flex-col shrink-0" style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border)' }}>
+            <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>Secciones & Bloques</span>
+              <button onClick={() => setShowBlockPicker(true)} className="p-1 text-xs font-bold rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:opacity-80 transition-all flex items-center gap-1">
+                <Plus size={13} /> Añadir
+              </button>
+            </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {blocks.map((b, idx) => (
-              <div
-                key={b.id}
-                onClick={() => setSelectedBlockId(b.id)}
-                className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedBlockId === b.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)] shadow-sm' : 'border-transparent hover:bg-[var(--color-bg-hover)]'}`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-bold w-4 text-[var(--color-text-tertiary)]">{idx + 1}</span>
-                  <span className="text-xs font-semibold capitalize truncate" style={{ color: 'var(--color-text-primary)' }}>{b.type.replace('-', ' ')}</span>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {blocks.map((b, idx) => (
+                <div
+                  key={b.id}
+                  onClick={() => setSelectedBlockId(b.id)}
+                  className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedBlockId === b.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)] shadow-sm' : 'border-transparent hover:bg-[var(--color-bg-hover)]'}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-bold w-4 text-[var(--color-text-tertiary)]">{idx + 1}</span>
+                    <span className="text-xs font-semibold capitalize truncate" style={{ color: 'var(--color-text-primary)' }}>{b.type.replace('-', ' ')}</span>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteBlock(b.id) }} className="p-1 hover:text-red-500 transition-all text-gray-400">
+                    <X size={12} />
+                  </button>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteBlock(b.id) }} className="p-1 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all">
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Center Frame Render */}
         <div className="flex-1 bg-slate-900/10 overflow-y-auto flex justify-center p-4">
@@ -577,8 +543,8 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
           </div>
         </div>
 
-        {/* Right Inspector Panel */}
-        {selectedBlock && selectedConfig && (
+        {/* Right Inspector Panel (Hidden in FullScreen) */}
+        {!fullScreen && selectedBlock && selectedConfig && (
           <BlockEditor
             block={selectedBlock}
             blockConfig={selectedConfig}
@@ -656,6 +622,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
                 { type: 'hero', name: 'Hero Banner', desc: 'Encabezado principal con título y CTA' },
                 { type: 'product-grid', name: 'Catálogo Productos', desc: 'Parrilla de productos con precios' },
                 { type: 'features', name: 'Beneficios', desc: 'Grid de características con íconos' },
+                { type: 'testimonials', name: 'Testimonios', desc: 'Opiniones de clientes' },
                 { type: 'cta', name: 'Llamado a Acción', desc: 'Banner de oferta y conversión' },
                 { type: 'footer', name: 'Pie de Página', desc: 'Copyright y enlaces' },
               ].map(item => (
