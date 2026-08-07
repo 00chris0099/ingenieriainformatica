@@ -119,9 +119,11 @@ export async function POST(request: NextRequest) {
     // If still 0 blocks (e.g. blank page creation), load default Adrisu Kids blocks for fashion store
     if (blocks.length === 0 && (type === 'store' || type === 'ecommerce')) {
       const defaultFashionTpl = BUILTIN_TEMPLATES[0];
-      blocks = JSON.parse(JSON.stringify(defaultFashionTpl.blocks));
-      seo = defaultFashionTpl.seo || {};
-      settings = defaultFashionTpl.settings || {};
+      if (defaultFashionTpl) {
+        blocks = JSON.parse(JSON.stringify(defaultFashionTpl.blocks));
+        seo = defaultFashionTpl.seo || {};
+        settings = defaultFashionTpl.settings || {};
+      }
     }
 
     // Try DB first with valid UUID fields only
