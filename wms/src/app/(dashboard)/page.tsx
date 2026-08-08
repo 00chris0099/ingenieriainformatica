@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { StatCardSkeleton } from '@/components/ui/Skeleton'
 import { useSession } from 'next-auth/react'
 import ClientOnboardingModal from '@/components/onboarding/ClientOnboardingModal'
+import AIAgentStatusCard from '@/components/dashboard/AIAgentStatusCard'
 
 interface DashboardStats {
   totalProducts: number
@@ -231,6 +232,9 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* ═══════════════ AI ENGINE STATUS ═══════════════ */}
+        <AIAgentStatusCard />
 
         {/* ═══════════════ CHARTS SECTION ═══════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

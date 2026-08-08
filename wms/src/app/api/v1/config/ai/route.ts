@@ -2,6 +2,35 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError } from '@/lib/api';
 import { aiConfigStore } from '@/lib/aiConfigStore';
+import { PROVIDER_IDS, getEffectiveKey, isUsableKey, maskKey, providerConfigured } from '@/lib/ai-providers';
+
+/**
+ * Applies truthful status (configured / maskedKey) to a provider snapshot.
+ * Stored keys (from the panel) win; otherwise we fall back to the env var,
+ * so the panel always reflects the real state of each provider.
+ */
+function applyRealStatus(snapshot: any): any {
+  const providers = snapshot?.providers || {};
+  for (const id of PROVIDER_IDS) {
+    const p = providers[id];
+    if (!p) continue;
+
+    if (id === 'ollama') {
+      p.configured = providerConfigured(id, p);
+      p.baseUrl = p.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434';
+      delete p.maskedKey;
+      continue;
+    }
+
+    const effective = getEffectiveKey(id, p);
+    p.configured = isUsableKey(effective);
+    // Never leak the key to the client; the input stays empty unless the user
+    // saved one from the panel (which is already masked server-side).
+    p.apiKey = '';
+    p.maskedKey = p.configured ? maskKey(effective) : '';
+  }
+  return snapshot;
+}
 
 export async function GET() {
   try {
@@ -14,22 +43,11 @@ export async function GET() {
       // Return memory config if DB down
     }
 
-    // Mask sensitive API keys before returning to UI
+    // Deep clone so we never mutate the live store while masking
     const safeConfig = JSON.parse(JSON.stringify(aiConfigStore));
-    for (const key in safeConfig.providers) {
-      if (safeConfig.providers[key].apiKey) {
-        const keyVal = safeConfig.providers[key].apiKey;
-        if (keyVal.length > 8) {
-          safeConfig.providers[key].maskedKey = `${keyVal.slice(0, 4)}...${keyVal.slice(-4)}`;
-        } else {
-          safeConfig.providers[key].maskedKey = 'Configurado';
-        }
-      }
-    }
-
-    return apiSuccess(safeConfig);
+    return apiSuccess(applyRealStatus(safeConfig));
   } catch (error) {
-    return apiSuccess(aiConfigStore);
+    return apiSuccess(applyRealStatus(JSON.parse(JSON.stringify(aiConfigStore))));
   }
 }
 
@@ -43,13 +61,20 @@ export async function PUT(request: NextRequest) {
     if (systemPrompt) aiConfigStore.systemPrompt = systemPrompt;
     if (providers) {
       for (const pKey in providers) {
-        if (aiConfigStore.providers[pKey]) {
-          aiConfigStore.providers[pKey] = {
-            ...aiConfigStore.providers[pKey],
-            ...providers[pKey],
-            configured: true,
-          };
+        if (!aiConfigStore.providers[pKey]) continue;
+        const merged = {
+          ...aiConfigStore.providers[pKey],
+          ...providers[pKey],
+        };
+        // `configured` is always derived from the real key/baseUrl, never trusted
+        // from the client payload.
+        merged.configured = providerConfigured(pKey, merged);
+        if (pKey !== 'ollama' && !isUsableKey(merged.apiKey)) {
+          // Keep an env-configured key if the panel sent an empty one
+          merged.apiKey = getEffectiveKey(pKey, merged);
+          merged.configured = isUsableKey(merged.apiKey);
         }
+        aiConfigStore.providers[pKey] = merged;
       }
     }
 
@@ -67,6 +92,12 @@ export async function PUT(request: NextRequest) {
       message: 'Configuración Multi-Proveedor de IA actualizada correctamente',
       activeProvider: aiConfigStore.activeProvider,
       activeModel: aiConfigStore.activeModel,
+      providers: Object.fromEntries(
+        PROVIDER_IDS.map(id => [
+          id,
+          { configured: providerConfigured(id, aiConfigStore.providers[id]) },
+        ])
+      ),
     });
   } catch (error) {
     return apiError('Error al guardar configuración de IA', 500);

@@ -1,5 +1,11 @@
-import { aiService, GeminiProvider, OpenAIProvider, AnthropicProvider, OpenAICompatibleProvider, OllamaProvider } from '@repo/ai'
+import { aiService } from '@repo/ai'
 import { aiConfigStore } from '@/lib/aiConfigStore'
+import {
+  PROVIDER_IDS,
+  createProviderInstance,
+  getEffectiveKey,
+  isUsableKey,
+} from '@/lib/ai-providers'
 
 export interface AIRuntimeResult {
   provider: string
@@ -7,6 +13,15 @@ export interface AIRuntimeResult {
   content: string
   connected: boolean
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number }
+}
+
+export interface ProviderTestResult {
+  ok: boolean
+  provider: string
+  model: string
+  latencyMs?: number
+  message: string
+  error?: string
 }
 
 function cleanKey(key: string | undefined): string {
@@ -21,54 +36,28 @@ function cleanKey(key: string | undefined): string {
 export function syncProvidersFromStore(): void {
   const providers = (aiConfigStore?.providers as Record<string, any>) || {}
 
-  const gemini = providers.gemini
-  if (gemini?.apiKey) {
-    aiService.registerProvider(new GeminiProvider({
-      apiKey: cleanKey(gemini.apiKey),
-      model: gemini.selectedModel || gemini.models?.[0] || 'gemini-1.5-flash',
-    }))
-  }
+  for (const id of PROVIDER_IDS) {
+    const p = providers[id]
+    if (!p) continue
 
-  const openai = providers.openai
-  if (openai?.apiKey) {
-    aiService.registerProvider(new OpenAIProvider({
-      apiKey: cleanKey(openai.apiKey),
-      model: openai.selectedModel || openai.models?.[0] || 'gpt-4o-mini',
-    }))
-  }
+    if (id === 'ollama') {
+      aiService.registerProvider(createProviderInstance(id, {
+        apiKey: 'local',
+        model: p.selectedModel || p.models?.[0],
+        baseUrl: p.baseUrl,
+      }).provider)
+      continue
+    }
 
-  const anthropic = providers.anthropic
-  if (anthropic?.apiKey) {
-    aiService.registerProvider(new AnthropicProvider({
-      apiKey: cleanKey(anthropic.apiKey),
-      model: anthropic.selectedModel || anthropic.models?.[0] || 'claude-sonnet-4-20250514',
-    }))
-  }
+    const key = cleanKey(p.apiKey)
+    if (!isUsableKey(key)) continue
 
-  const groq = providers.groq
-  if (groq?.apiKey) {
-    aiService.registerProvider(new OpenAICompatibleProvider('groq', 'Groq Cloud', {
-      apiKey: cleanKey(groq.apiKey),
-      model: groq.selectedModel || groq.models?.[0] || 'llama-3.3-70b-versatile',
-      baseUrl: 'https://api.groq.com/openai/v1',
-    }))
+    aiService.registerProvider(createProviderInstance(id, {
+      apiKey: key,
+      model: p.selectedModel || p.models?.[0],
+      baseUrl: p.baseUrl,
+    }).provider)
   }
-
-  const deepseek = providers.deepseek
-  if (deepseek?.apiKey) {
-    aiService.registerProvider(new OpenAICompatibleProvider('deepseek', 'DeepSeek AI', {
-      apiKey: cleanKey(deepseek.apiKey),
-      model: deepseek.selectedModel || deepseek.models?.[0] || 'deepseek-chat',
-      baseUrl: 'https://api.deepseek.com/v1',
-    }))
-  }
-
-  const ollama = providers.ollama
-  aiService.registerProvider(new OllamaProvider({
-    apiKey: 'local',
-    model: ollama?.selectedModel || ollama?.models?.[0] || 'llama3',
-    baseUrl: ollama?.baseUrl || 'http://localhost:11434',
-  }))
 }
 
 /**
@@ -77,15 +66,11 @@ export function syncProvidersFromStore(): void {
  */
 export function getUsableProviders(): string[] {
   const providers = (aiConfigStore?.providers as Record<string, any>) || {}
-  const order = ['gemini', 'openai', 'anthropic', 'groq', 'deepseek', 'ollama']
-
-  const usable = order.filter(id => {
+  const usable = PROVIDER_IDS.filter(id => {
     const p = providers[id]
     if (id === 'ollama') return true
-    const key = cleanKey(p?.apiKey)
-    return !!key && !key.startsWith('AIzaSy...')
+    return isUsableKey(getEffectiveKey(id, p))
   })
-
   return usable.length ? usable : ['ollama']
 }
 
@@ -138,4 +123,82 @@ export async function callAI(
 
   console.error('[AI] All providers failed:', lastError)
   return null
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout tras ${ms / 1000}s`)), ms)
+    promise.then(
+      v => { clearTimeout(timer); resolve(v) },
+      e => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
+/**
+ * Makes a real, minimal completion call against one provider to verify the
+ * configured key/base URL works. Used by the "Probar conexión" button in the panel.
+ */
+export async function testProviderConnection(
+  providerId?: string,
+  model?: string,
+  baseUrl?: string,
+  apiKeyOverride?: string
+): Promise<ProviderTestResult> {
+  const providers = (aiConfigStore?.providers as Record<string, any>) || {}
+  const id = providerId || aiConfigStore?.activeProvider || 'gemini'
+  const p = providers[id]
+
+  if (!p) {
+    return { ok: false, provider: id, model: model || '', message: `Proveedor "${id}" no existe` }
+  }
+
+  const modelId = model || p.selectedModel || p.models?.[0] || ''
+  // Prefer a key typed in the panel (not yet saved) over stored/env keys
+  const key = isUsableKey(apiKeyOverride) ? cleanKey(apiKeyOverride) : getEffectiveKey(id, p)
+
+  if (id !== 'ollama' && !isUsableKey(key)) {
+    return {
+      ok: false,
+      provider: id,
+      model: modelId,
+      message: 'No hay API key configurada para este proveedor',
+    }
+  }
+
+  const { provider } = createProviderInstance(id, {
+    apiKey: key,
+    model: modelId,
+    baseUrl: baseUrl || p.baseUrl,
+  })
+  const started = Date.now()
+
+  try {
+    const response = await withTimeout(
+      provider.complete({
+        messages: [{ role: 'user', content: 'Responde únicamente con la palabra: OK' }],
+        json: false,
+        temperature: 0,
+        maxTokens: 10,
+      }),
+      20000
+    )
+    return {
+      ok: true,
+      provider: id,
+      model: modelId,
+      latencyMs: Date.now() - started,
+      message: response.content?.trim()?.slice(0, 80) || 'Conexión exitosa',
+    }
+  } catch (err: any) {
+    const msg = err?.message || String(err)
+    return {
+      ok: false,
+      provider: id,
+      model: modelId,
+      latencyMs: Date.now() - started,
+      message: 'Fallo de conexión',
+      error: msg.slice(0, 300),
+    }
+  }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck, Zap, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -56,7 +56,15 @@ const industries = [
 ]
 
 export default function ConfiguracionPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('general')
+  // Deep link support: /configuracion?tab=ai opens the AI tab directly
+  // (read from window.location to avoid useSearchParams Suspense requirements)
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if (typeof window !== 'undefined') {
+      const t = new URLSearchParams(window.location.search).get('tab')
+      if (t === 'ai' || t === 'general' || t === 'appearance' || t === 'domain') return t as Tab
+    }
+    return 'general'
+  })
   const [business, setBusiness] = useState<BusinessData>({
     name: '', slug: '', industry: 'ecommerce', logoUrl: '', faviconUrl: '',
     primaryColor: '#2563eb', secondaryColor: '#7c3aed', accentColor: '#f59e0b',
@@ -204,6 +212,31 @@ function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
   config: AIConfigData; setConfig: (c: AIConfigData) => void; onSave: () => void; saving: boolean; saved: boolean
 }) {
   const activeP = config.providers[config.activeProvider]
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; latencyMs?: number; message: string; error?: string; model?: string }>>({})
+
+  async function runTest(key: string) {
+    setTestingId(key)
+    try {
+      const p = config.providers[key]
+      const res = await fetch('/api/v1/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: key,
+          model: p?.selectedModel || p?.models?.[0],
+          baseUrl: p?.baseUrl,
+          apiKey: p?.apiKey || undefined,
+        }),
+      })
+      const data = await res.json()
+      setTestResults(prev => ({ ...prev, [key]: data?.data }))
+    } catch (e: any) {
+      setTestResults(prev => ({ ...prev, [key]: { ok: false, message: 'Error de red', error: String(e) } }))
+    } finally {
+      setTestingId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -255,63 +288,112 @@ function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
         </div>
       </Section>
 
-      <Section title="Conexión de API Keys por Proveedor" description="Ingresa tus credenciales para habilitar la generación con cada motor de IA">
+      <Section title="Conexión de API Keys por Proveedor" description="Estado real de cada motor: verifica la clave y prueba la conexión en vivo">
         <div className="space-y-4">
-          {Object.entries(config.providers || {}).map(([key, provider]) => (
-            <div key={key} className="p-4 rounded-2xl border bg-[var(--color-bg-surface)] space-y-3" style={{ borderColor: 'var(--color-border)' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bot size={16} className={config.activeProvider === key ? 'text-purple-500' : 'text-gray-400'} />
-                  <span className="text-xs font-bold text-[var(--color-text-primary)]">{provider.name}</span>
-                  {config.activeProvider === key && (
-                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-500">
-                      Activo
-                    </span>
-                  )}
-                </div>
-                <Badge variant={provider.configured ? 'success' : 'neutral'}>
-                  {provider.configured ? 'Conectado' : 'Sin Clave'}
-                </Badge>
-              </div>
+          {Object.entries(config.providers || {}).map(([key, provider]) => {
+            const result = testResults[key]
+            const testing = testingId === key
+            return (
+              <div key={key} className="p-4 rounded-2xl border bg-[var(--color-bg-surface)] space-y-3" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Bot size={16} className={config.activeProvider === key ? 'text-purple-500' : 'text-gray-400'} />
+                    <span className="text-xs font-bold text-[var(--color-text-primary)] truncate">{provider.name}</span>
+                    {config.activeProvider === key && (
+                      <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-500 shrink-0">
+                        Activo
+                      </span>
+                    )}
+                  </div>
 
-              {key !== 'ollama' ? (
-                <div>
-                  <label className="form-label text-[11px]">API Key ({provider.name})</label>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant={result?.ok === false ? 'warning' : provider.configured ? 'success' : 'neutral'}>
+                      {result?.ok === false ? 'Fallo de conexión' : provider.configured ? 'Conectado' : 'Sin Clave'}
+                    </Badge>
+                    <button
+                      onClick={() => runTest(key)}
+                      disabled={testing || !provider.configured}
+                      title={provider.configured ? 'Hacer una llamada de verificación real' : 'Configura una API key primero'}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
+                        !provider.configured
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text-primary)]'
+                      }`}
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      {testing ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                      {testing ? 'Probando...' : 'Probar conexión'}
+                    </button>
+                  </div>
+                </div>
+
+                {key !== 'ollama' ? (
+                  <div>
+                    <label className="form-label text-[11px]">API Key ({provider.name})</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={provider.apiKey || ''}
+                        onChange={(e) => {
+                          const newProv = { ...config.providers }
+                          if (newProv[key]) {
+                            newProv[key] = { ...newProv[key], apiKey: e.target.value }
+                          }
+                          setConfig({ ...config, providers: newProv })
+                        }}
+                        placeholder={provider.configured ? 'Dejar vacío para conservar la clave actual' : `API Key ${provider.name}...`}
+                        className="input-field text-xs flex-1 font-mono"
+                      />
+                    </div>
+                    {provider.configured && !provider.apiKey && provider.maskedKey && (
+                      <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Clave activa: {provider.maskedKey}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label text-[11px]">Endpoint URL de Ollama / IA Local</label>
                     <input
-                      type="password"
-                      value={provider.apiKey || ''}
+                      type="text"
+                      value={provider.baseUrl || 'http://localhost:11434'}
                       onChange={(e) => {
                         const newProv = { ...config.providers }
                         if (newProv[key]) {
-                          newProv[key] = { ...newProv[key], apiKey: e.target.value }
+                          newProv[key] = { ...newProv[key], baseUrl: e.target.value }
                         }
                         setConfig({ ...config, providers: newProv })
                       }}
-                      placeholder={`API Key ${provider.name}...`}
-                      className="input-field text-xs flex-1 font-mono"
+                      className="input-field text-xs font-mono"
                     />
                   </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="form-label text-[11px]">Endpoint URL de Ollama / IA Local</label>
-                  <input
-                    type="text"
-                    value={provider.baseUrl || 'http://localhost:11434'}
-                    onChange={(e) => {
-                      const newProv = { ...config.providers }
-                      if (newProv[key]) {
-                        newProv[key] = { ...newProv[key], baseUrl: e.target.value }
-                      }
-                      setConfig({ ...config, providers: newProv })
-                    }}
-                    className="input-field text-xs font-mono"
-                  />
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+
+                {result && (
+                  <div
+                    className={`flex items-start gap-2 text-[11px] font-semibold rounded-xl px-3 py-2 ${
+                      result.ok
+                        ? 'bg-emerald-500/10 text-emerald-600'
+                        : 'bg-rose-500/10 text-rose-600'
+                    }`}
+                  >
+                    {result.ok ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" /> : <XCircle size={13} className="shrink-0 mt-0.5" />}
+                    <div className="min-w-0">
+                      {result.ok ? (
+                        <span>
+                          Conexión exitosa · {result.latencyMs}ms · modelo <code className="font-mono">{result.model}</code> · respuesta: “{result.message}”
+                        </span>
+                      ) : (
+                        <span className="break-words">
+                          {result.error || result.message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </Section>
 

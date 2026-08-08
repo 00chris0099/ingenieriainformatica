@@ -51,6 +51,7 @@ const SUPER_ADMIN_ONLY_PAGES = [
 const ADMIN_ONLY_API_ROUTES = [
   '/api/v1/users',
   '/api/v1/config/ai',
+  '/api/v1/ai/test',
   '/api/v1/settings',
   '/api/v1/audit',
 ];
