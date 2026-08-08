@@ -30,9 +30,10 @@ export const BUILTIN_TEMPLATES = [
           brandName: 'ADRISU KIDS',
           links: [
             { label: 'Inicio', windowId: 'home', iconName: 'Home' },
-            { label: 'Colección Niños', windowId: 'ninos', iconName: 'Shirt' },
-            { label: 'Colección Niñas', windowId: 'ninas', iconName: 'Sparkles' },
-            { label: 'Ropa Bebés', windowId: 'bebes', iconName: 'Baby' },
+            { label: 'Catálogo', windowId: 'catalogo', iconName: 'ShoppingBag' },
+            { label: 'Colección Niños', windowId: 'catalogo', categoryId: 'ninos', iconName: 'Shirt' },
+            { label: 'Colección Niñas', windowId: 'catalogo', categoryId: 'ninas', iconName: 'Sparkles' },
+            { label: 'Ropa Bebés', windowId: 'catalogo', categoryId: 'bebes', iconName: 'Baby' },
             { label: 'Ofertas Flash', windowId: 'ofertas', iconName: 'Flame' },
             { label: 'Contacto WhatsApp', windowId: 'whatsapp', iconName: 'MessageSquare' },
           ],
@@ -41,6 +42,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#fff1f2', textColor: '#881337', accentColor: '#f43f5e', paddingY: 96 },
         content: {
           badge: 'NUEVA COLECCIÓN PRIMAVERA - VERANO 2026',
@@ -54,6 +56,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-products',
         type: 'product-grid',
+        windowId: 'catalogo',
         settings: { backgroundColor: '#ffffff', textColor: '#111827', accentColor: '#f43f5e', paddingY: 72 },
         content: {
           title: 'Catálogo de Moda Infantil — Selecciona tu Ventana',
@@ -138,6 +141,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-features',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#fff8f6', textColor: '#111827', accentColor: '#f43f5e', paddingY: 64 },
         content: {
           title: '¿Por qué la Plataforma Adrisu Kids es la Elegida por las Familias?',
@@ -152,6 +156,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-testimonials',
         type: 'testimonials',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#111827', paddingY: 64 },
         content: {
           title: 'Reseñas Verificadas de Compradoras',
@@ -165,6 +170,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-cta',
         type: 'cta',
+        windowId: 'ofertas',
         settings: { accentColor: '#f43f5e', paddingY: 80 },
         content: {
           title: '¡CUPÓN 15% OFF EXTRA EN TU PRIMERA COMPRA!',
@@ -175,6 +181,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-countdown',
         type: 'countdown',
+        windowId: 'ofertas',
         settings: { accentColor: '#f43f5e', paddingY: 56 },
         content: {
           badge: 'Oferta Relámpago de Verano',
@@ -187,6 +194,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-faq',
         type: 'faq',
+        windowId: 'home',
         settings: { backgroundColor: '#fff1f2', textColor: '#881337', accentColor: '#f43f5e', paddingY: 64 },
         content: {
           title: 'Preguntas Frecuentes',
@@ -202,6 +210,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-newsletter',
         type: 'newsletter',
+        windowId: 'home',
         settings: { backgroundColor: '#881337', textColor: '#ffffff', accentColor: '#f43f5e', paddingY: 48 },
         content: {
           title: 'Únete al Club VIP Adrisu Kids',
@@ -212,6 +221,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'ak-social-proof',
         type: 'social-proof',
+        windowId: 'home',
         settings: { enabled: true, interval: 7, accentColor: '#f43f5e' },
         content: {
           messages: [
@@ -261,9 +271,10 @@ export const BUILTIN_TEMPLATES = [
           brandName: 'TECHVIBES',
           links: [
             { label: 'Inicio', windowId: 'home', iconName: 'Home' },
-            { label: 'Audio & Headsets', windowId: 'audio', iconName: 'Headphones' },
-            { label: 'Smartwatches', windowId: 'watches', iconName: 'Watch' },
-            { label: 'Carga & Energía', windowId: 'carga', iconName: 'Zap' },
+            { label: 'Catálogo', windowId: 'catalogo', iconName: 'ShoppingBag' },
+            { label: 'Audio & Headsets', windowId: 'catalogo', categoryId: 'audio', iconName: 'Headphones' },
+            { label: 'Smartwatches', windowId: 'catalogo', categoryId: 'watches', iconName: 'Watch' },
+            { label: 'Carga & Energía', windowId: 'catalogo', categoryId: 'carga', iconName: 'Zap' },
             { label: 'Ofertas Flash', windowId: 'ofertas', iconName: 'Flame' },
           ],
         },
@@ -271,6 +282,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 96 },
         content: {
           badge: 'TECNOLOGÍA DE NIVEL ENTERPRISE 2026',
@@ -284,6 +296,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-products',
         type: 'product-grid',
+        windowId: 'catalogo',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 72 },
         content: {
           title: 'Parrilla Tecnológica — Selecciona tu Ventana',
@@ -305,6 +318,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-features',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#090d16', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
         content: {
           title: 'La Garantía TechVibes',
@@ -319,6 +333,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-testimonials',
         type: 'testimonials',
+        windowId: 'home',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', paddingY: 64 },
         content: {
           title: 'Reseñas de la Comunidad Tech',
@@ -332,6 +347,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-cta',
         type: 'cta',
+        windowId: 'ofertas',
         settings: { accentColor: '#3b82f6', paddingY: 80 },
         content: {
           title: 'OFERTAS FLASH HASTA 40% OFF',
@@ -342,6 +358,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-countdown',
         type: 'countdown',
+        windowId: 'ofertas',
         settings: { accentColor: '#3b82f6', paddingY: 56 },
         content: {
           badge: 'Gaming Week · Ofertas Tech',
@@ -354,6 +371,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-faq',
         type: 'faq',
+        windowId: 'home',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
         content: {
           title: 'Preguntas Frecuentes Tech',
@@ -369,6 +387,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-newsletter',
         type: 'newsletter',
+        windowId: 'home',
         settings: { backgroundColor: '#030712', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 48 },
         content: {
           title: 'Recibe ofertas exclusivas Tech',
@@ -379,6 +398,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'tv-social-proof',
         type: 'social-proof',
+        windowId: 'home',
         settings: { enabled: true, interval: 7, accentColor: '#3b82f6' },
         content: {
           messages: [
@@ -428,15 +448,17 @@ export const BUILTIN_TEMPLATES = [
           brandName: 'BOUTIQUE GOURMET',
           links: [
             { label: 'Inicio', windowId: 'home', iconName: 'Home' },
-            { label: 'Cava & Vinos', windowId: 'vinos', iconName: 'Wine' },
-            { label: 'Quesos Artisanal', windowId: 'quesos', iconName: 'Utensils' },
-            { label: 'Cajas Regalo', windowId: 'regalos', iconName: 'Gift' },
+            { label: 'Catálogo', windowId: 'catalogo', iconName: 'ShoppingBag' },
+            { label: 'Cava & Vinos', windowId: 'catalogo', categoryId: 'vinos', iconName: 'Wine' },
+            { label: 'Quesos Artisanal', windowId: 'catalogo', categoryId: 'quesos', iconName: 'Utensils' },
+            { label: 'Cajas Regalo', windowId: 'catalogo', categoryId: 'regalos', iconName: 'Gift' },
           ],
         },
       },
       {
         id: 'bg-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#1c1917', textColor: '#fef3c7', accentColor: '#d97706', paddingY: 96 },
         content: {
           badge: 'COSECHA SELECCIONADA & CAVA DE AUTOR',
@@ -450,6 +472,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-products',
         type: 'product-grid',
+        windowId: 'catalogo',
         settings: { backgroundColor: '#ffffff', textColor: '#1c1917', accentColor: '#d97706', paddingY: 72 },
         content: {
           title: 'Nuestra Cava Seleccionada',
@@ -471,6 +494,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-features',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#fef3c7', textColor: '#1c1917', accentColor: '#d97706', paddingY: 64 },
         content: {
           title: 'El Sello de Excelencia Gourmet',
@@ -485,6 +509,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-testimonials',
         type: 'testimonials',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#1c1917', paddingY: 64 },
         content: {
           title: 'Opiniones de Catadores & Clientes VIP',
@@ -497,6 +522,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-cta',
         type: 'cta',
+        windowId: 'ofertas',
         settings: { accentColor: '#d97706', paddingY: 80 },
         content: {
           title: 'HAMPERS & REGALOS CORPORATIVOS VIP',
@@ -507,6 +533,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-countdown',
         type: 'countdown',
+        windowId: 'ofertas',
         settings: { accentColor: '#d97706', paddingY: 56 },
         content: {
           badge: 'Venta de Reserva Especial',
@@ -519,6 +546,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-faq',
         type: 'faq',
+        windowId: 'home',
         settings: { backgroundColor: '#fef3c7', textColor: '#1c1917', accentColor: '#d97706', paddingY: 64 },
         content: {
           title: 'Preguntas Frecuentes',
@@ -534,6 +562,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-newsletter',
         type: 'newsletter',
+        windowId: 'home',
         settings: { backgroundColor: '#0c0a09', textColor: '#fef3c7', accentColor: '#d97706', paddingY: 48 },
         content: {
           title: 'Únete al Club Gourmet',
@@ -544,6 +573,7 @@ export const BUILTIN_TEMPLATES = [
       {
         id: 'bg-social-proof',
         type: 'social-proof',
+        windowId: 'home',
         settings: { enabled: true, interval: 8, accentColor: '#d97706' },
         content: {
           messages: [

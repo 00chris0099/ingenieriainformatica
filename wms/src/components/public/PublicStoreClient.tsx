@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { IconRenderer } from '@/components/ui/IconRenderer'
-import { X, ShoppingBag, Check, Plus, Minus, MessageSquare, Star, Trash2 } from 'lucide-react'
+import { X, ShoppingBag, Check, Plus, Minus, MessageSquare, Star, Trash2, ArrowLeft, ExternalLink } from 'lucide-react'
 
 interface PublicStoreClientProps {
   pageTitle: string
@@ -84,32 +84,102 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
   const [showNotification, setShowNotification] = useState<boolean>(false)
   const [navOpen, setNavOpen] = useState<boolean>(false)
 
-  // Multi-window state: a selected product opens its own landing "window"
-  const [productWindow, setProductWindow] = useState<any | null>(null)
-  const [productWindowCategory, setProductWindowCategory] = useState<string>('all')
+  // ── Multi-window engine ────────────────────────────────────────────────
+  // Windows are real views, not scroll anchors: 'home', 'catalogo' (with
+  // category filter), any custom window id ('ofertas', 'nosotros', ...) and
+  // 'product:<id>' landing windows. Hash routing (#/, #/catalogo/ninos,
+  // #/ventana/ofertas, #/producto/p1) gives back/forward + shareable URLs.
+  const [activeWindow, setActiveWindow] = useState<string>('home')
+
+  const allProducts = useMemo(
+    () => blocks.flatMap((b: any) => (Array.isArray(b?.content?.products) ? b.content.products : [])),
+    [blocks]
+  )
+
+  useEffect(() => {
+    const parseHash = (): { window: string; category: string } => {
+      const h = window.location.hash
+      let m = h.match(/^#\/producto\/([^/?]+)/)
+      if (m) return { window: `product:${m[1]!}`, category: 'all' }
+      m = h.match(/^#\/catalogo(?:\/([^/?]+))?/)
+      if (m) return { window: 'catalogo', category: m[1] && m[1] !== 'all' ? m[1] : 'all' }
+      m = h.match(/^#\/ventana\/([^/?]+)/)
+      if (m) return { window: m[1]!, category: 'all' }
+      return { window: 'home', category: 'all' }
+    }
+
+    const applyHash = () => {
+      const { window: w, category } = parseHash()
+      setActiveWindow(w)
+      setActiveCategory(category)
+      if (w.startsWith('product:')) {
+        const pid = w.replace('product:', '')
+        const found = allProducts.find((p: any) => String(p.id) === pid)
+        if (found) {
+          setSelectedProduct(found)
+          const firstSize = Array.isArray(found.sizes) && found.sizes.length > 0 ? String(found.sizes[0]) : ''
+          setSelectedSize(firstSize)
+          setQuantity(1)
+        }
+      } else {
+        setSelectedProduct(null)
+      }
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+    return () => window.removeEventListener('hashchange', applyHash)
+  }, [allProducts])
 
   const closeNav = () => setNavOpen(false)
 
-  const navigateTo = (windowId: string) => {
-    setNavOpen(false)
-    if (windowId === 'home') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
+  /** Builds the shareable hash href for a navbar link */
+  const hashHref = (link: any): string => {
+    const w = link?.windowId
+    if (w === 'home') return '#/'
+    if (w === 'catalogo' || link?.categoryId) {
+      return link?.categoryId && link.categoryId !== 'all' ? `#/catalogo/${link.categoryId}` : '#/catalogo'
     }
-    if (windowId.startsWith('product:')) {
-      const pid = windowId.replace('product:', '')
-      const all = blocks
-        .flatMap((b: any) => (Array.isArray(b?.content?.products) ? b.content.products : []))
-      const found = all.find((p: any) => String(p.id) === pid)
-      if (found) {
-        handleOpenProduct(found)
-        return
-      }
-    }
-    setActiveCategory(windowId)
-    const el = document.getElementById('productos')
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (typeof w === 'string' && w.startsWith('product:')) return `#/producto/${w.replace('product:', '')}`
+    if (w) return `#/ventana/${w}`
+    return '#/'
   }
+
+  const isWhatsappLink = (link: any) => link?.windowId === 'whatsapp'
+
+  const isLinkActive = (link: any) => {
+    if (link?.categoryId) return activeWindow === 'catalogo' && activeCategory === link.categoryId
+    if (link?.windowId === 'catalogo') return activeWindow === 'catalogo' && (!link.categoryId || activeCategory === 'all')
+    if (link?.windowId === 'home') return activeWindow === 'home'
+    return activeWindow === link?.windowId
+  }
+
+  const isProductWindow = activeWindow.startsWith('product:')
+  const activeProduct = isProductWindow
+    ? allProducts.find((p: any) => String(p.id) === activeWindow.replace('product:', '')) || null
+    : null
+  const hasOfertasWindow = blocks.some((b: any) => b.windowId === 'ofertas')
+  const hasCatalogoWindow = blocks.some((b: any) => b.windowId === 'catalogo')
+
+  /**
+   * Effective window: falls back to 'home' when the requested window has no
+   * blocks yet (handles old saved pages without windowId gracefully).
+   */
+  const activeWindowEffective = useMemo(() => {
+    if (isProductWindow) return activeWindow
+    const hasBlocks = blocks.some(b => {
+      if (b.type === 'navbar' || b.type === 'footer') return false
+      return b.windowId === activeWindow || (!b.windowId && activeWindow === 'home')
+    })
+    return hasBlocks ? activeWindow : 'home'
+  }, [blocks, activeWindow, isProductWindow])
+
+  /** Blocks belonging to the active window (navbar/footer are global) */
+  const windowBlocks = useMemo(() => blocks.filter(b => {
+    if (b.type === 'navbar' || b.type === 'footer') return false
+    return b.windowId === activeWindowEffective || (!b.windowId && activeWindowEffective === 'home')
+  }), [blocks, activeWindowEffective])
 
   const cartCount = cart.reduce((acc, it) => acc + it.qty, 0)
   const cartTotal = cart.reduce((acc, it) => acc + it.price * it.qty, 0)
@@ -121,8 +191,6 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
 
   const handleOpenProduct = (p: any) => {
     setSelectedProduct(p)
-    setProductWindow(p)
-    setProductWindowCategory(p.category || 'all')
     setSelectedSize(Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes[0] : '')
     setQuantity(1)
   }
@@ -135,6 +203,167 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
       .filter((p: any) => String(p.id) !== String(selectedProduct.id))
     return all.slice(0, 4)
   })()
+
+  // ── Global navbar (rendered on every window) ──────────────────────────
+  const renderNavbar = (b: any) => {
+    const s = b.settings || {}
+    const c = b.content || {}
+    const links = Array.isArray(c.links) ? c.links : []
+    const navBg = s.backgroundColor || '#ffffff'
+    const navText = s.textColor || '#111827'
+    const accent = s.accentColor || settings?.accentColor || settings?.primaryColor || '#f43f5e'
+    const logoUrl = c.logoUrl || settings?.logoUrl || ''
+    const brandName = c.brandName || settings?.siteName || seo?.title || pageTitle || 'TIENDA VIRTUAL'
+    return (
+      <header
+        key={b.id}
+        style={{ backgroundColor: navBg, color: navText, '--accent': accent } as React.CSSProperties}
+        className="sticky top-0 z-40 border-b shadow-sm"
+      >
+        {c.announcement && (
+          <div style={{ backgroundColor: accent }} className="text-center py-2 px-4 text-xs font-extrabold text-white uppercase tracking-wider">
+            {c.announcement}
+          </div>
+        )}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <a
+            href="#/"
+            onClick={closeNav}
+            className="flex items-center gap-2 font-black text-lg sm:text-xl tracking-tight hover:opacity-80 transition-opacity min-w-0"
+            style={{ color: navText }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[150px] object-contain shrink-0" />
+            ) : (
+              <span className="w-3 h-3 rounded-full inline-block animate-pulse shrink-0" style={{ backgroundColor: accent }} />
+            )}
+            <span className="truncate">{brandName}</span>
+          </a>
+
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-1">
+            {links.map((link: any, idx: number) => {
+              const cls = `px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 hover:opacity-70 ${isLinkActive(link) ? 'opacity-100' : 'opacity-80'}`
+              const style = isLinkActive(link) ? { backgroundColor: softBg(accent, '14'), color: accent } : { color: navText }
+              if (isWhatsappLink(link)) {
+                return (
+                  <a key={idx} href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer" className={cls} style={style}>
+                    <IconRenderer name={link.iconName} size={14} />
+                    {link.label}
+                  </a>
+                )
+              }
+              return (
+                <a key={idx} href={hashHref(link)} onClick={closeNav} className={cls} style={style}>
+                  <IconRenderer name={link.iconName} size={14} />
+                  {link.label}
+                </a>
+              )
+            })}
+            {/* Cart button in navbar */}
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative ml-2 p-2 rounded-xl transition-all hover:opacity-80 inline-flex items-center gap-1.5"
+              style={{ color: navText, backgroundColor: softBg(accent, '10') }}
+              aria-label="Abrir carrito"
+            >
+              <ShoppingBag size={15} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </nav>
+
+          {/* Mobile hamburger + cart */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative p-2 rounded-xl transition-all hover:opacity-80"
+              style={{ color: navText, backgroundColor: softBg(accent, '10') }}
+              aria-label="Abrir carrito"
+            >
+              <ShoppingBag size={16} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setNavOpen(!navOpen)}
+              className="p-2 rounded-xl transition-all hover:opacity-80 flex flex-col gap-1"
+              style={{ color: navText }}
+              aria-label="Abrir menú"
+            >
+              <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'rotate-45 translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
+              <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'opacity-0' : ''}`} style={{ backgroundColor: navText }} />
+              <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? '-rotate-45 -translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile nav drawer */}
+        {navOpen && (
+          <nav
+            className="md:hidden border-t animate-fade-in-down px-4 py-3 space-y-1"
+            style={{ backgroundColor: navBg, borderColor: 'rgba(128,128,128,0.15)' }}
+          >
+            {links.map((link: any, idx: number) => (
+              isWhatsappLink(link) ? (
+                <a
+                  key={idx}
+                  href={`https://wa.me/${whatsappNumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={closeNav}
+                  className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
+                  style={{ color: navText }}
+                >
+                  <IconRenderer name={link.iconName} size={14} />
+                  {link.label}
+                </a>
+              ) : (
+                <a
+                  key={idx}
+                  href={hashHref(link)}
+                  onClick={closeNav}
+                  className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
+                  style={{ color: navText }}
+                >
+                  <IconRenderer name={link.iconName} size={14} />
+                  {link.label}
+                </a>
+              )
+            ))}
+          </nav>
+        )}
+      </header>
+    )
+  }
+
+  // ── Global footer (rendered on every window) ──────────────────────────
+  const renderFooter = (b: any) => {
+    const s = b.settings || {}
+    const c = b.content || {}
+    const logoUrl = s.logoUrl || settings?.logoUrl || ''
+    return (
+      <footer
+        key={b.id}
+        style={{ backgroundColor: s.backgroundColor || '#0f172a', color: s.textColor || '#fff' }}
+        className="px-6 py-12 text-center border-t border-white/10 space-y-4"
+      >
+        <div className="max-w-5xl mx-auto space-y-3">
+          {logoUrl && (
+            <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />
+          )}
+          <h3 className="text-xl font-black tracking-wider">{c.brandName || settings?.siteName || 'TIENDA VIRTUAL'}</h3>
+          <p className="text-xs opacity-60">{c.copyright || '© 2026 Todos los derechos reservados. Impulsado por WMS Platform.'}</p>
+        </div>
+      </footer>
+    )
+  }
 
   const addToCart = (p: any, size: string, qty: number) => {
     const key = `${p.id}-${size || 'std'}`
@@ -201,117 +430,160 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
       )}
 
       <main>
-        {blocks.map((b, bIdx) => {
+        {/* ═══ GLOBAL NAVBAR — visible on every window ═══ */}
+        {blocks.filter((b: any) => b.type === 'navbar').map((b: any) => renderNavbar(b))}
+
+        {isProductWindow && activeProduct ? (
+          /* ═══ PRODUCT LANDING WINDOW — a real page per product ═══ */
+          <section className="px-4 py-10 md:py-14 bg-slate-50">
+            <div className="max-w-6xl mx-auto space-y-8">
+              <button
+                onClick={() => { window.location.hash = '#/catalogo' }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold opacity-60 hover:opacity-100 transition-all"
+              >
+                <ArrowLeft size={14} /> Volver al catálogo
+              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                <div className="h-72 md:h-[420px] rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center relative">
+                  {activeProduct.imageUrl ? (
+                    <img src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <IconRenderer name={activeProduct.iconName || 'Shirt'} size={96} style={{ color: rootAccent }} />
+                  )}
+                  {activeProduct.discountBadge && (
+                    <span
+                      className="absolute top-4 left-4 text-[10px] font-extrabold px-3 py-1 rounded-full border bg-white/90"
+                      style={{ color: rootAccent, borderColor: `${rootAccent}40` }}
+                    >
+                      {activeProduct.discountBadge}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-4 flex flex-col">
+                  <div>
+                    <span
+                      className="text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
+                      style={{ backgroundColor: softBg(rootAccent, '10'), color: rootAccent, borderColor: `${rootAccent}40` }}
+                    >
+                      PRODUCTO DESTACADO
+                    </span>
+                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-3 leading-tight">{activeProduct.name}</h1>
+                    <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                      {activeProduct.description || 'Producto de alta calidad con acabados nivel exportación.'}
+                    </p>
+                    <div className="flex items-baseline gap-3 mt-4">
+                      <span className="text-4xl font-black" style={{ color: rootAccent }}>{activeProduct.price}</span>
+                      {activeProduct.originalPrice && <span className="text-base text-slate-400 line-through">{activeProduct.originalPrice}</span>}
+                    </div>
+                  </div>
+
+                  {Array.isArray(activeProduct.sizes) && activeProduct.sizes.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Selecciona tu Talla:</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {activeProduct.sizes.map((sz: string) => (
+                          <button
+                            key={sz}
+                            onClick={() => setSelectedSize(sz)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all ${
+                              selectedSize === sz ? 'text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                            style={selectedSize === sz ? { backgroundColor: rootAccent, borderColor: rootAccent } : undefined}
+                          >
+                            {sz}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-bold text-slate-700">Cantidad:</span>
+                    <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
+                      <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
+                        <Minus size={14} />
+                      </button>
+                      <span className="text-xs font-black w-4 text-center">{quantity}</span>
+                      <button onClick={() => setQuantity(quantity + 1)} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <a
+                      href={buildWhatsappUrl(activeProduct)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
+                    >
+                      <MessageSquare size={16} /> Comprar por WhatsApp
+                    </a>
+                    <button
+                      onClick={() => addToCart(activeProduct, selectedSize, quantity)}
+                      style={{ backgroundColor: rootAccent }}
+                      className="w-full hover:opacity-90 text-white py-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all"
+                    >
+                      <ShoppingBag size={16} /> Añadir al Carrito
+                    </button>
+                  </div>
+
+                  {/* Product landing guarantees strip */}
+                  <div className="grid grid-cols-3 gap-3 pt-4 mt-2 border-t border-slate-100">
+                    {[
+                      { icon: 'Truck', label: 'Envío 24h' },
+                      { icon: 'RefreshCw', label: 'Cambios gratis' },
+                      { icon: 'ShieldCheck', label: 'Garantía total' },
+                    ].map((g) => (
+                      <div key={g.label} className="flex flex-col items-center gap-1.5 text-center">
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: softBg(rootAccent, '12'), color: rootAccent }}>
+                          <IconRenderer name={g.icon} size={16} />
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-600">{g.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Related products (navigate between product windows) */}
+              {relatedProducts.length > 0 && (
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-4">También te puede gustar</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {relatedProducts.map((rp: any) => (
+                      <a
+                        key={rp.id || rp.name}
+                        href={`#/producto/${rp.id}`}
+                        className="group text-left rounded-xl overflow-hidden border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all"
+                      >
+                        <div className="h-20 bg-slate-50 overflow-hidden">
+                          {rp.imageUrl ? (
+                            <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center" style={{ color: rootAccent }}>
+                              <IconRenderer name={rp.iconName || 'Shirt'} size={22} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-[10px] font-bold text-slate-700 truncate">{rp.name}</p>
+                          <p className="text-[10px] font-black mt-0.5" style={{ color: rootAccent }}>{rp.price}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : (
+        windowBlocks.map((b, bIdx) => {
           const s = b.settings || {}
           const c = b.content || {}
           const accent = s.accentColor || settings?.accentColor || settings?.primaryColor || '#f43f5e'
-
-          if (b.type === 'navbar') {
-            const links = Array.isArray(c.links) ? c.links : []
-            const navBg = s.backgroundColor || '#ffffff'
-            const navText = s.textColor || '#111827'
-            return (
-              <header
-                key={b.id}
-                style={{ backgroundColor: navBg, color: navText, '--accent': accent } as React.CSSProperties}
-                className="sticky top-0 z-40 border-b shadow-sm"
-              >
-                {c.announcement && (
-                  <div style={{ backgroundColor: accent }} className="text-center py-2 px-4 text-xs font-extrabold text-white uppercase tracking-wider">
-                    {c.announcement}
-                  </div>
-                )}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-                  <button
-                    onClick={() => navigateTo('home')}
-                    className="flex items-center gap-2 font-black text-lg sm:text-xl tracking-tight hover:opacity-80 transition-opacity"
-                    style={{ color: navText }}
-                  >
-                    <span className="w-3 h-3 rounded-full inline-block animate-pulse" style={{ backgroundColor: accent }} />
-                    <span className="truncate">{c.brandName || seo?.title || pageTitle || 'TIENDA VIRTUAL'}</span>
-                  </button>
-
-                  {/* Desktop nav */}
-                  <nav className="hidden md:flex items-center gap-1">
-                    {links.map((link: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => navigateTo(link.windowId || 'productos')}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 hover:opacity-70 ${
-                          activeCategory === link.windowId ? 'opacity-100' : 'opacity-80'
-                        }`}
-                        style={activeCategory === link.windowId ? { backgroundColor: softBg(accent, '14'), color: accent } : { color: navText }}
-                      >
-                        <IconRenderer name={link.iconName} size={14} />
-                        {link.label}
-                      </button>
-                    ))}
-                    {/* Cart button in navbar */}
-                    <button
-                      onClick={() => setCartOpen(true)}
-                      className="relative ml-2 p-2 rounded-xl transition-all hover:opacity-80 inline-flex items-center gap-1.5"
-                      style={{ color: navText, backgroundColor: softBg(accent, '10') }}
-                      aria-label="Abrir carrito"
-                    >
-                      <ShoppingBag size={15} />
-                      {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
-                          {cartCount}
-                        </span>
-                      )}
-                    </button>
-                  </nav>
-
-                  {/* Mobile hamburger + cart */}
-                  <div className="flex items-center gap-2 md:hidden">
-                    <button
-                      onClick={() => setCartOpen(true)}
-                      className="relative p-2 rounded-xl transition-all hover:opacity-80"
-                      style={{ color: navText, backgroundColor: softBg(accent, '10') }}
-                      aria-label="Abrir carrito"
-                    >
-                      <ShoppingBag size={16} />
-                      {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
-                          {cartCount}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setNavOpen(!navOpen)}
-                      className="p-2 rounded-xl transition-all hover:opacity-80 flex flex-col gap-1"
-                      style={{ color: navText }}
-                      aria-label="Abrir menú"
-                    >
-                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'rotate-45 translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
-                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'opacity-0' : ''}`} style={{ backgroundColor: navText }} />
-                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? '-rotate-45 -translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Mobile nav drawer */}
-                {navOpen && (
-                  <nav
-                    className="md:hidden border-t animate-fade-in-down px-4 py-3 space-y-1"
-                    style={{ backgroundColor: navBg, borderColor: 'rgba(128,128,128,0.15)' }}
-                  >
-                    {links.map((link: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => navigateTo(link.windowId || 'productos')}
-                        className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
-                        style={{ color: navText }}
-                      >
-                        <IconRenderer name={link.iconName} size={14} />
-                        {link.label}
-                      </button>
-                    ))}
-                  </nav>
-                )}
-              </header>
-            )
-          }
 
           if (b.type === 'hero') {
             return (
@@ -322,10 +594,14 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                   color: s.textColor || '#fff',
                   paddingTop: `${s.paddingY || 96}px`,
                   paddingBottom: `${s.paddingY || 96}px`,
+                  backgroundImage: c.heroImage ? `url(${c.heroImage})` : undefined,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                   '--accent': accent,
                 } as React.CSSProperties}
                 className="px-6 text-center relative overflow-hidden"
               >
+                {c.heroImage && <div className="absolute inset-0 bg-black/55" />}
                 <div className="max-w-4xl mx-auto space-y-6 relative z-10">
                   <Reveal>
                     {c.badge && (
@@ -348,7 +624,12 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                   <Reveal delay={240}>
                     <div className="flex items-center justify-center gap-4 flex-wrap pt-4">
                       <a
-                        href="#productos"
+                        href={hasCatalogoWindow || allProducts.length > 0 ? '#/catalogo' : '#/ofertas'}
+                        onClick={(e) => {
+                          if (hasCatalogoWindow || allProducts.length > 0) return
+                          e.preventDefault()
+                          document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
+                        }}
                         style={{ backgroundColor: accent, boxShadow: `0 16px 40px -14px ${accent}` }}
                         className="px-8 py-4 rounded-xl text-white font-extrabold text-base hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2"
                       >
@@ -357,7 +638,12 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                       </a>
                       {c.secondaryButtonText && (
                         <a
-                          href="#ofertas"
+                          href={hasOfertasWindow ? '#/ventana/ofertas' : '#/ofertas'}
+                          onClick={(e) => {
+                            if (hasOfertasWindow) return
+                            e.preventDefault()
+                            document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
+                          }}
                           className="px-7 py-4 rounded-xl text-white font-bold text-base bg-white/10 border border-white/20 hover:bg-white/20 transition-all inline-flex items-center gap-2"
                         >
                           <IconRenderer name="Flame" size={18} />
@@ -790,28 +1076,17 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
             )
           }
 
-          if (b.type === 'footer') {
-            return (
-              <footer
-                key={b.id}
-                style={{ backgroundColor: s.backgroundColor || '#0f172a', color: s.textColor || '#fff' }}
-                className="px-6 py-12 text-center border-t border-white/10 space-y-4"
-              >
-                <div className="max-w-5xl mx-auto space-y-2">
-                  <h3 className="text-xl font-black tracking-wider">{c.brandName || 'TIENDA VIRTUAL'}</h3>
-                  <p className="text-xs opacity-60">{c.copyright || '© 2026 Todos los derechos reservados. Impulsado por WMS Platform.'}</p>
-                </div>
-              </footer>
-            )
-          }
-
           // Known blocks without a template-level renderer are skipped gracefully
           return null
-        })}
+        })
+        )}
+
+        {/* ═══ GLOBAL FOOTER — visible on every window ═══ */}
+        {blocks.filter((b: any) => b.type === 'footer').map((b: any) => renderFooter(b))}
       </main>
 
       {/* ═══════════════ ENTERPRISE QUICK VIEW PRODUCT MODAL ═══════════════ */}
-      {selectedProduct && (
+      {selectedProduct && !isProductWindow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="bg-white text-slate-900 rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl relative border border-slate-100 overflow-hidden">
             <button
@@ -909,6 +1184,18 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                   >
                     <ShoppingBag size={16} />
                     Añadir al Carrito
+                  </button>
+                  <button
+                    onClick={() => {
+                      const pid = selectedProduct.id
+                      setSelectedProduct(null)
+                      window.location.hash = `#/producto/${pid}`
+                    }}
+                    className="w-full py-2.5 rounded-xl font-extrabold text-xs border transition-all hover:bg-slate-50 flex items-center justify-center gap-2"
+                    style={{ borderColor: 'var(--color-border, #e2e8f0)', color: '#334155' }}
+                  >
+                    <ExternalLink size={14} />
+                    Ver página completa del producto
                   </button>
                 </div>
               </div>

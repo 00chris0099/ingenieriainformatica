@@ -42,6 +42,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 110 },
         content: {
           badge: 'CONSULTORÍA ESTRATÉGICA · DESDE 2011',
@@ -55,6 +56,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-stats',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 64 },
         content: {
           title: 'El Impacto de Nuestro Trabajo en Cifras',
@@ -69,6 +71,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-services',
         type: 'features',
+        windowId: 'servicios',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 80 },
         content: {
           title: 'Nuestros Servicios Corporativos',
@@ -86,6 +89,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-method',
         type: 'features',
+        windowId: 'metodologia',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 72 },
         content: {
           title: 'Nuestra Metodología en 4 Fases',
@@ -100,6 +104,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-testimonials',
         type: 'testimonials',
+        windowId: 'casos',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', paddingY: 72 },
         content: {
           title: 'Casos de Éxito y Testimonios',
@@ -113,6 +118,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-team',
         type: 'team',
+        windowId: 'equipo',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 72 },
         content: {
           title: 'El Equipo que Lidera tu Crecimiento',
@@ -128,6 +134,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-faq',
         type: 'faq',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 64 },
         content: {
           title: 'Preguntas Frecuentes Corporativas',
@@ -143,6 +150,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'cs-contact',
         type: 'contact',
+        windowId: 'contacto',
         settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 72 },
         content: {
           title: 'Agenda tu Diagnóstico Empresarial Gratis',
@@ -191,7 +199,6 @@ export const CORPORATE_TEMPLATES = [
             { label: 'Inicio', windowId: 'home', iconName: 'Home' },
             { label: 'Servicios', windowId: 'servicios', iconName: 'Package' },
             { label: 'Cobertura', windowId: 'cobertura', iconName: 'MapPin' },
-            { label: 'Flota', windowId: 'flota', iconName: 'Truck' },
             { label: 'Contacto', windowId: 'contacto', iconName: 'MessageSquare' },
           ],
         },
@@ -199,6 +206,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#f97316', paddingY: 110 },
         content: {
           badge: '+2,500 ENTREGAS DIARIAS EN TODO EL PERÚ',
@@ -212,6 +220,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-stats',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 64 },
         content: {
           title: 'Operación Logística en Cifras',
@@ -226,6 +235,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-services',
         type: 'features',
+        windowId: 'servicios',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#f97316', paddingY: 80 },
         content: {
           title: 'Servicios Logísticos Integrales',
@@ -243,6 +253,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-coverage',
         type: 'gallery',
+        windowId: 'cobertura',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 72 },
         content: {
           title: 'Cobertura Nacional',
@@ -260,6 +271,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-testimonials',
         type: 'testimonials',
+        windowId: 'home',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', paddingY: 72 },
         content: {
           title: 'Clientes que Confían en LogiPro',
@@ -273,6 +285,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-cert',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#f97316', paddingY: 64 },
         content: {
           title: 'Certificaciones y Cumplimiento',
@@ -287,6 +300,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'lp-contact',
         type: 'contact',
+        windowId: 'contacto',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 72 },
         content: {
           title: 'Cotiza tu Envío o Servicio Logístico',
@@ -344,6 +358,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-hero',
         type: 'hero',
+        windowId: 'home',
         settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 110 },
         content: {
           badge: 'AGENCIA CREATIVA FULL SERVICE',
@@ -357,6 +372,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-stats',
         type: 'features',
+        windowId: 'home',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 64 },
         content: {
           title: 'El Impacto Nova en Números',
@@ -371,6 +387,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-services',
         type: 'features',
+        windowId: 'servicios',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 80 },
         content: {
           title: 'Nuestras Áreas de Especialidad',
@@ -388,6 +405,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-portfolio',
         type: 'gallery',
+        windowId: 'portafolio',
         settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 80 },
         content: {
           title: 'Portafolio Seleccionado',
@@ -405,6 +423,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-process',
         type: 'features',
+        windowId: 'proceso',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 72 },
         content: {
           title: 'Cómo Trabajamos Contigo',
@@ -419,6 +438,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-testimonials',
         type: 'testimonials',
+        windowId: 'home',
         settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', paddingY: 72 },
         content: {
           title: 'Lo que Dicen Nuestros Clientes',
@@ -432,6 +452,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-team',
         type: 'team',
+        windowId: 'equipo',
         settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 72 },
         content: {
           title: 'El Equipo Creativo Detrás de Nova',
@@ -447,6 +468,7 @@ export const CORPORATE_TEMPLATES = [
       {
         id: 'ng-contact',
         type: 'contact',
+        windowId: 'contacto',
         settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 72 },
         content: {
           title: '¿Listo para Impulsar tu Marca?',

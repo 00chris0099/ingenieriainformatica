@@ -7,6 +7,8 @@ import { ReactNode } from 'react'
 export interface Block {
   id: string
   type: string
+  /** Which window (ventana) this block belongs to: 'home' (default), 'catalogo', 'ofertas', or any custom id */
+  windowId?: string
   settings: Record<string, any>
   content: Record<string, any>
 }
