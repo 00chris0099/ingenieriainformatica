@@ -149,18 +149,12 @@ export async function POST(request: NextRequest) {
       console.log(`[PAGES POST] Created in DB with ${blocks.length} blocks: ${page.id}`);
       return apiSuccess(page, 201);
     } catch (dbErr) {
-      console.warn('[PAGES POST] DB error, using in-process store:', (dbErr as any)?.message?.slice(0, 100));
+      // No in-process fallback: fail loudly so the UI never shows a false success.
+      console.error('[PAGES POST] DB unavailable, page NOT saved:', (dbErr as any)?.message?.slice(0, 120));
+      return apiError('La base de datos no está disponible. No se pudo guardar la página. Inténtalo de nuevo.', 503);
     }
-
-    // In-process store fallback
-    const fallback = makeFallbackPage({ title, type, description, slug, templateId, blocks, seo, settings });
-    pageStore.set(fallback.id, fallback);
-    console.log(`[PAGES POST FALLBACK] Stored in-process with ${blocks.length} blocks: ${fallback.id}`);
-    return apiSuccess(fallback, 201);
   } catch (error) {
     console.error('[PAGES POST ERROR]', error);
-    const emergency = makeFallbackPage();
-    pageStore.set(emergency.id, emergency);
-    return apiSuccess(emergency, 201);
+    return apiError('Error inesperado al crear la página.', 500);
   }
 }

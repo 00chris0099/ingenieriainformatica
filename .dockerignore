@@ -1,0 +1,50 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build outputs
+.next
+**/.next
+dist
+**/dist
+out
+.turbo
+
+# Environment & secrets (never copy local .env into images)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases & caches
+*.db
+*.db-shm
+*.db-wal
+.cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Git & IDE
+.git
+.gitignore
+.vscode
+.idea
+.freebuff
+.mimocode
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docs & infrastructure not needed at runtime
+docs
+infrastructure
+
+# Tests
+coverage
+**/__tests__
+*.test.ts
+*.test.tsx

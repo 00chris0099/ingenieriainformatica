@@ -5,9 +5,9 @@ const sequenceCache = new Map<string, number>();
 
 /**
  * Genera un codigo de categoria corto a partir del nombre
- * Ejemplo: "Muebles para Bebe" -> "MUE", "Accesorios" -> "ACC"
+ * Ejemplo: "Muebles para Bebe" -> "MUBE", "Accesorios" -> "ACC"
  */
-function getCategoryCode(categoryName: string): string {
+export function getCategoryCode(categoryName: string): string {
   const words = categoryName
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

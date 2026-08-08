@@ -28,6 +28,7 @@ const PUBLIC_ROUTES = [
   '/api/v1/auth',
   '/api/v1/health',
   '/api/v1/store',
+  '/p/',
   '/manifest.json',
   '/sw.js',
   '/site.webmanifest',

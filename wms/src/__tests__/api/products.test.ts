@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { NextRequest } from 'next/server';
 
 // Mock Prisma
 vi.mock('@repo/prisma', () => ({
@@ -31,7 +32,7 @@ describe('Products API', () => {
 
   it('GET returns paginated products', async () => {
     const { GET } = await import('@/app/api/v1/products/route');
-    const request = new Request('http://localhost/api/v1/products?page=1&limit=10');
+    const request = new NextRequest('http://localhost/api/v1/products?page=1&limit=10');
     const response = await GET(request);
     const data = await response.json();
 
@@ -44,7 +45,7 @@ describe('Products API', () => {
 
   it('POST creates a product', async () => {
     const { POST } = await import('@/app/api/v1/products/route');
-    const request = new Request('http://localhost/api/v1/products', {
+    const request = new NextRequest('http://localhost/api/v1/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sku: 'TEST-001', name: 'Test Product' }),
@@ -58,7 +59,7 @@ describe('Products API', () => {
 
   it('POST fails without required fields', async () => {
     const { POST } = await import('@/app/api/v1/products/route');
-    const request = new Request('http://localhost/api/v1/products', {
+    const request = new NextRequest('http://localhost/api/v1/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),

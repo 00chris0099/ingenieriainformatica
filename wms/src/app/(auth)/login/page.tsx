@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -15,7 +15,9 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<'login' | 'otp'>('login');
-  const [otpCode, setOtpCode] = useState('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const otpCode = otpDigits.join('');
 
   // Anti-bot Captcha state
   const [num1, setNum1] = useState(6);
@@ -98,7 +100,7 @@ function LoginForm() {
     try {
       const result = await signIn('credentials', {
         email: email.trim().toLowerCase(),
-        password: password.trim() || 'Mineria99*',
+        password: password.trim(),
         otpVerified: 'true',
         redirect: false,
       });
@@ -116,10 +118,27 @@ function LoginForm() {
     }
   };
 
+  const handleOtpChange = (idx: number, value: string) => {
+    const clean = value.replace(/\D/g, '').slice(-1);
+    const next = [...otpDigits];
+    next[idx] = clean;
+    setOtpDigits(next);
+    if (clean && idx < 5) otpRefs.current[idx + 1]?.focus();
+    if (next.join('').length === 6) {
+      otpRefs.current[5]?.blur();
+    }
+  };
+
+  const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otpDigits[idx] && idx > 0) {
+      otpRefs.current[idx - 1]?.focus();
+    }
+  };
+
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!otpCode.trim()) {
+    if (otpCode.length !== 6) {
       setError('Ingresa el código de 6 dígitos enviado a tu correo.');
       return;
     }
@@ -393,25 +412,32 @@ function LoginForm() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-gray-300 mb-2 uppercase tracking-wider">
                   Código de 6 dígitos
                 </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  placeholder="123456"
-                  className="w-full h-12 px-4 text-center font-mono text-xl tracking-widest bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-red-600"
-                  required
-                  autoFocus
-                />
+                <div className="flex gap-2 justify-between">
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => { otpRefs.current[idx] = el }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      onFocus={(e) => e.target.select()}
+                      autoFocus={idx === 0}
+                      className="w-11 h-14 md:w-12 text-center font-mono text-xl font-bold tracking-widest bg-gray-950 border border-gray-800 rounded-xl text-white focus:outline-none focus:border-red-600 focus:ring-2 focus:ring-red-600/30 transition-all"
+                    />
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setStep('login')}
+                  onClick={() => { setStep('login'); setOtpDigits(Array(6).fill('')); }}
                   className="px-4 py-2 text-xs font-semibold text-gray-400 hover:text-white"
                 >
                   Atrás

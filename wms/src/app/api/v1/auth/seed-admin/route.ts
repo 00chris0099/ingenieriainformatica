@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { hash } from 'bcryptjs';
-
-const SUPER_ADMIN_EMAIL = 'anchillo00@gmail.com';
-const DEFAULT_ADMIN_PASS = 'Mineria99*';
+import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_BOOTSTRAP_PASSWORD } from '@/lib/super-admin';
 
 export async function GET() {
+  // Enterprise-safe: the bootstrap password must come from the environment (EasyPanel).
+  if (!SUPER_ADMIN_BOOTSTRAP_PASSWORD) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'SUPER_ADMIN_PASSWORD no configurada en el entorno. Configúrala en EasyPanel y vuelve a intentarlo.',
+      },
+      { status: 400 }
+    );
+  }
+
   try {
-    const passwordHash = await hash(DEFAULT_ADMIN_PASS, 10);
+    const passwordHash = await hash(SUPER_ADMIN_BOOTSTRAP_PASSWORD, 10);
 
     const user = await prisma.user.upsert({
       where: { email: SUPER_ADMIN_EMAIL },

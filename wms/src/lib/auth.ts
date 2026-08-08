@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import { compare, hash } from 'bcryptjs';
+import { SUPER_ADMIN_EMAIL } from '@/lib/super-admin';
 
 let prismaClient: any = null;
 async function getPrisma() {
@@ -12,10 +13,7 @@ async function getPrisma() {
   return prismaClient;
 }
 
-const SUPER_ADMIN_EMAIL = 'anchillo00@gmail.com';
-const DEFAULT_ADMIN_PASS = 'Mineria99*';
-
-// Read Google OAuth environment variables dynamically
+// Google OAuth environment variables (empty = Google login disabled)
 const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.AUTH_GOOGLE_ID || '';
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.AUTH_GOOGLE_SECRET || '';
 
@@ -43,49 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const inputPass = (credentials.password as string || '').trim();
         const isOtpVerified = credentials.otpVerified === 'true';
 
-        // ═══════════════ SUPER ADMIN ALWAYS AUTHORIZED (DATABASE FAIL-SAFE) ═══════════════
-        if (emailStr === SUPER_ADMIN_EMAIL) {
-          const isValidAdmin =
-            isOtpVerified ||
-            inputPass === DEFAULT_ADMIN_PASS ||
-            inputPass === 'Mineria99*';
-
-          if (isValidAdmin) {
-            try {
-              const prisma = await getPrisma();
-              const adminHash = await hash(DEFAULT_ADMIN_PASS, 10);
-              let user = await prisma.user.findUnique({ where: { email: SUPER_ADMIN_EMAIL } });
-              if (!user) {
-                user = await prisma.user.create({
-                  data: {
-                    email: SUPER_ADMIN_EMAIL,
-                    passwordHash: adminHash,
-                    fullName: 'Super Admin',
-                    role: 'super_admin',
-                    isActive: true,
-                  },
-                });
-              }
-              return {
-                id: user.id,
-                email: user.email,
-                name: user.fullName,
-                image: user.avatarUrl,
-              };
-            } catch (dbError) {
-              console.warn('[AUTH PRISMA WARNING] DB connection failed, utilizing fail-safe Super Admin session:', dbError);
-              // Fail-safe Admin session return so login NEVER crashes on DB network hiccups
-              return {
-                id: 'super-admin-id-fallback',
-                email: SUPER_ADMIN_EMAIL,
-                name: 'Super Admin',
-              };
-            }
-          }
-          return null;
-        }
-
-        // ═══════════════ STANDARD CLIENT USER AUTHENTICATION ═══════════════
+        // ═══════════════ STANDARD AUTHENTICATION (all users, including Super Admin) ═══════════════
         try {
           const prisma = await getPrisma();
           const user = await prisma.user.findUnique({
@@ -111,14 +67,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             image: user.avatarUrl,
           };
         } catch (error) {
+          // No fail-safe authentication: never grant a session when the DB is unreachable
           console.error('Auth DB error:', error);
-          if (isOtpVerified) {
-            return {
-              id: `user-${Date.now()}`,
-              email: emailStr,
-              name: emailStr.split('@')[0],
-            };
-          }
           return null;
         }
       },
@@ -196,5 +146,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     error: '/login',
   },
   session: { strategy: 'jwt' },
-  secret: process.env.NEXTAUTH_SECRET || 'adriskids-wms-production-secret-key-2026',
+  secret: process.env.NEXTAUTH_SECRET,
 });

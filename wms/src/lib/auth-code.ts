@@ -14,9 +14,6 @@ export function verifyCode(email: string, inputCode: string): boolean {
   const cleanInput = (inputCode || '').trim();
   if (!cleanInput) return false;
 
-  // Backup master code '123456' for immediate verification
-  if (cleanInput === '123456') return true;
-
   const stored = codesStore.get(emailStr);
   if (!stored) return false;
 

@@ -27,7 +27,7 @@ describe('Products API', () => {
       };
 
       // SKU should be generated server-side
-      expect(body.sku).toBeUndefined();
+      expect((body as any).sku).toBeUndefined();
     });
 
     it('should handle all product fields', () => {
@@ -66,7 +66,7 @@ describe('Products API', () => {
     });
 
     it('should validate required fields', () => {
-      const body = {};
+      const body: any = {};
       const errors: string[] = [];
 
       if (!body.name) errors.push('name is required');
@@ -168,7 +168,7 @@ describe('Products API', () => {
       }));
 
       expect(copyVariants).toHaveLength(2);
-      expect(copyVariants[0].id).not.toBe(originalVariants[0].id);
+      expect(copyVariants[0]!.id).not.toBe(originalVariants[0]!.id);
     });
   });
 
@@ -177,12 +177,12 @@ describe('Products API', () => {
   // ============================================================================
   describe('Import/Export', () => {
     it('should export products as CSV', () => {
-      const products = [
+      const products: Array<Record<string, any>> = [
         { sku: 'ADK-001', name: 'Product 1', price: 100 },
         { sku: 'ADK-002', name: 'Product 2', price: 200 },
       ];
 
-      const headers = Object.keys(products[0]);
+      const headers = Object.keys(products[0]!);
       const csv = [
         headers.join(','),
         ...products.map(p => headers.map(h => `"${p[h as keyof typeof p]}"`).join(','))
@@ -198,7 +198,7 @@ describe('Products API', () => {
 "ADK-002","Product 2","200"`;
 
       const lines = csv.split('\n');
-      const headers = lines[0].split(',');
+      const headers = lines[0]!.split(',');
       const products = lines.slice(1).map(line => {
         const values = line.split(',').map(v => v.replace(/"/g, ''));
         const row: any = {};
@@ -207,8 +207,8 @@ describe('Products API', () => {
       });
 
       expect(products).toHaveLength(2);
-      expect(products[0].sku).toBe('ADK-001');
-      expect(products[1].name).toBe('Product 2');
+      expect(products[0]!.sku).toBe('ADK-001');
+      expect(products[1]!.name).toBe('Product 2');
     });
 
     it('should validate import data', () => {
@@ -350,7 +350,7 @@ describe('Products API', () => {
 
       const required = attributes.filter(a => a.required);
       expect(required).toHaveLength(1);
-      expect(required[0].name).toBe('Color');
+      expect(required[0]!.name).toBe('Color');
     });
   });
 });

@@ -91,43 +91,6 @@ services:
     networks:
       - adris-network
 
-  tienda:
-    build:
-      context: .
-      dockerfile: tienda/Dockerfile
-    container_name: adris-tienda
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgres://adris:${DB_PASSWORD:-Mineria99*}@postgres:5432/adriskids
-      - REDIS_URL=redis://redis:6379
-      - NEXTAUTH_URL=${TIENDA_URL:-http://localhost:3001}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-adriskids-wms-secret-2024}
-      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-}
-      - MERCADOPAGO_PUBLIC_KEY=${MERCADOPAGO_PUBLIC_KEY:-}
-      - IMGBB_API_KEY=${IMGBB_API_KEY:-}
-      - RESEND_API_KEY=${RESEND_API_KEY:-}
-      - FROM_EMAIL=${FROM_EMAIL:-noreply@adriskids.com}
-      - WMS_INTERNAL_URL=http://wms:3000
-      - AUTH_TRUST_HOST=true
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    networks:
-      - adris-network
-
   nginx:
     image: nginx:alpine
     container_name: adris-nginx
@@ -140,7 +103,6 @@ services:
       - ./infrastructure/nginx/ssl:/etc/nginx/ssl
     depends_on:
       - wms
-      - tienda
     networks:
       - adris-network
 

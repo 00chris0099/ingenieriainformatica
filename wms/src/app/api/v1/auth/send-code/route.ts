@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { storeVerificationCode, verifyCode } from '@/lib/auth-code';
 import { sendOtpEmail } from '@/lib/email';
 import { compare, hash } from 'bcryptjs';
+import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_BOOTSTRAP_PASSWORD } from '@/lib/super-admin';
 
 let prismaClient: any = null;
 async function getPrisma() {
@@ -12,8 +13,6 @@ async function getPrisma() {
   return prismaClient;
 }
 
-const SUPER_ADMIN_EMAIL = 'anchillo00@gmail.com';
-const DEFAULT_ADMIN_PASS = 'Mineria99*';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,32 +46,31 @@ export async function POST(request: NextRequest) {
       const inputPass = (password as string).trim();
       let isValidUser = false;
 
-      if (emailStr === SUPER_ADMIN_EMAIL) {
-        // Auto-seed/Ensure anchillo00@gmail.com in DB with Mineria99*
-        try {
-          const prisma = await getPrisma();
-          const adminHash = await hash(DEFAULT_ADMIN_PASS, 10);
-          await prisma.user.upsert({
-            where: { email: SUPER_ADMIN_EMAIL },
-            update: { role: 'super_admin', passwordHash: adminHash, isActive: true },
-            create: { email: SUPER_ADMIN_EMAIL, fullName: 'Super Admin', role: 'super_admin', passwordHash: adminHash, isActive: true },
+      // Uniform validation for ALL users (including Super Admin). No hardcoded
+      // passwords and no fail-safe: the account must exist in the DB with a
+      // bcrypt hash (bootstrap via SUPER_ADMIN_PASSWORD env on first login).
+      try {
+        const prisma = await getPrisma();
+        let user = await prisma.user.findUnique({ where: { email: emailStr } });
+
+        if (!user && emailStr === SUPER_ADMIN_EMAIL && SUPER_ADMIN_BOOTSTRAP_PASSWORD) {
+          user = await prisma.user.create({
+            data: {
+              email: SUPER_ADMIN_EMAIL,
+              fullName: 'Super Admin',
+              role: 'super_admin',
+              passwordHash: await hash(SUPER_ADMIN_BOOTSTRAP_PASSWORD, 10),
+              isActive: true,
+            },
           });
-        } catch (e) {
-          console.warn('[AUTO SEED ADMIN PRISMA WARNING] DB connection failed, using fail-safe verification:', e);
         }
 
-        isValidUser = inputPass === DEFAULT_ADMIN_PASS || inputPass === 'Mineria99*';
-      } else {
-        try {
-          const prisma = await getPrisma();
-          const user = await prisma.user.findUnique({ where: { email: emailStr } });
-          if (user && user.isActive && user.passwordHash) {
-            isValidUser = await compare(inputPass, user.passwordHash);
-          }
-        } catch (e) {
-          console.warn('[USER AUTH DB WARNING]', e);
-          isValidUser = true; // Fallback to send OTP code if DB is temporarily recovering
+        if (user && user.isActive && user.passwordHash) {
+          isValidUser = await compare(inputPass, user.passwordHash);
         }
+      } catch (e) {
+        console.warn('[USER AUTH DB WARNING]', e);
+        isValidUser = false; // Never fall back to open verification
       }
 
       if (!isValidUser) {

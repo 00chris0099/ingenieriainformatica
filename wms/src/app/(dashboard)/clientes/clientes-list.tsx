@@ -1,10 +1,31 @@
 'use client';
 
-import { Users, Search, Mail, Chrome, Globe, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Users, Search, Mail, Chrome, Globe, CheckCircle, XCircle, RefreshCw, ArrowRight, Crown, Star, User as UserIcon, Sparkles } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
+
+const TIER_META: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  vip: { label: 'VIP', color: '#b45309', bg: '#FEF3C7', icon: Crown },
+  frecuente: { label: 'Frecuente', color: '#1d4ed8', bg: '#DBEAFE', icon: Star },
+  nuevo: { label: 'Nuevo', color: '#047857', bg: '#D1FAE5', icon: Sparkles },
+  normal: { label: 'Normal', color: '#57534e', bg: '#F5F5F4', icon: UserIcon },
+  problematico: { label: 'Riesgo', color: '#b91c1c', bg: '#FEE2E2', icon: XCircle },
+};
+
+function TierBadge({ tier }: { tier?: string }) {
+  const key = tier || 'normal';
+  const meta = TIER_META[key] ?? TIER_META.normal!;
+  const Icon = meta.icon;
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: meta.bg, color: meta.color }}>
+      <Icon size={10} />
+      {meta.label}
+    </span>
+  );
+}
 
 type SourceFilter = 'all' | 'google' | 'web';
 
@@ -134,22 +155,34 @@ export default function ClientesList() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{c.fullName || '—'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{c.fullName || '—'}</p>
+                        <TierBadge tier={c.customerTier} />
+                      </div>
                       <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{c.email}</p>
                     </div>
                   </div>
                   <SourceBadge source={c.source} />
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                  {c.isActive ? (
-                    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-success)' }}>
-                      <CheckCircle size={11} /> Activo
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-error)' }}>
-                      <XCircle size={11} /> Inactivo
-                    </span>
-                  )}
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    {c.isActive ? (
+                      <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-success)' }}>
+                        <CheckCircle size={11} /> Activo
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-error)' }}>
+                        <XCircle size={11} /> Inactivo
+                      </span>
+                    )}
+                    {c.phone && <span className="text-[10px] text-[var(--color-text-tertiary)]">{c.phone}</span>}
+                  </div>
+                  <Link
+                    href={`/clientes/${c.id}/editar`}
+                    className="flex items-center gap-1 text-[11px] font-bold text-[var(--color-accent)] hover:underline"
+                  >
+                    Gestionar <ArrowRight size={11} />
+                  </Link>
                 </div>
               </div>
             ))}
@@ -163,6 +196,7 @@ export default function ClientesList() {
                   <th>Usuario</th>
                   <th>Email</th>
                   <th>Origen</th>
+                  <th>Tier</th>
                   <th>Estado</th>
                   <th>Registrado</th>
                 </tr>
@@ -189,7 +223,12 @@ export default function ClientesList() {
                         {c.email || '—'}
                       </div>
                     </td>
-                    <td><SourceBadge source={c.source} /></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <SourceBadge source={c.source} />
+                      </div>
+                    </td>
+                    <td><TierBadge tier={c.customerTier} /></td>
                     <td>
                       {c.isActive !== false ? (
                         <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-success)' }}>

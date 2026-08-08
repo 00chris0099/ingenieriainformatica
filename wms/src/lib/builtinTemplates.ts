@@ -14,6 +14,7 @@ export const BUILTIN_TEMPLATES = [
       primaryColor: '#f43f5e',
       secondaryColor: '#fff1f2',
       accentColor: '#ec4899',
+      whatsappNumber: '51999888777',
     },
     blocks: [
       {
@@ -168,6 +169,56 @@ export const BUILTIN_TEMPLATES = [
         },
       },
       {
+        id: 'ak-countdown',
+        type: 'countdown',
+        settings: { accentColor: '#f43f5e', paddingY: 56 },
+        content: {
+          badge: 'Oferta Relámpago de Verano',
+          title: 'Hasta 40% OFF en esta semana',
+          subtitle: 'Stock limitado en prendas seleccionadas de la colección Primavera-Verano 2026.',
+          endDate: '2026-09-01T23:59:59',
+          buttonText: 'Ver Ofertas',
+        },
+      },
+      {
+        id: 'ak-faq',
+        type: 'faq',
+        settings: { backgroundColor: '#fff1f2', textColor: '#881337', accentColor: '#f43f5e', paddingY: 64 },
+        content: {
+          title: 'Preguntas Frecuentes',
+          subtitle: 'Todo lo que necesitas saber antes de comprar',
+          items: [
+            { question: '¿Cuánto tarda el envío a mi ciudad?', answer: 'Enviamos en 24 horas dentro de Lima Metropolitana y de 2 a 4 días hábiles a todo el Perú vía Olva o Shalom. Incluye número de seguimiento por WhatsApp.' },
+            { question: '¿Cómo sé qué talla elegir?', answer: 'Cada producto incluye una guía de tallas detallada. Si tienes dudas, nuestro equipo te asesora gratis por WhatsApp antes de confirmar tu pedido.' },
+            { question: '¿Puedo cambiar o devolver una prenda?', answer: 'Sí. Tienes 30 días para cambios por talla o color sin costo adicional. El cambio se coordina a domicilio y recogemos la prenda original.' },
+            { question: '¿Cuáles son los medios de pago?', answer: 'Aceptamos Yape, Plin, transferencia bancaria, tarjetas y contra entrega en Lima. Los pagos digitales reciben un cupón de bienvenida.' },
+          ],
+        },
+      },
+      {
+        id: 'ak-newsletter',
+        type: 'newsletter',
+        settings: { backgroundColor: '#881337', textColor: '#ffffff', accentColor: '#f43f5e', paddingY: 48 },
+        content: {
+          title: 'Únete al Club VIP Adrisu Kids',
+          subtitle: 'Cupones exclusivos, novedades y sorpresas en el cumpleaños de tus hijos.',
+          buttonText: 'Quiero Cupones',
+        },
+      },
+      {
+        id: 'ak-social-proof',
+        type: 'social-proof',
+        settings: { enabled: true, interval: 7, accentColor: '#f43f5e' },
+        content: {
+          messages: [
+            'Claudia de San Borja acaba de comprar el Conjunto Dino Explorer 🛍️',
+            'Valeria de Trujillo compró el Vestido Primavera Florcita Rose 🛍️',
+            'Patricia de Surco se llevó la Casaca Osito Térmico 🛍️',
+            'María de Miraflores compró el Set x3 Polos Algodón Supima 🛍️',
+          ],
+        },
+      },
+      {
         id: 'ak-footer',
         type: 'footer',
         settings: { backgroundColor: '#881337', textColor: '#ffffff', paddingY: 48 },
@@ -193,6 +244,7 @@ export const BUILTIN_TEMPLATES = [
       primaryColor: '#3b82f6',
       secondaryColor: '#0f172a',
       accentColor: '#8b5cf6',
+      whatsappNumber: '51999888777',
     },
     blocks: [
       {
@@ -283,6 +335,56 @@ export const BUILTIN_TEMPLATES = [
         },
       },
       {
+        id: 'tv-countdown',
+        type: 'countdown',
+        settings: { accentColor: '#3b82f6', paddingY: 56 },
+        content: {
+          badge: 'Gaming Week · Ofertas Tech',
+          title: 'La semana más tecnológica del año',
+          subtitle: 'Descuentos de hasta 40% en audio Hi-Fi, smartwatches y periféricos gamer.',
+          endDate: '2026-08-25T23:59:59',
+          buttonText: 'Explorar Ofertas',
+        },
+      },
+      {
+        id: 'tv-faq',
+        type: 'faq',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 64 },
+        content: {
+          title: 'Preguntas Frecuentes Tech',
+          subtitle: 'Resolvemos tus dudas antes de comprar',
+          items: [
+            { question: '¿Los productos tienen garantía real?', answer: 'Sí, todos nuestros productos incluyen 12 meses de garantía oficial con reemplazo directo ante defectos de fábrica, sin vueltas innecesarias.' },
+            { question: '¿Cómo funciona el envío express de 2 horas?', answer: 'En Lima Metropolitana despachamos en 2 horas dentro de los distritos de cobertura. A provincia enviamos vía agencia con seguimiento.' },
+            { question: '¿Puedo pagar contra entrega?', answer: 'Claro. Aceptamos Yape, Plin, efectivo y tarjetas. El contra entrega está disponible en Lima Metropolitana.' },
+            { question: '¿Me ayudan con la configuración de mis gadgets?', answer: 'Nuestro soporte técnico por WhatsApp te guía paso a paso con la sincronización y configuración de cualquier dispositivo.' },
+          ],
+        },
+      },
+      {
+        id: 'tv-newsletter',
+        type: 'newsletter',
+        settings: { backgroundColor: '#030712', textColor: '#ffffff', accentColor: '#3b82f6', paddingY: 48 },
+        content: {
+          title: 'Recibe ofertas exclusivas Tech',
+          subtitle: 'Acceso anticipado a lanzamientos y cupones solo para suscriptores.',
+          buttonText: 'Suscribirme',
+        },
+      },
+      {
+        id: 'tv-social-proof',
+        type: 'social-proof',
+        settings: { enabled: true, interval: 7, accentColor: '#3b82f6' },
+        content: {
+          messages: [
+            'Renzo de Miraflores compró los Audífonos ANC Pro 🎧',
+            'Diego de Arequipa compró el Smartwatch AMOLED Ultra Fit 🎧',
+            'Fiorella de La Molina se llevó el Teclado Mecánico RGB 🎧',
+            'Carlos de San Isidro compró el Cargador GaN 65W 🎧',
+          ],
+        },
+      },
+      {
         id: 'tv-footer',
         type: 'footer',
         settings: { backgroundColor: '#030712', textColor: '#ffffff', paddingY: 48 },
@@ -308,6 +410,7 @@ export const BUILTIN_TEMPLATES = [
       primaryColor: '#78350f',
       secondaryColor: '#fef3c7',
       accentColor: '#d97706',
+      whatsappNumber: '51999888777',
     },
     blocks: [
       {
@@ -393,6 +496,56 @@ export const BUILTIN_TEMPLATES = [
           title: 'HAMPERS & REGALOS CORPORATIVOS VIP',
           description: 'Personalizamos tus cajas de regalo con grabado de marca y tarjeta personalizada.',
           buttonText: 'Cotizar con Sommelier por WhatsApp',
+        },
+      },
+      {
+        id: 'bg-countdown',
+        type: 'countdown',
+        settings: { accentColor: '#d97706', paddingY: 56 },
+        content: {
+          badge: 'Venta de Reserva Especial',
+          title: 'Packs maridaje con 25% OFF',
+          subtitle: 'Selección limitada de vinos Gran Reserva y quesos trufados para este fin de semana.',
+          endDate: '2026-08-30T23:59:59',
+          buttonText: 'Ver la Cava',
+        },
+      },
+      {
+        id: 'bg-faq',
+        type: 'faq',
+        settings: { backgroundColor: '#fef3c7', textColor: '#1c1917', accentColor: '#d97706', paddingY: 64 },
+        content: {
+          title: 'Preguntas Frecuentes',
+          subtitle: 'Consejos de conservación y envío de nuestra cava',
+          items: [
+            { question: '¿Cómo conservan los vinos durante el envío?', answer: 'Usamos empaque térmico con gel refrigerante para mantener la temperatura ideal de 14°C durante todo el trayecto, incluso a provincia.' },
+            { question: '¿Cuánto tiempo duran los quesos artesanales?', answer: 'Nuestros quesos madurados se conservan perfectamente refrigerados entre 30 y 60 días según la variedad. Incluyen fecha de consumo recomendado.' },
+            { question: '¿Puedo personalizar una caja de regalo corporativa?', answer: 'Sí. Grabamos tu marca en la madera, incluimos tarjeta con dedicatoria y podemos entregar múltiples unidades con facturación corporativa.' },
+            { question: '¿Ofrecen asesoría de maridaje?', answer: 'Nuestro Sommelier te asesora gratis por WhatsApp para elegir el maridaje perfecto según tu ocasión o presupuesto.' },
+          ],
+        },
+      },
+      {
+        id: 'bg-newsletter',
+        type: 'newsletter',
+        settings: { backgroundColor: '#0c0a09', textColor: '#fef3c7', accentColor: '#d97706', paddingY: 48 },
+        content: {
+          title: 'Únete al Club Gourmet',
+          subtitle: 'Catas privadas, vinos de añada y descuentos solo para socios.',
+          buttonText: 'Quiero Invitaciones',
+        },
+      },
+      {
+        id: 'bg-social-proof',
+        type: 'social-proof',
+        settings: { enabled: true, interval: 8, accentColor: '#d97706' },
+        content: {
+          messages: [
+            'Carlos de San Isidro compró el Malbec Gran Reserva 2018 🍷',
+            'Lucía de Surco compró el Queso Trufado Artesanal 🍷',
+            'Empresa XYZ cotizó 12 hampers corporativos VIP 🍷',
+            'Valeria de Miraflores compró el Box Sommelier 🍷',
+          ],
         },
       },
       {

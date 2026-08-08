@@ -43,3 +43,7 @@ coverage/
 # n8n credentials (NEVER commit)
 services/n8n/credentials/*.json
 nul
+
+# Freebuff app internal state
+.freebuff/
+

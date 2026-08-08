@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Plus, Search, Edit, Trash2, MoreVertical, Copy, Download, Upload } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, MoreVertical, Copy, Download, Upload, Boxes, Tag, AlertTriangle, Percent } from 'lucide-react';
 import ProductForm from '@/components/catalogo/ProductForm';
 import ImportExportDialog from '@/components/catalogo/ImportExportDialog';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -175,8 +175,39 @@ export default function CatalogoPage() {
     );
   };
 
+  const stats = {
+    total: products.length,
+    activos: products.filter(p => p.status === 'active').length,
+    agotados: products.filter(p => (p.stock ?? 0) <= 0).length,
+    conDescuento: products.filter(p => Number(p.discountPercent) > 0).length,
+  };
+  const statCards = [
+    { label: 'Total Productos', value: stats.total, icon: Boxes, color: 'var(--color-accent)' },
+    { label: 'Activos en Tienda', value: stats.activos, icon: Tag, color: 'var(--color-success)' },
+    { label: 'Con Descuento', value: stats.conDescuento, icon: Percent, color: 'var(--color-warning, #f59e0b)' },
+    { label: 'Agotados / Sin Stock', value: stats.agotados, icon: AlertTriangle, color: stats.agotados > 0 ? 'var(--color-error)' : 'var(--color-text-tertiary)' },
+  ];
+
   return (
     <div className="space-y-4 pb-20 lg:pb-0 animate-fade-in">
+      {/* Enterprise KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.label} className="surface-card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-accent-muted)' }}>
+                <Icon size={18} style={{ color: card.color }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-lg font-extrabold leading-none" style={{ color: card.color }}>{card.value}</p>
+                <p className="text-[10px] font-semibold text-[var(--color-text-tertiary)] mt-1 truncate uppercase tracking-wide">{card.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-[var(--color-text-primary)] tracking-tight">Catalogo de Productos</h2>

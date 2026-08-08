@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiPaginated, getSearchParam, parsePagination } from '@/lib/api';
+import { SUPER_ADMIN_EMAIL } from '@/lib/super-admin';
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
 
       const isGoogle = !!(u.avatarUrl && u.avatarUrl.includes('googleusercontent'))
         || (!u.passwordHash && !u.password && !!u.avatarUrl)
-        || u.email === 'anchillo00@gmail.com';
+        || u.email === SUPER_ADMIN_EMAIL;
 
       combinedList.push({
         id: u.id,
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
         email: u.email,
         phone: u.phone || null,
         fullName: u.fullName || u.name || u.email?.split('@')[0] || 'Usuario',
+        customerTier: (u as any).customerTier || (u.role === 'super_admin' ? 'vip' : 'nuevo'),
         isActive: u.isActive !== false,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
@@ -88,6 +90,7 @@ export async function GET(request: NextRequest) {
         email: c.email,
         phone: c.phone || null,
         fullName: c.fullName || c.email?.split('@')[0] || 'Cliente',
+        customerTier: c.customerTier || 'nuevo',
         isActive: c.isActive !== false,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
@@ -95,12 +98,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: Always ensure Super Admin anchillo00@gmail.com is present
-    if (!seenEmails.has('anchillo00@gmail.com')) {
+    if (!seenEmails.has(SUPER_ADMIN_EMAIL)) {
       combinedList.unshift({
         id: 'super-admin-root-user',
         source: 'Google OAuth',
         customerType: 'Super Admin',
-        email: 'anchillo00@gmail.com',
+        email: SUPER_ADMIN_EMAIL,
         phone: null,
         fullName: 'Pedro Anchillo (Super Admin)',
         isActive: true,
@@ -120,7 +123,7 @@ export async function GET(request: NextRequest) {
         id: 'super-admin-root-user',
         source: 'Google OAuth',
         customerType: 'Super Admin',
-        email: 'anchillo00@gmail.com',
+        email: SUPER_ADMIN_EMAIL,
         phone: null,
         fullName: 'Pedro Anchillo (Super Admin)',
         isActive: true,

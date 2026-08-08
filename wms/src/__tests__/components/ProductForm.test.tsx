@@ -1,3 +1,5 @@
+import { getCategoryCode } from '@/lib/sku-generator';
+
 /**
  * Tests de integracion para el ProductForm
  * 
@@ -12,47 +14,24 @@ describe('ProductForm', () => {
   describe('SKU Auto-Generation', () => {
     it('should generate SKU based on category', () => {
       const categoryName = 'Muebles para Bebe';
-      // Expected: ADK-MUE-001 (first 2 chars of each word)
-      const categoryCode = categoryName
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toUpperCase()
-        .split(/\s+/)
-        .filter(w => w.length > 2 && !['PARA', 'LOS', 'LAS', 'DEL', 'DE', 'EL', 'LA'].includes(w))
-        .slice(0, 2)
-        .map(w => w.substring(0, 2))
-        .join('');
+      // Real: "MUEBLES" + "BEBE" -> primeros 2 chars de cada palabra -> MUBE
+      const categoryCode = getCategoryCode(categoryName);
       
-      expect(categoryCode).toBe('MU');
+      expect(categoryCode).toBe('MUBE');
     });
 
     it('should handle single-word categories', () => {
       const categoryName = 'Accesorios';
-      const categoryCode = categoryName
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toUpperCase()
-        .split(/\s+/)
-        .filter(w => w.length > 2 && !['PARA', 'LOS', 'LAS', 'DEL', 'DE', 'EL', 'LA'].includes(w))
-        .slice(0, 2)
-        .map(w => w.substring(0, 2))
-        .join('');
+      // Real: palabra unica -> primeros 3 chars -> ACC
+      const categoryCode = getCategoryCode(categoryName);
       
-      expect(categoryCode).toBe('AC');
+      expect(categoryCode).toBe('ACC');
     });
 
     it('should fallback to PRD when no category', () => {
-      const categoryName = null;
+      const categoryName = null as string | null;
       const categoryCode = categoryName
-        ? categoryName
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toUpperCase()
-            .split(/\s+/)
-            .filter(w => w.length > 2 && !['PARA', 'LOS', 'LAS', 'DEL', 'DE', 'EL', 'LA'].includes(w))
-            .slice(0, 2)
-            .map(w => w.substring(0, 2))
-            .join('')
+        ? getCategoryCode(categoryName)
         : 'PRD';
       
       expect(categoryCode).toBe('PRD');

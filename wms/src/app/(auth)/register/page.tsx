@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Lock, User, ShieldCheck, RefreshCw, ArrowRight, CheckCircle2, KeyRound } from 'lucide-react';
+import { Mail, Lock, User, ShieldCheck, RefreshCw, ArrowRight, CheckCircle2, KeyRound, Eye, EyeOff, Zap } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -11,7 +11,21 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
+
+  // Password strength meter
+  const passwordStrength = (() => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  })();
+  const strengthLabel = ['Muy débil', 'Débil', 'Aceptable', 'Buena', 'Excelente'][passwordStrength];
+  const strengthColor = ['#ef4444', '#ef4444', '#f59e0b', '#22c55e', '#22c55e'][passwordStrength];
 
   // Anti-bot Captcha
   const [num1, setNum1] = useState(5);
@@ -20,7 +34,6 @@ export default function RegisterPage() {
 
   const [codeSent, setCodeSent] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
-  const [devCodeMsg, setDevCodeMsg] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -54,9 +67,6 @@ export default function RegisterPage() {
       const data = await res.json();
       if (data.success) {
         setCodeSent(true);
-        if (data.devCode) {
-          setDevCodeMsg(`Código de verificación: ${data.devCode}`);
-        }
       } else {
         setError(data.error || 'Error al enviar el código');
       }
@@ -78,10 +88,10 @@ export default function RegisterPage() {
       return;
     }
 
-    let targetCode = code.trim();
+    const targetCode = code.trim();
     if (!targetCode) {
-      targetCode = '123456';
-      setCode('123456');
+      setError('Ingresa el código de verificación enviado a tu correo.');
+      return;
     }
 
     setLoading(true);
@@ -232,11 +242,6 @@ export default function RegisterPage() {
                   {sendingCode ? 'Enviando...' : codeSent ? 'Reenviar Código' : 'Enviar Código'}
                 </button>
               </div>
-              {devCodeMsg && (
-                <p className="text-xs font-mono text-emerald-400 font-bold mt-1.5 bg-black/40 p-2 rounded border border-emerald-500/20">
-                  {devCodeMsg}
-                </p>
-              )}
             </div>
 
             <div>
@@ -268,14 +273,39 @@ export default function RegisterPage() {
                   <Lock size={16} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full h-11 pl-10 pr-4 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-red-600"
+                  className="w-full h-11 pl-10 pr-10 bg-gray-950 border border-gray-800 rounded-xl text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-red-600 transition-all"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-500 hover:text-gray-300"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
+              {password && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="h-1.5 flex-1 rounded-full transition-all duration-300"
+                        style={{ backgroundColor: i <= passwordStrength ? strengthColor : 'rgba(128,128,128,0.25)' }}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[10px] font-bold flex items-center gap-1" style={{ color: strengthColor }}>
+                    <Zap size={10} />
+                    {strengthLabel}
+                    {passwordStrength < 3 && ' · usa mayúsculas, números y símbolos'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Anti-bot Human Captcha */}
