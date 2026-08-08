@@ -27,8 +27,8 @@ function syntheticPage(id: string): any {
   };
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   if (pageStore.has(id)) {
     return apiSuccess(pageStore.get(id));
@@ -55,8 +55,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   return apiSuccess(synthetic);
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   try {
     const body = await request.json();
@@ -121,8 +121,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   pageStore.delete(id);
 

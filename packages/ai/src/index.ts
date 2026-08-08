@@ -1,6 +1,4 @@
 import { aiService } from './service'
-import { OpenAIProvider } from './providers/openai'
-import { AnthropicProvider } from './providers/anthropic'
 
 // Re-export everything
 export { aiService } from './service'
@@ -25,7 +23,8 @@ export { generateSEO } from './generators/seo'
 
 export { OpenAIProvider } from './providers/openai'
 export { AnthropicProvider } from './providers/anthropic'
+export { GeminiProvider } from './providers/gemini'
+export { OpenAICompatibleProvider } from './providers/openai-compatible'
+export { OllamaProvider } from './providers/ollama'
 
-// Auto-register built-in providers
-aiService.registerProvider(new OpenAIProvider({ apiKey: '' }))
-aiService.registerProvider(new AnthropicProvider({ apiKey: '' }))
+export { configureAIFromEnv, getUsableProviderIds } from './bootstrap'

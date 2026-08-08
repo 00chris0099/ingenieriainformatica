@@ -1,0 +1,468 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// PÁGINAS CORPORATIVAS — multi-sección (Inicio, Nosotros, Servicios, Equipo, Contacto)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const CORPORATE_TEMPLATES = [
+  {
+    id: 'tpl-corp-strategia',
+    name: 'Strategia - Consultora Corporativa & B2B',
+    description: 'Sitio corporativo para consultoras: hero institucional, cifras de impacto, servicios B2B, metodología, casos de éxito, equipo y contacto comercial.',
+    industry: 'consultoria',
+    category: 'corporate',
+    type: 'corporate',
+    thumbnail: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&auto=format&fit=crop',
+    seo: {
+      title: 'Strategia | Consultoría Estratégica para Empresas en Crecimiento',
+      description: 'Acompañamos a empresas medianas a crecer con estrategia, procesos y tecnología. +15 años de experiencia y 200+ proyectos exitosos.',
+    },
+    settings: {
+      primaryColor: '#1d4ed8',
+      secondaryColor: '#0f172a',
+      accentColor: '#2563eb',
+      whatsappNumber: '51999888777',
+    },
+    blocks: [
+      {
+        id: 'cs-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#2563eb' },
+        content: {
+          announcement: 'CONSULTORÍA ESTRATÉGICA · +15 AÑOS DE EXPERIENCIA',
+          brandName: 'STRATEGIA',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Servicios', windowId: 'servicios', iconName: 'Briefcase' },
+            { label: 'Metodología', windowId: 'metodologia', iconName: 'ClipboardList' },
+            { label: 'Casos de Éxito', windowId: 'casos', iconName: 'Award' },
+            { label: 'Equipo', windowId: 'equipo', iconName: 'Users' },
+            { label: 'Contacto', windowId: 'contacto', iconName: 'MessageSquare' },
+          ],
+        },
+      },
+      {
+        id: 'cs-hero',
+        type: 'hero',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 110 },
+        content: {
+          badge: 'CONSULTORÍA ESTRATÉGICA · DESDE 2011',
+          title: 'Convertimos la Estrategia de tu Empresa en Resultados Medibles',
+          subtitle: 'Diagnóstico, plan de acción y acompañamiento en ejecución para que tu empresa crezca de forma sostenible. 200+ proyectos en 8 países.',
+          buttonText: 'Agendar Diagnóstico Gratis',
+          secondaryButtonText: 'Conocer Nuestros Servicios',
+          heroImage: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=1000&auto=format&fit=crop',
+        },
+      },
+      {
+        id: 'cs-stats',
+        type: 'features',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 64 },
+        content: {
+          title: 'El Impacto de Nuestro Trabajo en Cifras',
+          items: [
+            { iconName: 'TrendingUp', title: '+38% crecimiento', description: 'promedio de facturación en clientes al año 1.' },
+            { iconName: 'Briefcase', title: '200+ proyectos', description: 'completados en 8 países de Latinoamérica.' },
+            { iconName: 'Users', title: '120+ empresas', description: 'medianas y corporaciones confían en nosotros.' },
+            { iconName: 'Award', title: '15 años', description: 'de experiencia en consultoría estratégica.' },
+          ],
+        },
+      },
+      {
+        id: 'cs-services',
+        type: 'features',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 80 },
+        content: {
+          title: 'Nuestros Servicios Corporativos',
+          subtitle: 'Soluciones integrales que impulsan tu organización',
+          items: [
+            { iconName: 'Compass', title: 'Estrategia Empresarial', description: 'Replanteamos tu modelo de negocio, mercado objetivo y propuesta de valor con datos.' },
+            { iconName: 'Settings', title: 'Optimización de Procesos', description: 'Identificamos cuellos de botella y rediseñamos flujos para reducir costos hasta 30%.' },
+            { iconName: 'BarChart3', title: 'Inteligencia Comercial', description: 'Dashboards y KPIs para tomar decisiones basadas en datos, no en corazonadas.' },
+            { iconName: 'Users', title: 'Desarrollo Organizacional', description: 'Estructuras, roles y cultura alineados a la estrategia de crecimiento.' },
+            { iconName: 'ShieldCheck', title: 'Gobierno y Riesgos', description: 'Implementamos controles internos y gestión de riesgos nivel corporativo.' },
+            { iconName: 'Lightbulb', title: 'Transformación Digital', description: 'Ruta de adopción tecnológica con impacto real en tu operación.' },
+          ],
+        },
+      },
+      {
+        id: 'cs-method',
+        type: 'features',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 72 },
+        content: {
+          title: 'Nuestra Metodología en 4 Fases',
+          items: [
+            { iconName: 'Search', title: 'Fase 1 · Diagnóstico', description: 'Auditoría completa de tu negocio: finanzas, procesos, mercado y equipo. (2 semanas)' },
+            { iconName: 'ClipboardList', title: 'Fase 2 · Plan Estratégico', description: 'Hoja de ruta con objetivos, responsables, plazos e indicadores. (3 semanas)' },
+            { iconName: 'Rocket', title: 'Fase 3 · Ejecución', description: 'Acompañamos la implementación con sprints quincenales y ajustes. (8-16 semanas)' },
+            { iconName: 'LineChart', title: 'Fase 4 · Consolidación', description: 'Transferimos el conocimiento, dejamos métricas y seguimiento post-cierre.' },
+          ],
+        },
+      },
+      {
+        id: 'cs-testimonials',
+        type: 'testimonials',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', paddingY: 72 },
+        content: {
+          title: 'Casos de Éxito y Testimonios',
+          items: [
+            { text: 'Strategia rediseñó nuestra operación completa. En 9 meses redujimos costos en 25% y crecimos 40% en facturación.', name: 'Martín C.', role: 'Gerente General · Grupo Andino' },
+            { text: 'El diagnóstico fue brutalmente honesto y el plan, impecable. Cumplieron cada hito en los plazos prometidos.', name: 'Verónica L.', role: 'Directora · Distribuidora del Sur' },
+            { text: 'Lo que más valoro: no se fueron después de entregar el plan. Nos acompañaron hasta ver resultados reales.', name: 'César M.', role: 'CEO · Logística Express' },
+          ],
+        },
+      },
+      {
+        id: 'cs-team',
+        type: 'team',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 72 },
+        content: {
+          title: 'El Equipo que Lidera tu Crecimiento',
+          subtitle: 'Consultores senior con experiencia en industrias y mercados diversos',
+          items: [
+            { name: 'Alejandro Rivas', role: 'Socio Fundador · Estrategia', photo: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop' },
+            { name: 'Mariana Quispe', role: 'Socia · Operaciones', photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop' },
+            { name: 'Jorge Salazar', role: 'Director · Transformación Digital', photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop' },
+            { name: 'Lucía Mendoza', role: 'Directora · Talento y Cultura', photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop' },
+          ],
+        },
+      },
+      {
+        id: 'cs-faq',
+        type: 'faq',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#2563eb', paddingY: 64 },
+        content: {
+          title: 'Preguntas Frecuentes Corporativas',
+          subtitle: 'Lo que las empresas nos preguntan antes de empezar',
+          items: [
+            { question: '¿Cuánto cuesta una consultoría?', answer: 'Depende del alcance. Nuestro diagnóstico inicial es gratuito y de ahí cotizamos proyectos desde S/ 15,000 hasta programas anuales. Siempre con entregables claros y plazos definidos.' },
+            { question: '¿Trabajan con empresas pequeñas o solo grandes?', answer: 'Nos especializamos en empresas medianas (10 a 200 empleados) en etapa de crecimiento. Si tu empresa factura entre S/ 1M y S/ 30M anuales, podemos ayudarte.' },
+            { question: '¿Cuánto dura un proyecto típico?', answer: 'Entre 3 y 6 meses según el alcance. La mayoría de clientes ve resultados medibles desde el primer trimestre de ejecución.' },
+            { question: '¿Ofrecen seguimiento después del proyecto?', answer: 'Sí. Incluimos 3 meses de acompañamiento post-entrega y un panel de indicadores para que midas el progreso.' },
+          ],
+        },
+      },
+      {
+        id: 'cs-contact',
+        type: 'contact',
+        settings: { backgroundColor: '#0f172a', textColor: '#ffffff', accentColor: '#2563eb', paddingY: 72 },
+        content: {
+          title: 'Agenda tu Diagnóstico Empresarial Gratis',
+          subtitle: '30 minutos con un socio senior, sin compromiso.',
+          buttonText: 'Solicitar Reunión por WhatsApp',
+        },
+      },
+      {
+        id: 'cs-footer',
+        type: 'footer',
+        settings: { backgroundColor: '#0b1220', textColor: '#ffffff', paddingY: 48 },
+        content: {
+          brandName: 'STRATEGIA CONSULTORA',
+          copyright: '© 2026 Strategia. Todos los derechos reservados. Impulsado por WMS Platform.',
+        },
+      },
+    ],
+  },
+  {
+    id: 'tpl-corp-logistica',
+    name: 'LogiPro - Corporativa de Logística & Supply Chain',
+    description: 'Sitio corporativo para empresas logísticas: hero operativo, cobertura nacional, servicios de transporte/almacén, flota, certificaciones y contacto.',
+    industry: 'logistica',
+    category: 'corporate',
+    type: 'corporate',
+    thumbnail: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop',
+    seo: {
+      title: 'LogiPro | Soluciones Logísticas Integrales en el Perú',
+      description: 'Transporte, almacenamiento y distribución a nivel nacional. +2,500 entregas diarias con trazabilidad en tiempo real y 99.2% de puntualidad.',
+    },
+    settings: {
+      primaryColor: '#ea580c',
+      secondaryColor: '#1c1917',
+      accentColor: '#f97316',
+      whatsappNumber: '51999888777',
+    },
+    blocks: [
+      {
+        id: 'lp-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#f97316' },
+        content: {
+          announcement: 'TRAZABILIDAD EN TIEMPO REAL · COBERTURA NACIONAL',
+          brandName: 'LOGIPRO',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Servicios', windowId: 'servicios', iconName: 'Package' },
+            { label: 'Cobertura', windowId: 'cobertura', iconName: 'MapPin' },
+            { label: 'Flota', windowId: 'flota', iconName: 'Truck' },
+            { label: 'Contacto', windowId: 'contacto', iconName: 'MessageSquare' },
+          ],
+        },
+      },
+      {
+        id: 'lp-hero',
+        type: 'hero',
+        settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#f97316', paddingY: 110 },
+        content: {
+          badge: '+2,500 ENTREGAS DIARIAS EN TODO EL PERÚ',
+          title: 'Tu Mercadería, Entregada a Tiempo y con Trazabilidad Total',
+          subtitle: 'Transporte, almacenamiento y última milla con seguimiento GPS en tiempo real. 99.2% de puntualidad y 0 pérdidas en el último año.',
+          buttonText: 'Cotizar mi Envío',
+          secondaryButtonText: 'Ver Nuestros Servicios',
+          heroImage: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1000&auto=format&fit=crop',
+        },
+      },
+      {
+        id: 'lp-stats',
+        type: 'features',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 64 },
+        content: {
+          title: 'Operación Logística en Cifras',
+          items: [
+            { iconName: 'Package', title: '2,500+ entregas', description: 'diarias en 24 regiones del país.' },
+            { iconName: 'Clock', title: '99.2% puntualidad', description: 'en entregas durante el último año.' },
+            { iconName: 'Truck', title: '180+ vehículos', description: 'propios con GPS y cámaras a bordo.' },
+            { iconName: 'Warehouse', title: '45,000 m²', description: 'de almacenes en Lima, Arequipa y Trujillo.' },
+          ],
+        },
+      },
+      {
+        id: 'lp-services',
+        type: 'features',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#f97316', paddingY: 80 },
+        content: {
+          title: 'Servicios Logísticos Integrales',
+          subtitle: 'Una sola operación para toda tu cadena de suministro',
+          items: [
+            { iconName: 'Truck', title: 'Transporte de Carga', description: 'Carga completa y consolidada en rutas fijas y personalizadas a nivel nacional.' },
+            { iconName: 'Warehouse', title: 'Almacenamiento', description: 'Bodegas con control de inventario, picking y packing bajo estándares WMS.' },
+            { iconName: 'MapPin', title: 'Última Milla', description: 'Entregas a domicilio y tiendas con notificación SMS y firma digital.' },
+            { iconName: 'Refrigerator', title: 'Cadena de Frío', description: 'Transporte refrigerado para alimentos, farmacia y productos sensibles.' },
+            { iconName: 'ShieldCheck', title: 'Carga Segura', description: 'Seguro integral, monitoreo 24/7 y protocolos anti-pérdida certificados.' },
+            { iconName: 'BarChart3', title: 'Reportes en Línea', description: 'Panel web con tus envíos, tiempos y entregas en tiempo real.' },
+          ],
+        },
+      },
+      {
+        id: 'lp-coverage',
+        type: 'gallery',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 72 },
+        content: {
+          title: 'Cobertura Nacional',
+          subtitle: 'Operamos en 24 regiones con 15 centros de distribución',
+          images: [
+            'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop',
+          ],
+        },
+      },
+      {
+        id: 'lp-testimonials',
+        type: 'testimonials',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', paddingY: 72 },
+        content: {
+          title: 'Clientes que Confían en LogiPro',
+          items: [
+            { text: 'LogiPro maneja toda nuestra distribución en el norte. La puntualidad y el tracking en tiempo real son de otro nivel.', name: 'Ricardo V.', role: 'Jefe de Supply Chain · Retail Nacional' },
+            { text: 'Redujimos un 18% nuestros costos logísticos al consolidar transporte y almacén con ellos. Cero pérdidas en 2 años.', name: 'Patricia N.', role: 'Gerente de Operaciones · Alimentos' },
+            { text: 'La cadena de frío funciona perfecto. Sus vehículos refrigerados mantienen la temperatura certificada todo el trayecto.', name: 'Héctor D.', role: 'Director · Farmacéutica' },
+          ],
+        },
+      },
+      {
+        id: 'lp-cert',
+        type: 'features',
+        settings: { backgroundColor: '#1c1917', textColor: '#ffffff', accentColor: '#f97316', paddingY: 64 },
+        content: {
+          title: 'Certificaciones y Cumplimiento',
+          items: [
+            { iconName: 'BadgeCheck', title: 'ISO 9001:2015', description: 'Sistema de gestión de calidad certificado.' },
+            { iconName: 'ShieldCheck', title: 'ISO 28000', description: 'Gestión de seguridad en la cadena de suministro.' },
+            { iconName: 'Leaf', title: 'Sostenibilidad', description: 'Flota con 30% de vehículos de bajas emisiones.' },
+            { iconName: 'FileCheck', title: 'SUNAT al día', description: 'Facturación electrónica y cumplimiento tributario.' },
+          ],
+        },
+      },
+      {
+        id: 'lp-contact',
+        type: 'contact',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#f97316', paddingY: 72 },
+        content: {
+          title: 'Cotiza tu Envío o Servicio Logístico',
+          subtitle: 'Un asesor comercial te responde en menos de 1 hora hábil.',
+          buttonText: 'Cotizar por WhatsApp',
+        },
+      },
+      {
+        id: 'lp-footer',
+        type: 'footer',
+        settings: { backgroundColor: '#0c0a09', textColor: '#ffffff', paddingY: 48 },
+        content: {
+          brandName: 'LOGIPRO PERÚ',
+          copyright: '© 2026 LogiPro. Todos los derechos reservados. Impulsado por WMS Platform.',
+        },
+      },
+    ],
+  },
+  {
+    id: 'tpl-corp-nova',
+    name: 'Nova Group - Corporativa de Agencia & Servicios',
+    description: 'Sitio corporativo moderno para agencia de servicios: hero creativo, áreas de especialidad, portafolio, proceso, equipo creativo y contacto.',
+    industry: 'agencia',
+    category: 'corporate',
+    type: 'corporate',
+    thumbnail: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop',
+    seo: {
+      title: 'Nova Group | Agencia Creativa y de Marketing Digital',
+      description: 'Estrategia, branding, marketing digital y desarrollo web. +500 marcas impulsadas. El partner creativo que tu negocio necesita.',
+    },
+    settings: {
+      primaryColor: '#7c3aed',
+      secondaryColor: '#18181b',
+      accentColor: '#8b5cf6',
+      whatsappNumber: '51999888777',
+    },
+    blocks: [
+      {
+        id: 'ng-navbar',
+        type: 'navbar',
+        settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6' },
+        content: {
+          announcement: 'AGENCIA CREATIVA · +500 MARCAS IMPULSADAS',
+          brandName: 'NOVA GROUP',
+          links: [
+            { label: 'Inicio', windowId: 'home', iconName: 'Home' },
+            { label: 'Servicios', windowId: 'servicios', iconName: 'Sparkles' },
+            { label: 'Portafolio', windowId: 'portafolio', iconName: 'Layout' },
+            { label: 'Proceso', windowId: 'proceso', iconName: 'ClipboardList' },
+            { label: 'Equipo', windowId: 'equipo', iconName: 'Users' },
+            { label: 'Contacto', windowId: 'contacto', iconName: 'MessageSquare' },
+          ],
+        },
+      },
+      {
+        id: 'ng-hero',
+        type: 'hero',
+        settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 110 },
+        content: {
+          badge: 'AGENCIA CREATIVA FULL SERVICE',
+          title: 'Creamos Marcas que la Gente Recuerda y Compra',
+          subtitle: 'Estrategia, branding, marketing digital y desarrollo web bajo un mismo techo. Más de 500 marcas han crecido con nosotros.',
+          buttonText: 'Cuéntanos tu Proyecto',
+          secondaryButtonText: 'Ver Portafolio',
+          heroImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1000&auto=format&fit=crop',
+        },
+      },
+      {
+        id: 'ng-stats',
+        type: 'features',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 64 },
+        content: {
+          title: 'El Impacto Nova en Números',
+          items: [
+            { iconName: 'Award', title: '+500 marcas', description: 'han confiado en nuestro trabajo desde 2016.' },
+            { iconName: 'Trophy', title: '27 premios', description: 'de diseño y publicidad en la región.' },
+            { iconName: 'Users', title: '+40 especialistas', description: 'en estrategia, diseño, data y desarrollo.' },
+            { iconName: 'TrendingUp', title: '3.2x retorno', description: 'promedio en ROAS para clientes de ads.' },
+          ],
+        },
+      },
+      {
+        id: 'ng-services',
+        type: 'features',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 80 },
+        content: {
+          title: 'Nuestras Áreas de Especialidad',
+          subtitle: 'Soluciones integradas para cada etapa de tu marca',
+          items: [
+            { iconName: 'PenTool', title: 'Branding y Identidad', description: 'Naming, logo, sistema visual y manual de marca completo.' },
+            { iconName: 'Megaphone', title: 'Marketing Digital', description: 'Campañas en Meta, Google y TikTok con estrategia de medios.' },
+            { iconName: 'Code', title: 'Desarrollo Web', description: 'Tiendas online y sitios a medida, rápidos y enfocados en conversión.' },
+            { iconName: 'BarChart3', title: 'Analítica y CRO', description: 'Datos al centro: medimos, testeamos y optimizamos cada campaña.' },
+            { iconName: 'Video', title: 'Producción Audiovisual', description: 'Fotos, videos y motion graphics con identidad de marca.' },
+            { iconName: 'MessageCircle', title: 'Social Media', description: 'Gestión de comunidad y contenido que genera engagement real.' },
+          ],
+        },
+      },
+      {
+        id: 'ng-portfolio',
+        type: 'gallery',
+        settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 80 },
+        content: {
+          title: 'Portafolio Seleccionado',
+          subtitle: 'Una muestra de los proyectos que más nos enorgullecen',
+          images: [
+            'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=600&auto=format&fit=crop',
+          ],
+        },
+      },
+      {
+        id: 'ng-process',
+        type: 'features',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 72 },
+        content: {
+          title: 'Cómo Trabajamos Contigo',
+          items: [
+            { iconName: 'MessageSquare', title: '1 · Descubrimiento', description: 'Sesión de descubrimiento para entender tu negocio, audiencia y objetivos.' },
+            { iconName: 'PencilRuler', title: '2 · Estrategia y Diseño', description: 'Concepto, dirección creativa y propuestas con sustento estratégico.' },
+            { iconName: 'Rocket', title: '3 · Lanzamiento', description: 'Producimos, construimos y lanzamos con sprints ágiles de 2 semanas.' },
+            { iconName: 'LineChart', title: '4 · Optimización', description: 'Medimos resultados y optimizamos en ciclos continuos.' },
+          ],
+        },
+      },
+      {
+        id: 'ng-testimonials',
+        type: 'testimonials',
+        settings: { backgroundColor: '#f8fafc', textColor: '#0f172a', paddingY: 72 },
+        content: {
+          title: 'Lo que Dicen Nuestros Clientes',
+          items: [
+            { text: 'Nova rediseñó nuestra marca completa y lanzó la campaña. Las ventas online crecieron 2.4x en el primer trimestre.', name: 'Gabriela T.', role: 'Gerente de Marca · Retail' },
+            { text: 'Son estratégicos, rápidos y honestos. No venden humo: cada acción tiene un KPI y cada peso una justificación.', name: 'Sebastián O.', role: 'Fundador · Fintech' },
+            { text: 'El equipo de desarrollo construyó nuestra tienda en tiempo récord y con una calidad impecable. El soporte es constante.', name: 'Fernanda R.', role: 'Directora · E-commerce' },
+          ],
+        },
+      },
+      {
+        id: 'ng-team',
+        type: 'team',
+        settings: { backgroundColor: '#18181b', textColor: '#ffffff', accentColor: '#8b5cf6', paddingY: 72 },
+        content: {
+          title: 'El Equipo Creativo Detrás de Nova',
+          subtitle: 'Especialistas apasionados por construir marcas',
+          items: [
+            { name: 'Bruno Castillo', role: 'Director Creativo', photo: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop' },
+            { name: 'Sofía Paredes', role: 'Estratega de Marca', photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&auto=format&fit=crop' },
+            { name: 'Andrés Cárdenas', role: 'Director de Desarrollo', photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop' },
+            { name: 'Valeria Soto', role: 'Lead de Performance', photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop' },
+          ],
+        },
+      },
+      {
+        id: 'ng-contact',
+        type: 'contact',
+        settings: { backgroundColor: '#ffffff', textColor: '#0f172a', accentColor: '#8b5cf6', paddingY: 72 },
+        content: {
+          title: '¿Listo para Impulsar tu Marca?',
+          subtitle: 'Cuéntanos tu proyecto y te respondemos en menos de 24 horas.',
+          buttonText: 'Empezar mi Proyecto por WhatsApp',
+        },
+      },
+      {
+        id: 'ng-footer',
+        type: 'footer',
+        settings: { backgroundColor: '#0c0a09', textColor: '#ffffff', paddingY: 48 },
+        content: {
+          brandName: 'NOVA GROUP',
+          copyright: '© 2026 Nova Group. Todos los derechos reservados. Impulsado por WMS Platform.',
+        },
+      },
+    ],
+  },
+]

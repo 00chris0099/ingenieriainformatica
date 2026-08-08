@@ -3,18 +3,19 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
-    const existing = await prisma.product.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) return apiError('Product not found', 404);
 
     const body = await request.json();
 
     const updated = await prisma.product.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.model !== undefined && { model: body.model }),

@@ -13,12 +13,13 @@ function safeParseJson(value: any): any {
 }
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const identifier = params.id;
+    const { id } = await params;
+    const identifier = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
 
     const product = await prisma.product.findFirst({
@@ -53,8 +54,9 @@ export async function PUT(request: NextRequest, { params }: Props) {
       weight, weightUnit, lowStockAlert, price, compareAtPrice, costPrice, stock, discountPercent, barcode,
       discountPopup, promotionBar, socialProof,
     } = body;
+    const { id } = await params;
 
-    const existing = await prisma.product.findUnique({ where: { id: params.id } });
+    const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) return apiError('Product not found', 404);
 
     const slug = newSlug || (name ? name.toLowerCase()
@@ -62,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : existing.slug);
 
     const updated = await prisma.product.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(name && { name }),
         ...(slug && { slug }),
@@ -107,11 +109,12 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
 export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
-    const existing = await prisma.product.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) return apiError('Product not found', 404);
 
     await prisma.product.update({
-      where: { id: params.id },
+      where: { id },
       data: { status: 'archived' },
     });
 

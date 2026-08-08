@@ -16,10 +16,13 @@ import { countdownBlock } from './blocks/countdown'
 import { contactBlock } from './blocks/contact'
 import { socialProofBlock } from './blocks/social-proof'
 import { accordionBlock } from './blocks/accordion'
+import { navbarBlock } from './blocks/navbar'
+import { teamBlock } from './blocks/team'
 
 // Register all blocks
 blockRegistry.registerMany([
   heroBlock,
+  navbarBlock,
   featuresBlock,
   ctaBlock,
   testimonialsBlock,
@@ -36,6 +39,7 @@ blockRegistry.registerMany([
   contactBlock,
   socialProofBlock,
   accordionBlock,
+  teamBlock,
 ])
 
 export { blockRegistry } from './registry'

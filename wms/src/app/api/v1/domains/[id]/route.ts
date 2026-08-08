@@ -9,8 +9,8 @@ declare global {
 
 const domainStore = global.__domainStore || new Map();
 
-export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   try {
     const updatedRecord = {
@@ -48,8 +48,8 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   domainStore.delete(id);
 

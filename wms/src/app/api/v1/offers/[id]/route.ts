@@ -2,13 +2,14 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
+    const { id } = await params;
     const offer = await prisma.offer.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: body.name,
         description: body.description || null,
@@ -29,7 +30,8 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
 export async function DELETE(request: NextRequest, { params }: Props) {
   try {
-    await prisma.offer.delete({ where: { id: params.id } });
+    const { id } = await params;
+    await prisma.offer.delete({ where: { id } });
     return apiSuccess({ deleted: true });
   } catch (error) { return handleApiError(error, 'offer-delete'); }
 }

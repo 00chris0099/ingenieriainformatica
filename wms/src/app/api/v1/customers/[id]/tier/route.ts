@@ -3,7 +3,7 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 function computeTier(deliveredCount: number, cancelledCount: number, returnedCount: number, totalSpent: number): string {
   if (cancelledCount > 0 && deliveredCount === 0) return 'problematico';
@@ -15,11 +15,12 @@ function computeTier(deliveredCount: number, cancelledCount: number, returnedCou
 
 export async function POST(_request: NextRequest, { params }: Props) {
   try {
-    const customer = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer) return apiError('Customer not found', 404);
 
     const orders = await prisma.order.findMany({
-      where: { customerId: params.id },
+      where: { customerId: id },
       select: { status: true, total: true },
     });
 
@@ -33,7 +34,7 @@ export async function POST(_request: NextRequest, { params }: Props) {
     const tier = computeTier(deliveredCount, cancelledCount, returnedCount, totalSpent);
 
     const updated = await prisma.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: { customerTier: tier },
     });
 

@@ -4,13 +4,14 @@ import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const order = await prisma.order.findFirst({
-      where: { OR: [{ id: params.id }, { orderNumber: params.id }] },
+      where: { OR: [{ id }, { orderNumber: id }] },
       include: {
         customer: true,
         items: true,
@@ -45,12 +46,13 @@ export async function PUT(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
     const { notes, internalNotes, paymentStatus } = body;
+    const { id } = await params;
 
-    const existing = await prisma.order.findUnique({ where: { id: params.id } });
+    const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) return apiError('Order not found', 404);
 
     const updated = await prisma.order.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(notes !== undefined && { notes }),
         ...(internalNotes !== undefined && { internalNotes }),

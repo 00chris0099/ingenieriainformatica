@@ -3,12 +3,13 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const customer = await prisma.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { orders: { orderBy: { createdAt: 'desc' }, take: 10 } },
     });
     if (!customer) return apiError('Customer not found', 404);
@@ -20,11 +21,12 @@ export async function PUT(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
     const { fullName, phone, email, customerType, companyName, taxId, creditLimit, notes, tags, billingAddress, shippingAddress, isActive, customerTier } = body;
-    const existing = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const existing = await prisma.customer.findUnique({ where: { id } });
     if (!existing) return apiError('Customer not found', 404);
 
     const updated = await prisma.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(fullName !== undefined && { fullName }),
         ...(phone !== undefined && { phone }),
@@ -48,9 +50,10 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
 export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
-    const existing = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const existing = await prisma.customer.findUnique({ where: { id } });
     if (!existing) return apiError('Customer not found', 404);
-    await prisma.customer.update({ where: { id: params.id }, data: { isActive: false } });
+    await prisma.customer.update({ where: { id }, data: { isActive: false } });
     await invalidateCache('customers:*');
     return apiSuccess({ message: 'Customer deactivated' });
   } catch (error) { return handleApiError(error, 'customer-delete'); }

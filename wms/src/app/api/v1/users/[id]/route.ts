@@ -1,19 +1,19 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
-import { cached, invalidateCache } from '@/lib/cache';
 import { hash } from 'bcryptjs';
 import { requireAuth, requireRole, canManageUser } from '@/lib/api/auth-guard';
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
     const authCheck = await requireAuth();
     if (authCheck.error) return authCheck.error;
+    const { id } = await params;
 
     const user = await prisma.user.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, lastLoginAt: true },
     });
     if (!user) return apiError('User not found', 404);
@@ -22,14 +22,16 @@ export async function GET(_request: NextRequest, { params }: Props) {
 }
 
 export async function PUT(request: NextRequest, { params }: Props) {
-  return updateHandler(request, params);
+  const { id } = await params;
+  return updateHandler(request, id);
 }
 
 export async function PATCH(request: NextRequest, { params }: Props) {
-  return updateHandler(request, params);
+  const { id } = await params;
+  return updateHandler(request, id);
 }
 
-async function updateHandler(request: NextRequest, params: { id: string }) {
+async function updateHandler(request: NextRequest, id: string) {
   try {
     const body = await request.json();
     const { fullName, role, isActive, password } = body;
@@ -43,7 +45,7 @@ async function updateHandler(request: NextRequest, params: { id: string }) {
       if (authCheck.error) return authCheck.error;
     }
 
-    const existing = await prisma.user.findUnique({ where: { id: params.id } });
+    const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) return apiError('User not found', 404);
 
     // Prevent changing super_admin role
@@ -58,7 +60,7 @@ async function updateHandler(request: NextRequest, params: { id: string }) {
     if (password) updateData.passwordHash = await hash(password, 12);
 
     const updated = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       select: { id: true, email: true, fullName: true, role: true, isActive: true },
     });
@@ -70,11 +72,12 @@ export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
     const authCheck = await requireRole('super_admin', 'admin');
     if (authCheck.error) return authCheck.error;
+    const { id } = await params;
 
-    const existing = await prisma.user.findUnique({ where: { id: params.id } });
+    const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) return apiError('User not found', 404);
     if (existing.role === 'super_admin') return apiError('Cannot delete super admin', 403);
-    await prisma.user.update({ where: { id: params.id }, data: { isActive: false } });
+    await prisma.user.update({ where: { id }, data: { isActive: false } });
     return apiSuccess({ message: 'User deactivated' });
   } catch (error) { return handleApiError(error, 'user-delete'); }
 }

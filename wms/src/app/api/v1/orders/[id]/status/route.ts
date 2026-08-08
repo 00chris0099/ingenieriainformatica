@@ -5,7 +5,7 @@ import { invalidateCache } from '@/lib/cache';
 import { VALID_TRANSITIONS } from '@/lib/orders';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // Auto-create shipment record when order is ready to ship
@@ -44,11 +44,12 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   try {
     const body = await request.json();
     const { status, reason } = body;
+    const { id } = await params;
 
     if (!status) return apiError('Status is required', 400);
 
     const order = await prisma.order.findFirst({
-      where: { OR: [{ id: params.id }, { orderNumber: params.id }] },
+      where: { OR: [{ id }, { orderNumber: id }] },
     });
 
     if (!order) return apiError('Order not found', 404);

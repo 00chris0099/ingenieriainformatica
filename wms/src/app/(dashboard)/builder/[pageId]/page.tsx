@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Save, Eye, ArrowLeft, Undo, Redo, Plus, Monitor, Tablet, Smartphone,
@@ -26,10 +26,24 @@ interface ChatMessage {
   sender: 'user' | 'ai'
   text: string
   timestamp: string
+  blocks?: Block[]
+  seo?: Record<string, any>
+  provider?: string
+  model?: string
+  applied?: boolean
+  discarded?: boolean
 }
 
-export default function BuilderPage({ params }: { params: { pageId: string } }) {
-  const { pageId } = params
+const BLOCK_LABELS: Record<string, string> = {
+  navbar: 'Barra de Navegación', hero: 'Hero / Portada', 'product-grid': 'Catálogo de Productos',
+  features: 'Beneficios', testimonials: 'Testimonios', cta: 'Llamado a la Acción',
+  footer: 'Pie de Página', countdown: 'Cuenta Regresiva', faq: 'Preguntas Frecuentes',
+  newsletter: 'Newsletter', 'social-proof': 'Prueba Social', pricing: 'Precios',
+  contact: 'Contacto', gallery: 'Galería', about: 'Nosotros', team: 'Equipo',
+}
+
+export default function BuilderPage({ params }: { params: Promise<{ pageId: string }> }) {
+  const { pageId } = use(params)
   const router = useRouter()
 
   const [page, setPage] = useState<PageData | null>(null)
@@ -214,7 +228,7 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
     window.open(`/p/${pageId}`, '_blank')
   }
 
-  // AI Copilot Prompt Processing
+  // AI Copilot Prompt Processing — shows a diff preview; user applies or discards
   const handleAISend = async () => {
     if (!inputPrompt.trim() || aiGenerating) return
 
@@ -237,27 +251,53 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         body: JSON.stringify({
           businessName: page?.title || 'Tienda Moda',
           businessDescription: userText,
-          industry: 'fashion',
+          industry: page?.type === 'landing' ? 'marketing digital' : page?.type === 'corporate' ? 'servicios corporativos' : 'fashion',
+          pageType: page?.type || 'store',
         }),
       })
 
+      const data = await res.json()
       if (res.ok) {
-        const data = await res.json()
         const aiBlocks: Block[] = data.data?.blocks || []
+        const aiSeo: Record<string, any> = data.data?.seo || {}
+        const provider = data.data?.provider
+        const model = data.data?.model
+
         if (aiBlocks.length > 0) {
-          updateBlocks(aiBlocks)
           setChatMessages(prev => [
             ...prev,
             {
               id: `ai-${Date.now()}`,
               sender: 'ai',
-              text: `✨ He aplicado tu instrucción. Se ha generado una estructura completa de tienda virtual con ${aiBlocks.length} secciones (Hero, Productos con precios, Garantías y CTA).`,
+              text: `✨ Generé ${aiBlocks.length} secciones nuevas para tu solicitud. Revisa la vista previa y haz clic en "Aplicar cambios" para reemplazar la página (o "Descartar" para mantener lo actual).`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              blocks: aiBlocks,
+              seo: aiSeo,
+              provider,
+              model,
+            },
+          ])
+        } else {
+          setChatMessages(prev => [
+            ...prev,
+            {
+              id: `ai-err-${Date.now()}`,
+              sender: 'ai',
+              text: 'No pude generar secciones. Verifica que tengas configurado un proveedor de IA (Configuración → IA) o intenta con otra instrucción.',
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             },
           ])
         }
       } else {
-        throw new Error('AI Error')
+        setChatMessages(prev => [
+          ...prev,
+          {
+            id: `ai-err-${Date.now()}`,
+            sender: 'ai',
+            text: data?.error || 'Error al conectar con el proveedor de IA. Revisa la configuración en Configuración → IA.',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ])
       }
     } catch {
       setChatMessages(prev => [
@@ -265,13 +305,34 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
         {
           id: `ai-err-${Date.now()}`,
           sender: 'ai',
-          text: 'He procesado tu solicitud. Los bloques de la tienda han sido optimizados con el Skill de UI/UX de alta conversión.',
+          text: 'Ocurrió un error de conexión. Intenta nuevamente en unos segundos.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ])
     } finally {
       setAiGenerating(false)
     }
+  }
+
+  const applyAIBlocks = (msgId: string) => {
+    const msg = chatMessages.find(m => m.id === msgId)
+    if (!msg?.blocks || msg.applied) return
+
+    updateBlocks(msg.blocks)
+
+    // Save SEO if provided
+    if (msg.seo && page) {
+      const body: any = { blocks: msg.blocks, title: page.title, slug: page.slug, type: page.type, seo: msg.seo }
+      fetch(`/api/v1/pages/${pageId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }).catch(() => {})
+    }
+
+    setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, applied: true } : m))
+  }
+
+  const discardAIBlocks = (msgId: string) => {
+    setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, discarded: true } : m))
   }
 
   const selectedBlock = blocks.find(b => b.id === selectedBlockId)
@@ -641,8 +702,60 @@ export default function BuilderPage({ params }: { params: { pageId: string } }) 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {chatMessages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${msg.sender === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-[var(--color-bg-base)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-bl-none'}`}>
+                  <div className={`max-w-[90%] p-3 rounded-2xl text-xs leading-relaxed ${msg.sender === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-[var(--color-bg-base)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-bl-none'}`}>
                     <p>{msg.text}</p>
+
+                    {/* Provider badge */}
+                    {msg.provider && (
+                      <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-500 text-[9px] font-bold uppercase tracking-wide">
+                        <Sparkles size={9} /> {msg.provider}{msg.model ? ` · ${msg.model}` : ''}
+                      </div>
+                    )}
+
+                    {/* AI-generated blocks diff preview */}
+                    {msg.blocks && msg.blocks.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Secciones generadas ({msg.blocks.length})</p>
+                        {msg.blocks.map((b, i) => {
+                          const label = BLOCK_LABELS[b.type] || b.type.replace('-', ' ')
+                          const title = (b.content as any)?.title || (b.content as any)?.brandName || ''
+                          return (
+                            <div key={b.id || i} className="flex items-center gap-2 p-1.5 rounded-lg bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                              <span className="text-[9px] font-bold text-purple-500 w-4">{i + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-bold capitalize truncate">{label}</p>
+                                {title && <p className="text-[9px] text-[var(--color-text-tertiary)] truncate">{String(title)}</p>}
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {/* Apply / Discard actions */}
+                        {!msg.applied && !msg.discarded ? (
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={() => applyAIBlocks(msg.id)}
+                              className="flex-1 py-1.5 rounded-lg bg-purple-600 text-white text-[10px] font-bold hover:bg-purple-700 transition-all"
+                            >
+                              <Check size={11} className="inline mr-1" />Aplicar cambios
+                            </button>
+                            <button
+                              onClick={() => discardAIBlocks(msg.id)}
+                              className="flex-1 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] text-[10px] font-bold hover:bg-[var(--color-bg-hover)] transition-all"
+                            >
+                              <X size={11} className="inline mr-1" />Descartar
+                            </button>
+                          </div>
+                        ) : msg.applied ? (
+                          <p className="pt-1 text-[9px] font-bold text-emerald-500 flex items-center gap-1">
+                            <Check size={11} /> Aplicado al lienzo — puedes guardar con "Guardar & Publicar"
+                          </p>
+                        ) : (
+                          <p className="pt-1 text-[9px] font-bold text-gray-500">Descartado</p>
+                        )}
+                      </div>
+                    )}
+
                     <span className="text-[9px] opacity-60 block mt-1 text-right">{msg.timestamp}</span>
                   </div>
                 </div>

@@ -82,6 +82,34 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
   const [cart, setCart] = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState<boolean>(false)
   const [showNotification, setShowNotification] = useState<boolean>(false)
+  const [navOpen, setNavOpen] = useState<boolean>(false)
+
+  // Multi-window state: a selected product opens its own landing "window"
+  const [productWindow, setProductWindow] = useState<any | null>(null)
+  const [productWindowCategory, setProductWindowCategory] = useState<string>('all')
+
+  const closeNav = () => setNavOpen(false)
+
+  const navigateTo = (windowId: string) => {
+    setNavOpen(false)
+    if (windowId === 'home') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (windowId.startsWith('product:')) {
+      const pid = windowId.replace('product:', '')
+      const all = blocks
+        .flatMap((b: any) => (Array.isArray(b?.content?.products) ? b.content.products : []))
+      const found = all.find((p: any) => String(p.id) === pid)
+      if (found) {
+        handleOpenProduct(found)
+        return
+      }
+    }
+    setActiveCategory(windowId)
+    const el = document.getElementById('productos')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const cartCount = cart.reduce((acc, it) => acc + it.qty, 0)
   const cartTotal = cart.reduce((acc, it) => acc + it.price * it.qty, 0)
@@ -93,9 +121,20 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
 
   const handleOpenProduct = (p: any) => {
     setSelectedProduct(p)
+    setProductWindow(p)
+    setProductWindowCategory(p.category || 'all')
     setSelectedSize(Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes[0] : '')
     setQuantity(1)
   }
+
+  // Related products for the product landing window (same category, excluding current)
+  const relatedProducts = (() => {
+    if (!selectedProduct) return []
+    const all = blocks
+      .flatMap((b: any) => (Array.isArray(b?.content?.products) ? b.content.products : []))
+      .filter((p: any) => String(p.id) !== String(selectedProduct.id))
+    return all.slice(0, 4)
+  })()
 
   const addToCart = (p: any, size: string, qty: number) => {
     const key = `${p.id}-${size || 'std'}`
@@ -182,29 +221,94 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                     {c.announcement}
                   </div>
                 )}
-                <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2 font-black text-xl tracking-tight" style={{ color: navText }}>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+                  <button
+                    onClick={() => navigateTo('home')}
+                    className="flex items-center gap-2 font-black text-lg sm:text-xl tracking-tight hover:opacity-80 transition-opacity"
+                    style={{ color: navText }}
+                  >
                     <span className="w-3 h-3 rounded-full inline-block animate-pulse" style={{ backgroundColor: accent }} />
-                    {c.brandName || seo?.title || pageTitle || 'TIENDA VIRTUAL'}
-                  </div>
+                    <span className="truncate">{c.brandName || seo?.title || pageTitle || 'TIENDA VIRTUAL'}</span>
+                  </button>
 
-                  <nav className="flex items-center gap-2 flex-wrap">
+                  {/* Desktop nav */}
+                  <nav className="hidden md:flex items-center gap-1">
                     {links.map((link: any, idx: number) => (
-                      <a
+                      <button
                         key={idx}
-                        href={`#${link.windowId || 'productos'}`}
-                        onClick={() => {
-                          if (link.windowId && link.windowId !== 'home') setActiveCategory(link.windowId)
-                        }}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 hover:opacity-70"
+                        onClick={() => navigateTo(link.windowId || 'productos')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 hover:opacity-70 ${
+                          activeCategory === link.windowId ? 'opacity-100' : 'opacity-80'
+                        }`}
+                        style={activeCategory === link.windowId ? { backgroundColor: softBg(accent, '14'), color: accent } : { color: navText }}
+                      >
+                        <IconRenderer name={link.iconName} size={14} />
+                        {link.label}
+                      </button>
+                    ))}
+                    {/* Cart button in navbar */}
+                    <button
+                      onClick={() => setCartOpen(true)}
+                      className="relative ml-2 p-2 rounded-xl transition-all hover:opacity-80 inline-flex items-center gap-1.5"
+                      style={{ color: navText, backgroundColor: softBg(accent, '10') }}
+                      aria-label="Abrir carrito"
+                    >
+                      <ShoppingBag size={15} />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
+                          {cartCount}
+                        </span>
+                      )}
+                    </button>
+                  </nav>
+
+                  {/* Mobile hamburger + cart */}
+                  <div className="flex items-center gap-2 md:hidden">
+                    <button
+                      onClick={() => setCartOpen(true)}
+                      className="relative p-2 rounded-xl transition-all hover:opacity-80"
+                      style={{ color: navText, backgroundColor: softBg(accent, '10') }}
+                      aria-label="Abrir carrito"
+                    >
+                      <ShoppingBag size={16} />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[9px] font-black min-w-[18px] min-h-[18px] rounded-full flex items-center justify-center border border-slate-950">
+                          {cartCount}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setNavOpen(!navOpen)}
+                      className="p-2 rounded-xl transition-all hover:opacity-80 flex flex-col gap-1"
+                      style={{ color: navText }}
+                      aria-label="Abrir menú"
+                    >
+                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'rotate-45 translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
+                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? 'opacity-0' : ''}`} style={{ backgroundColor: navText }} />
+                      <span className={`block w-5 h-0.5 rounded transition-all duration-300 ${navOpen ? '-rotate-45 -translate-y-1.5' : ''}`} style={{ backgroundColor: navText }} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mobile nav drawer */}
+                {navOpen && (
+                  <nav
+                    className="md:hidden border-t animate-fade-in-down px-4 py-3 space-y-1"
+                    style={{ backgroundColor: navBg, borderColor: 'rgba(128,128,128,0.15)' }}
+                  >
+                    {links.map((link: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => navigateTo(link.windowId || 'productos')}
+                        className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
                         style={{ color: navText }}
                       >
                         <IconRenderer name={link.iconName} size={14} />
                         {link.label}
-                      </a>
+                      </button>
                     ))}
                   </nav>
-                </div>
+                )}
               </header>
             )
           }
@@ -411,6 +515,124 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                           </div>
                           <h3 className="font-extrabold text-base">{item.title || 'Beneficio'}</h3>
                           <p className="text-xs opacity-60 leading-relaxed">{item.description || ''}</p>
+                        </div>
+                      </Reveal>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'pricing') {
+            const plans = Array.isArray(c.plans) ? c.plans : []
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor || '#ffffff',
+                  color: s.textColor || '#0f172a',
+                  paddingTop: `${s.paddingY || 80}px`,
+                  paddingBottom: `${s.paddingY || 80}px`,
+                  '--accent': accent,
+                } as React.CSSProperties}
+                className="px-6"
+              >
+                <div className="max-w-6xl mx-auto space-y-8">
+                  <Reveal>
+                    <div className="text-center space-y-2">
+                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Planes y Precios'}</h2>
+                      {c.subtitle && <p className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</p>}
+                    </div>
+                  </Reveal>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+                    {plans.map((plan: any, idx: number) => {
+                      const featured = !!plan.highlight || idx === 1
+                      return (
+                        <Reveal key={idx} delay={idx * 90}>
+                          <div
+                            className={`rounded-3xl p-7 h-full flex flex-col relative border ${
+                              featured ? 'text-white shadow-2xl' : 'bg-white border-black/10 shadow-sm text-slate-900'
+                            }`}
+                            style={featured ? { backgroundColor: accent, borderColor: accent } : undefined}
+                          >
+                            {featured && (
+                              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 text-[10px] font-black px-3 py-1 rounded-full shadow">
+                                MÁS POPULAR
+                              </span>
+                            )}
+                            <h3 className="font-black text-lg mb-1">{plan.name}</h3>
+                            <div className="text-3xl font-black mb-5">
+                              {plan.price}
+                            </div>
+                            <ul className="space-y-2.5 mb-7 flex-1">
+                              {Array.isArray(plan.features) && plan.features.map((f: string, fi: number) => (
+                                <li key={fi} className="text-xs flex items-start gap-2">
+                                  <Check size={14} className={`mt-0.5 shrink-0 ${featured ? 'text-white' : 'text-emerald-500'}`} />
+                                  <span className="opacity-80 leading-relaxed">{f}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              onClick={() => {
+                                const msg = `Hola! Quiero contratar el plan ${plan.name} (${plan.price})`
+                                window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank')
+                              }}
+                              className={`w-full py-3.5 rounded-xl font-extrabold text-xs transition-all hover:opacity-90 ${
+                                featured ? 'bg-white' : 'text-white'
+                              }`}
+                              style={featured ? { color: accent } : { backgroundColor: accent }}
+                            >
+                              {plan.ctaText || 'Elegir este Plan'}
+                            </button>
+                          </div>
+                        </Reveal>
+                      )
+                    })}
+                  </div>
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'team') {
+            const members = Array.isArray(c.items) ? c.items : []
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor || '#f8fafc',
+                  color: s.textColor || '#0f172a',
+                  paddingTop: `${s.paddingY || 72}px`,
+                  paddingBottom: `${s.paddingY || 72}px`,
+                  '--accent': accent,
+                } as React.CSSProperties}
+                className="px-6"
+              >
+                <div className="max-w-6xl mx-auto space-y-8">
+                  <Reveal>
+                    <div className="text-center space-y-2">
+                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Nuestro Equipo'}</h2>
+                      {c.subtitle && <p className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</p>}
+                    </div>
+                  </Reveal>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    {members.map((m: any, idx: number) => (
+                      <Reveal key={idx} delay={(idx % 4) * 80}>
+                        <div className="text-center space-y-3">
+                          <div className="w-28 h-28 mx-auto rounded-full overflow-hidden bg-slate-100 border-4 border-white shadow-lg">
+                            {m.photo ? (
+                              <img src={m.photo} alt={m.name} loading="lazy" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center" style={{ color: accent }}>
+                                <IconRenderer name="User" size={40} />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-sm">{m.name}</p>
+                            <p className="text-[11px] opacity-60 mt-0.5">{m.role}</p>
+                          </div>
                         </div>
                       </Reveal>
                     ))}
@@ -691,6 +913,52 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                 </div>
               </div>
             </div>
+
+            {/* Product landing: guarantees strip */}
+            <div className="grid grid-cols-3 gap-3 pt-5 mt-5 border-t border-slate-100">
+              {[
+                { icon: 'Truck', label: 'Envío 24h' },
+                { icon: 'RefreshCw', label: 'Cambios gratis' },
+                { icon: 'ShieldCheck', label: 'Garantía total' },
+              ].map((g) => (
+                <div key={g.label} className="flex flex-col items-center gap-1.5 text-center">
+                  <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: softBg(rootAccent, '12'), color: rootAccent }}>
+                    <IconRenderer name={g.icon} size={16} />
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-600">{g.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Related products mini-grid */}
+            {relatedProducts.length > 0 && (
+              <div className="pt-5 mt-5 border-t border-slate-100">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-3">También te puede gustar</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {relatedProducts.map((rp: any) => (
+                    <button
+                      key={rp.id || rp.name}
+                      onClick={() => handleOpenProduct(rp)}
+                      className="group text-left rounded-xl overflow-hidden border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all"
+                    >
+                      <div className="h-20 bg-slate-50 overflow-hidden">
+                        {rp.imageUrl ? (
+                          <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center" style={{ color: rootAccent }}>
+                            <IconRenderer name={rp.iconName || 'Shirt'} size={22} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-2">
+                        <p className="text-[10px] font-bold text-slate-700 truncate">{rp.name}</p>
+                        <p className="text-[10px] font-black mt-0.5" style={{ color: rootAccent }}>{rp.price}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

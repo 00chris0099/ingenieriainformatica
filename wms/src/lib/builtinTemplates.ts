@@ -1,3 +1,6 @@
+import { LANDING_TEMPLATES } from '@/lib/templates/landing-templates'
+import { CORPORATE_TEMPLATES } from '@/lib/templates/corporate-templates'
+
 export const BUILTIN_TEMPLATES = [
   {
     id: 'tpl-adrisu-kids',
@@ -5,6 +8,7 @@ export const BUILTIN_TEMPLATES = [
     description: 'Tienda virtual de alta gama con imágenes fotográficas en HD, navegación por ventanas (Inicio, Niños, Niñas, Bebés, Ofertas), filtro por categorías, tallas y compra directa por WhatsApp.',
     industry: 'moda_infantil',
     category: 'ecommerce',
+    type: 'store',
     thumbnail: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=800&auto=format&fit=crop',
     seo: {
       title: 'Adrisu Kids - Tienda Virtual Oficial de Moda Infantil',
@@ -235,6 +239,7 @@ export const BUILTIN_TEMPLATES = [
     description: 'Tienda de tecnología con fotografía HD de gadgets, ventanas de categorías (Audio, Wearables, Gaming, Carga), dark mode neón y botones de compra instantánea.',
     industry: 'tecnologia',
     category: 'ecommerce',
+    type: 'store',
     thumbnail: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop',
     seo: {
       title: 'TechVibes - Tienda Oficial de Gadgets & Tecnología',
@@ -401,6 +406,7 @@ export const BUILTIN_TEMPLATES = [
     description: 'Diseño distinguido con fotografías HD de vinos de reserva, queso madurado y hampers, con navegación por ventanas de Cava y Regalos Corporativos.',
     industry: 'gastronomia',
     category: 'ecommerce',
+    type: 'store',
     thumbnail: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&auto=format&fit=crop',
     seo: {
       title: 'Boutique Gourmet - Vinos & Delicatessen',
@@ -559,4 +565,6 @@ export const BUILTIN_TEMPLATES = [
       },
     ],
   },
+  ...LANDING_TEMPLATES,
+  ...CORPORATE_TEMPLATES,
 ]

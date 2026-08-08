@@ -3,7 +3,7 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 interface CategoryAttribute {
@@ -16,8 +16,9 @@ interface CategoryAttribute {
 // GET: Get attributes for a category
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const category = await prisma.category.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, name: true, attributes: true },
     });
 
@@ -36,7 +37,8 @@ export async function GET(_request: NextRequest, { params }: Props) {
 // PUT: Update attributes for a category
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
-    const category = await prisma.category.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const category = await prisma.category.findUnique({ where: { id } });
     if (!category) return apiError('Category not found', 404);
 
     const body = await request.json();
@@ -60,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: Props) {
     }
 
     const updated = await prisma.category.update({
-      where: { id: params.id },
+      where: { id },
       data: { attributes },
       select: { id: true, name: true, attributes: true },
     });

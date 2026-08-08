@@ -39,11 +39,11 @@ export async function sendOtpEmail({ to, code, type }: SendOtpEmailOptions): Pro
     </div>
   `;
 
-  // 1. ENGINE 1: Gmail SMTP via Nodemailer (Primary for pedroanchillo185@gmail.com)
-  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  // 1. ENGINE 1: SMTP via Nodemailer (requires SMTP_HOST / SMTP_USER / SMTP_PASS env vars)
+  const smtpHost = process.env.SMTP_HOST || '';
   const smtpPort = Number(process.env.SMTP_PORT) || 587;
-  const smtpUser = process.env.SMTP_USER || 'pedroanchillo185@gmail.com';
-  const smtpPass = process.env.SMTP_PASS || 'gnuu gvub taup awno';
+  const smtpUser = process.env.SMTP_USER || '';
+  const smtpPass = process.env.SMTP_PASS || '';
   const emailFrom = process.env.EMAIL_FROM || `Plataforma de Tiendas <${smtpUser}>`;
 
   if (smtpHost && smtpUser && smtpPass) {

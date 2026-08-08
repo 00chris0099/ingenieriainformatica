@@ -13,7 +13,7 @@ interface SearchBarProps {
 
 export default function SearchBar({ value, onChange, placeholder = 'Buscar...', className, debounceMs = 300 }: SearchBarProps) {
   const [localValue, setLocalValue] = useState(value);
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   useEffect(() => {
     setLocalValue(value);

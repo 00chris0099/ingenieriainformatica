@@ -5,16 +5,17 @@ import { invalidateCache } from '@/lib/cache';
 import { requireAuth } from '@/lib/api/auth-guard';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function POST(_request: NextRequest, { params }: Props) {
   try {
     const authCheck = await requireAuth();
     if (authCheck.error) return authCheck.error;
+    const { id } = await params;
 
     const version = await prisma.productVersion.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!version) return apiError('Version not found', 404);

@@ -3,17 +3,18 @@ import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // GET: List versions for a product
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
-    const product = await prisma.product.findUnique({ where: { id: params.id } });
+    const { id } = await params;
+    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) return apiError('Product not found', 404);
 
     const versions = await prisma.productVersion.findMany({
-      where: { productId: params.id },
+      where: { productId: id },
       orderBy: { version: 'desc' },
       take: 50,
     });
@@ -27,8 +28,9 @@ export async function GET(_request: NextRequest, { params }: Props) {
 // POST: Create a new version (snapshot)
 export async function POST(request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const product = await prisma.product.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
     if (!product) return apiError('Product not found', 404);
 
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest, { params }: Props) {
 
     // Get last version number
     const lastVersion = await prisma.productVersion.findFirst({
-      where: { productId: params.id },
+      where: { productId: id },
       orderBy: { version: 'desc' },
     });
     const nextVersion = (lastVersion?.version || 0) + 1;
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest, { params }: Props) {
 
     const version = await prisma.productVersion.create({
       data: {
-        productId: params.id,
+        productId: id,
         version: nextVersion,
         snapshot,
         diff: diff as any,

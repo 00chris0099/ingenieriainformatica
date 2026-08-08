@@ -25,7 +25,7 @@ const typeLabels: Record<string, string> = {
   landing: 'Landing Page',
   page: 'Página Informativa',
   store: 'Tienda Virtual',
-  blog: 'Blog',
+  corporate: 'Página Corporativa',
   checkout: 'Checkout',
 }
 
@@ -195,19 +195,21 @@ function CreatePageWizardModal({ onClose, onCreated }: { onClose: () => void; on
     aiIndustry: 'moda',
     aiTone: 'professional',
   })
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string; description: string; industry: string }>>([])
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; description: string; industry: string; type?: string }>>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/v1/templates')
+    fetch(`/api/v1/templates?category=${form.type}`)
       .then(res => res.json())
       .then(data => {
         const items = Array.isArray(data.data) ? data.data : Array.isArray(data.data?.items) ? data.data.items : []
         setTemplates(items)
+        // Auto-select first template of the current type
+        if (items.length > 0) setForm(prev => ({ ...prev, templateId: items[0].id }))
       })
       .catch(() => {})
-  }, [])
+  }, [form.type])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -374,8 +376,8 @@ function CreatePageWizardModal({ onClose, onCreated }: { onClose: () => void; on
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="select-field">
               <option value="store">Tienda Virtual E-Commerce Completa</option>
               <option value="landing">Landing Page de Alta Conversión</option>
-              <option value="page">Página Informativa / Corporativa</option>
-              <option value="blog">Blog de Noticias / Contenidos</option>
+              <option value="corporate">Página Corporativa (Multi-Sección)</option>
+              <option value="page">Página Informativa</option>
             </select>
           </div>
         </div>
@@ -384,7 +386,7 @@ function CreatePageWizardModal({ onClose, onCreated }: { onClose: () => void; on
         {creationMode === 'template' && (
           <div>
             <label className="form-label mb-2 block font-bold text-sm">
-              Selecciona una Plantilla E-Commerce Prediseñada
+              Selecciona una Plantilla {form.type === 'store' ? 'de Tienda Virtual' : form.type === 'landing' ? 'de Landing Page' : form.type === 'corporate' ? 'Corporativa' : 'Prediseñada'}
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto pr-1">
               {templates.map((t) => (

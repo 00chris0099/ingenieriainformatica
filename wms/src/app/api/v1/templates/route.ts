@@ -12,7 +12,12 @@ export async function GET(request: NextRequest) {
     let filtered = BUILTIN_TEMPLATES;
 
     if (category && category !== 'all') {
-      filtered = filtered.filter(t => t.category === category || t.industry === category);
+      filtered = filtered.filter(t =>
+        (t as any).type === category ||
+        t.category === category ||
+        t.category === 'ecommerce' && category === 'store' ||
+        t.industry === category
+      );
     }
 
     if (search) {

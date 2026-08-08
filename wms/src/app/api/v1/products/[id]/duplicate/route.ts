@@ -4,13 +4,14 @@ import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function POST(_request: NextRequest, { params }: Props) {
   try {
+    const { id } = await params;
     const original = await prisma.product.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!original) return apiError('Product not found', 404);
