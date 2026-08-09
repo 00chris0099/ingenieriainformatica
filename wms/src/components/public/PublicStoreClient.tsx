@@ -9,6 +9,14 @@ interface PublicStoreClientProps {
   blocks: any[]
   settings?: Record<string, any>
   seo?: Record<string, any>
+  // Editor mode: renders this exact component inline inside the builder canvas
+  // (100% parity with /p/[id]) with controlled-window navigation and per-block
+  // selection instead of hash routing.
+  editorMode?: boolean
+  controlledWindow?: string
+  selectedBlockId?: string | null
+  onSelectBlock?: (blockId: string) => void
+  onNavigateWindow?: (windowId: string) => void
 }
 
 interface CartItem {
@@ -71,7 +79,17 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
   )
 }
 
-export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: PublicStoreClientProps) {
+export default function PublicStoreClient({
+  pageTitle,
+  blocks,
+  settings,
+  seo,
+  editorMode = false,
+  controlledWindow,
+  selectedBlockId,
+  onSelectBlock,
+  onNavigateWindow,
+}: PublicStoreClientProps) {
   const whatsappNumber = settings?.whatsappNumber || DEFAULT_WHATSAPP
   const rootAccent = settings?.accentColor || settings?.primaryColor || '#f43f5e'
 
@@ -89,7 +107,7 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
   // category filter), any custom window id ('ofertas', 'nosotros', ...) and
   // 'product:<id>' landing windows. Hash routing (#/, #/catalogo/ninos,
   // #/ventana/ofertas, #/producto/p1) gives back/forward + shareable URLs.
-  const [activeWindow, setActiveWindow] = useState<string>('home')
+  const [activeWindow, setActiveWindow] = useState<string>(editorMode ? controlledWindow || 'home' : 'home')
 
   const allProducts = useMemo(
     () => blocks.flatMap((b: any) => (Array.isArray(b?.content?.products) ? b.content.products : [])),
@@ -127,12 +145,76 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
       window.scrollTo({ top: 0, behavior: 'auto' })
     }
 
+    // Editor mode: the builder owns the window — no hash routing here.
+    if (editorMode) return
     applyHash()
     window.addEventListener('hashchange', applyHash)
     return () => window.removeEventListener('hashchange', applyHash)
-  }, [allProducts])
+  }, [allProducts, editorMode])
+
+  // Editor mode: mirror the window controlled by the builder (same logic the
+  // hash router applies in public mode, including opening the product state).
+  useEffect(() => {
+    if (!editorMode) return
+    const w = controlledWindow || 'home'
+    if (w !== activeWindow) setActiveWindow(w)
+    if (w.startsWith('product:')) {
+      const pid = w.replace('product:', '')
+      const found = allProducts.find((p: any) => String(p.id) === pid)
+      if (found) {
+        setSelectedProduct(found)
+        setSelectedSize(Array.isArray(found.sizes) && found.sizes.length > 0 ? String(found.sizes[0]) : '')
+        setQuantity(1)
+      }
+    } else {
+      setSelectedProduct(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorMode, controlledWindow])
 
   const closeNav = () => setNavOpen(false)
+
+  /** Navigate between windows; in editor mode the builder owns the window. */
+  const navigateTo = (windowId: string) => {
+    if (editorMode) {
+      onNavigateWindow?.(windowId)
+      return
+    }
+    if (windowId === 'home') window.location.hash = '#/'
+    else if (windowId.startsWith('product:')) window.location.hash = `#/producto/${windowId.replace('product:', '')}`
+    else if (windowId === 'catalogo') window.location.hash = '#/catalogo'
+    else window.location.hash = `#/ventana/${windowId}`
+  }
+
+  /** Nav link click: in editor mode intercept and let the builder change windows. */
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, link: any) => {
+    closeNav()
+    if (!editorMode) return
+    e.preventDefault()
+    onNavigateWindow?.(link?.windowId === 'catalogo' ? 'catalogo' : link?.windowId || 'home')
+  }
+
+  /**
+   * Editor mode: wraps any block node with the selection outline + click
+   * handler, so the canvas is pixel-identical to the public site AND every
+   * block (navbar/footer included) is directly selectable.
+   */
+  const withSelection = (b: any, node: React.ReactNode) => {
+    if (!editorMode) return node
+    return (
+      <div
+        key={b.id}
+        data-block-id={b.id}
+        className={`editor-block ${selectedBlockId === b.id ? 'editor-block-selected' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelectBlock?.(b.id)
+        }}
+      >
+        {node}
+      </div>
+    )
+  }
 
   /** Builds the shareable hash href for a navbar link */
   const hashHref = (link: any): string => {
@@ -227,8 +309,14 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
         )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <a
-            href="#/"
-            onClick={closeNav}
+            href={editorMode ? '#' : '#/'}
+            onClick={(e) => {
+              if (editorMode) {
+                e.preventDefault()
+                onNavigateWindow?.('home')
+              }
+              closeNav()
+            }}
             className="flex items-center gap-2 font-black text-lg sm:text-xl tracking-tight hover:opacity-80 transition-opacity min-w-0"
             style={{ color: navText }}
           >
@@ -254,7 +342,7 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                 )
               }
               return (
-                <a key={idx} href={hashHref(link)} onClick={closeNav} className={cls} style={style}>
+                <a key={idx} href={hashHref(link)} onClick={(e) => handleNavClick(e, link)} className={cls} style={style}>
                   <IconRenderer name={link.iconName} size={14} />
                   {link.label}
                 </a>
@@ -328,7 +416,7 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                 <a
                   key={idx}
                   href={hashHref(link)}
-                  onClick={closeNav}
+                  onClick={(e) => handleNavClick(e, link)}
                   className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
                   style={{ color: navText }}
                 >
@@ -416,171 +504,8 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`
   }
 
-  return (
-    <div
-      className="min-h-screen font-sans text-slate-100 relative"
-      style={{ fontFamily: FONT_STACK, backgroundColor: '#0b0f1a' }}
-    >
-      {/* Toast Notification */}
-      {showNotification && (
-        <div className="fixed bottom-24 right-6 z-[60] bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fade-in">
-          <Check size={18} className="font-bold" />
-          <span className="text-xs font-bold">¡Producto añadido al carrito!</span>
-        </div>
-      )}
-
-      <main>
-        {/* ═══ GLOBAL NAVBAR — visible on every window ═══ */}
-        {blocks.filter((b: any) => b.type === 'navbar').map((b: any) => renderNavbar(b))}
-
-        {isProductWindow && activeProduct ? (
-          /* ═══ PRODUCT LANDING WINDOW — a real page per product ═══ */
-          <section className="px-4 py-10 md:py-14 bg-slate-50">
-            <div className="max-w-6xl mx-auto space-y-8">
-              <button
-                onClick={() => { window.location.hash = '#/catalogo' }}
-                className="inline-flex items-center gap-1.5 text-xs font-bold opacity-60 hover:opacity-100 transition-all"
-              >
-                <ArrowLeft size={14} /> Volver al catálogo
-              </button>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
-                <div className="h-72 md:h-[420px] rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center relative">
-                  {activeProduct.imageUrl ? (
-                    <img src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <IconRenderer name={activeProduct.iconName || 'Shirt'} size={96} style={{ color: rootAccent }} />
-                  )}
-                  {activeProduct.discountBadge && (
-                    <span
-                      className="absolute top-4 left-4 text-[10px] font-extrabold px-3 py-1 rounded-full border bg-white/90"
-                      style={{ color: rootAccent, borderColor: `${rootAccent}40` }}
-                    >
-                      {activeProduct.discountBadge}
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-4 flex flex-col">
-                  <div>
-                    <span
-                      className="text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
-                      style={{ backgroundColor: softBg(rootAccent, '10'), color: rootAccent, borderColor: `${rootAccent}40` }}
-                    >
-                      PRODUCTO DESTACADO
-                    </span>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-3 leading-tight">{activeProduct.name}</h1>
-                    <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                      {activeProduct.description || 'Producto de alta calidad con acabados nivel exportación.'}
-                    </p>
-                    <div className="flex items-baseline gap-3 mt-4">
-                      <span className="text-4xl font-black" style={{ color: rootAccent }}>{activeProduct.price}</span>
-                      {activeProduct.originalPrice && <span className="text-base text-slate-400 line-through">{activeProduct.originalPrice}</span>}
-                    </div>
-                  </div>
-
-                  {Array.isArray(activeProduct.sizes) && activeProduct.sizes.length > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Selecciona tu Talla:</label>
-                      <div className="flex gap-2 flex-wrap">
-                        {activeProduct.sizes.map((sz: string) => (
-                          <button
-                            key={sz}
-                            onClick={() => setSelectedSize(sz)}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all ${
-                              selectedSize === sz ? 'text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
-                            style={selectedSize === sz ? { backgroundColor: rootAccent, borderColor: rootAccent } : undefined}
-                          >
-                            {sz}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs font-bold text-slate-700">Cantidad:</span>
-                    <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
-                      <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
-                        <Minus size={14} />
-                      </button>
-                      <span className="text-xs font-black w-4 text-center">{quantity}</span>
-                      <button onClick={() => setQuantity(quantity + 1)} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <a
-                      href={buildWhatsappUrl(activeProduct)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
-                    >
-                      <MessageSquare size={16} /> Comprar por WhatsApp
-                    </a>
-                    <button
-                      onClick={() => addToCart(activeProduct, selectedSize, quantity)}
-                      style={{ backgroundColor: rootAccent }}
-                      className="w-full hover:opacity-90 text-white py-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all"
-                    >
-                      <ShoppingBag size={16} /> Añadir al Carrito
-                    </button>
-                  </div>
-
-                  {/* Product landing guarantees strip */}
-                  <div className="grid grid-cols-3 gap-3 pt-4 mt-2 border-t border-slate-100">
-                    {[
-                      { icon: 'Truck', label: 'Envío 24h' },
-                      { icon: 'RefreshCw', label: 'Cambios gratis' },
-                      { icon: 'ShieldCheck', label: 'Garantía total' },
-                    ].map((g) => (
-                      <div key={g.label} className="flex flex-col items-center gap-1.5 text-center">
-                        <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: softBg(rootAccent, '12'), color: rootAccent }}>
-                          <IconRenderer name={g.icon} size={16} />
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-600">{g.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Related products (navigate between product windows) */}
-              {relatedProducts.length > 0 && (
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-4">También te puede gustar</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {relatedProducts.map((rp: any) => (
-                      <a
-                        key={rp.id || rp.name}
-                        href={`#/producto/${rp.id}`}
-                        className="group text-left rounded-xl overflow-hidden border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all"
-                      >
-                        <div className="h-20 bg-slate-50 overflow-hidden">
-                          {rp.imageUrl ? (
-                            <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center" style={{ color: rootAccent }}>
-                              <IconRenderer name={rp.iconName || 'Shirt'} size={22} />
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-2">
-                          <p className="text-[10px] font-bold text-slate-700 truncate">{rp.name}</p>
-                          <p className="text-[10px] font-black mt-0.5" style={{ color: rootAccent }}>{rp.price}</p>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        ) : (
-        windowBlocks.map((b, bIdx) => {
+  /** Renders any block node — shared by windowBlocks and nested blocks (columns). */
+  const renderBlockNode = (b: any, bIdx: number): React.ReactNode => {
           const s = b.settings || {}
           const c = b.content || {}
           const accent = s.accentColor || settings?.accentColor || settings?.primaryColor || '#f43f5e'
@@ -626,6 +551,11 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                       <a
                         href={hasCatalogoWindow || allProducts.length > 0 ? '#/catalogo' : '#/ofertas'}
                         onClick={(e) => {
+                          if (editorMode) {
+                            e.preventDefault()
+                            onNavigateWindow?.(hasCatalogoWindow || allProducts.length > 0 ? 'catalogo' : 'ofertas')
+                            return
+                          }
                           if (hasCatalogoWindow || allProducts.length > 0) return
                           e.preventDefault()
                           document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
@@ -640,6 +570,11 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                         <a
                           href={hasOfertasWindow ? '#/ventana/ofertas' : '#/ofertas'}
                           onClick={(e) => {
+                            if (editorMode) {
+                              e.preventDefault()
+                              onNavigateWindow?.('ofertas')
+                              return
+                            }
                             if (hasOfertasWindow) return
                             e.preventDefault()
                             document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
@@ -1076,13 +1011,335 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
             )
           }
 
+          if (b.type === 'columns') {
+            const cols = Math.max(1, parseInt(String(s.columns || '2'), 10) || 2)
+            const gap = s.gap || '32px'
+            const vAlign = s.verticalAlign || 'top'
+            const legacyCols = Array.isArray(c.columns) ? c.columns : []
+            const items =
+              Array.isArray(c.items) && c.items.length > 0
+                ? c.items
+                : legacyCols.map((col: any) => ({ width: `${col.width || 50}%`, blocks: [], text: col.content || '' }))
+            const vAlignStyle = vAlign === 'center' ? 'center' : vAlign === 'bottom' ? 'end' : 'start'
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor && s.backgroundColor !== 'transparent' ? s.backgroundColor : 'transparent',
+                  paddingTop: `${parseInt(String(s.paddingY || 40), 10)}px`,
+                  paddingBottom: `${parseInt(String(s.paddingY || 40), 10)}px`,
+                }}
+                className="px-6"
+              >
+                <div
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+                  style={{
+                    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                    gap,
+                    alignItems: vAlignStyle,
+                  }}
+                >
+                  {items.slice(0, cols).map((col: any, colIdx: number) => (
+                    <div key={colIdx} style={{ minWidth: 0 }}>
+                      {col.text ? (
+                        <p className="text-sm leading-relaxed" style={{ color: s.textColor || '#334155' }}>{col.text}</p>
+                      ) : null}
+                      {(Array.isArray(col.blocks) ? col.blocks : []).map((nb: any, nbIdx: number) => {
+                        const nested = renderBlockNode(nb, nbIdx)
+                        if (!nested) return null
+                        return withSelection(nb, nested)
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'image') {
+            const imgSrc = c.src || c.imageUrl || ''
+            const imgAlt = c.alt || c.caption || 'Imagen'
+            const imgLink = c.link || ''
+            const imgWidth = s.width || '100%'
+            const img = imgSrc ? (
+              <img
+                src={imgSrc}
+                alt={imgAlt}
+                loading="lazy"
+                style={{
+                  width: imgWidth,
+                  maxWidth: '100%',
+                  objectFit: s.objectFit || 'cover',
+                  borderRadius: s.borderRadius || '0px',
+                }}
+                className="h-auto"
+              />
+            ) : (
+              <div
+                className="w-full h-40 rounded-xl border-2 border-dashed flex items-center justify-center text-xs font-bold opacity-40"
+                style={{ borderColor: 'currentColor' }}
+              >
+                Imagen sin configurar
+              </div>
+            )
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor && s.backgroundColor !== 'transparent' ? s.backgroundColor : 'transparent',
+                  paddingTop: `${parseInt(String(s.paddingY || 0), 10)}px`,
+                  paddingBottom: `${parseInt(String(s.paddingY || 0), 10)}px`,
+                  textAlign: 'center',
+                }}
+                className="px-6"
+              >
+                <div style={{ margin: '0 auto' }}>
+                  {imgLink ? (
+                    <a href={imgLink} target="_blank" rel="noopener noreferrer" className="inline-block">
+                      {img}
+                    </a>
+                  ) : (
+                    img
+                  )}
+                  {s.variant === 'caption' && c.caption && (
+                    <p className="text-xs opacity-60 mt-3" style={{ color: s.textColor || '#94a3b8' }}>{c.caption}</p>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'text') {
+            const variant = s.variant || 'paragraph'
+            const align = s.textAlign || 'left'
+            const bg = s.backgroundColor && s.backgroundColor !== 'transparent' ? s.backgroundColor : null
+            const textColor = s.textColor || (bg ? '#0f172a' : '#f1f5f9')
+            const maxWidth = s.maxWidth || '800px'
+            const renderInline = (t: string) =>
+              String(t || '')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br/>')
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: bg || 'transparent',
+                  paddingTop: `${parseInt(String(s.paddingY || 40), 10)}px`,
+                  paddingBottom: `${parseInt(String(s.paddingY || 40), 10)}px`,
+                  textAlign: align,
+                }}
+                className="px-6"
+              >
+                <div
+                  style={{ maxWidth, margin: align === 'center' ? '0 auto' : align === 'right' ? '0 0 0 auto' : undefined }}
+                  className={align === 'center' ? 'mx-auto' : ''}
+                >
+                  {variant === 'heading-text' && c.title && (
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-4" style={{ color: s.headingColor || (bg ? '#0f172a' : '#ffffff') }}>
+                      {c.title}
+                    </h2>
+                  )}
+                  {variant === 'quote' ? (
+                    <blockquote className="border-l-4 pl-5 text-lg italic opacity-90 leading-relaxed" style={{ borderColor: accent, color: textColor }}>
+                      <span dangerouslySetInnerHTML={{ __html: renderInline(c.text) }} />
+                    </blockquote>
+                  ) : (
+                    <div
+                      className="text-base leading-relaxed"
+                      style={{ color: textColor }}
+                      dangerouslySetInnerHTML={{ __html: renderInline(c.text) }}
+                    />
+                  )}
+                </div>
+              </section>
+            )
+          }
+
           // Known blocks without a template-level renderer are skipped gracefully
+
           return null
+  }
+
+  return (
+    <div
+      className="min-h-screen font-sans text-slate-100 relative"
+      style={{ fontFamily: FONT_STACK, backgroundColor: '#0b0f1a' }}
+    >
+      {/* Toast Notification */}
+      {showNotification && (
+        <div className="fixed bottom-24 right-6 z-[60] bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fade-in">
+          <Check size={18} className="font-bold" />
+          <span className="text-xs font-bold">¡Producto añadido al carrito!</span>
+        </div>
+      )}
+
+      <main>
+        {/* ═══ GLOBAL NAVBAR — visible on every window ═══ */}
+        {blocks.filter((b: any) => b.type === 'navbar').map((b: any) => withSelection(b, renderNavbar(b)))}
+
+        {isProductWindow && activeProduct ? (
+          /* ═══ PRODUCT LANDING WINDOW — a real page per product ═══ */
+          <section className="px-4 py-10 md:py-14 bg-slate-50">
+            <div className="max-w-6xl mx-auto space-y-8">
+              <button
+                onClick={() => navigateTo('catalogo')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold opacity-60 hover:opacity-100 transition-all"
+              >
+                <ArrowLeft size={14} /> Volver al catálogo
+              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                <div className="h-72 md:h-[420px] rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center relative">
+                  {activeProduct.imageUrl ? (
+                    <img src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <IconRenderer name={activeProduct.iconName || 'Shirt'} size={96} style={{ color: rootAccent }} />
+                  )}
+                  {activeProduct.discountBadge && (
+                    <span
+                      className="absolute top-4 left-4 text-[10px] font-extrabold px-3 py-1 rounded-full border bg-white/90"
+                      style={{ color: rootAccent, borderColor: `${rootAccent}40` }}
+                    >
+                      {activeProduct.discountBadge}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-4 flex flex-col">
+                  <div>
+                    <span
+                      className="text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border"
+                      style={{ backgroundColor: softBg(rootAccent, '10'), color: rootAccent, borderColor: `${rootAccent}40` }}
+                    >
+                      PRODUCTO DESTACADO
+                    </span>
+                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-3 leading-tight">{activeProduct.name}</h1>
+                    <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                      {activeProduct.description || 'Producto de alta calidad con acabados nivel exportación.'}
+                    </p>
+                    <div className="flex items-baseline gap-3 mt-4">
+                      <span className="text-4xl font-black" style={{ color: rootAccent }}>{activeProduct.price}</span>
+                      {activeProduct.originalPrice && <span className="text-base text-slate-400 line-through">{activeProduct.originalPrice}</span>}
+                    </div>
+                  </div>
+
+                  {Array.isArray(activeProduct.sizes) && activeProduct.sizes.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Selecciona tu Talla:</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {activeProduct.sizes.map((sz: string) => (
+                          <button
+                            key={sz}
+                            onClick={() => setSelectedSize(sz)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all ${
+                              selectedSize === sz ? 'text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                            style={selectedSize === sz ? { backgroundColor: rootAccent, borderColor: rootAccent } : undefined}
+                          >
+                            {sz}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-bold text-slate-700">Cantidad:</span>
+                    <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
+                      <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
+                        <Minus size={14} />
+                      </button>
+                      <span className="text-xs font-black w-4 text-center">{quantity}</span>
+                      <button onClick={() => setQuantity(quantity + 1)} className="w-7 h-7 rounded-lg bg-white shadow-sm flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200">
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <a
+                      href={buildWhatsappUrl(activeProduct)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
+                    >
+                      <MessageSquare size={16} /> Comprar por WhatsApp
+                    </a>
+                    <button
+                      onClick={() => addToCart(activeProduct, selectedSize, quantity)}
+                      style={{ backgroundColor: rootAccent }}
+                      className="w-full hover:opacity-90 text-white py-3.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all"
+                    >
+                      <ShoppingBag size={16} /> Añadir al Carrito
+                    </button>
+                  </div>
+
+                  {/* Product landing guarantees strip */}
+                  <div className="grid grid-cols-3 gap-3 pt-4 mt-2 border-t border-slate-100">
+                    {[
+                      { icon: 'Truck', label: 'Envío 24h' },
+                      { icon: 'RefreshCw', label: 'Cambios gratis' },
+                      { icon: 'ShieldCheck', label: 'Garantía total' },
+                    ].map((g) => (
+                      <div key={g.label} className="flex flex-col items-center gap-1.5 text-center">
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: softBg(rootAccent, '12'), color: rootAccent }}>
+                          <IconRenderer name={g.icon} size={16} />
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-600">{g.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Related products (navigate between product windows) */}
+              {relatedProducts.length > 0 && (
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-4">También te puede gustar</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {relatedProducts.map((rp: any) => (
+                      <a
+                        key={rp.id || rp.name}
+                        href={editorMode ? '#' : `#/producto/${rp.id}`}
+                        onClick={(e) => {
+                          if (editorMode) {
+                            e.preventDefault()
+                            onNavigateWindow?.(`product:${rp.id}`)
+                          }
+                        }}
+                        className="group text-left rounded-xl overflow-hidden border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all"
+                      >
+                        <div className="h-20 bg-slate-50 overflow-hidden">
+                          {rp.imageUrl ? (
+                            <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center" style={{ color: rootAccent }}>
+                              <IconRenderer name={rp.iconName || 'Shirt'} size={22} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-[10px] font-bold text-slate-700 truncate">{rp.name}</p>
+                          <p className="text-[10px] font-black mt-0.5" style={{ color: rootAccent }}>{rp.price}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : (
+        windowBlocks.map((b, bIdx) => {
+          const node = renderBlockNode(b, bIdx)
+          if (!node) return null
+          return withSelection(b, node)
         })
         )}
 
         {/* ═══ GLOBAL FOOTER — visible on every window ═══ */}
-        {blocks.filter((b: any) => b.type === 'footer').map((b: any) => renderFooter(b))}
+        {blocks.filter((b: any) => b.type === 'footer').map((b: any) => withSelection(b, renderFooter(b)))}
       </main>
 
       {/* ═══════════════ ENTERPRISE QUICK VIEW PRODUCT MODAL ═══════════════ */}
@@ -1189,7 +1446,7 @@ export default function PublicStoreClient({ pageTitle, blocks, settings, seo }: 
                     onClick={() => {
                       const pid = selectedProduct.id
                       setSelectedProduct(null)
-                      window.location.hash = `#/producto/${pid}`
+                      navigateTo(`product:${pid}`)
                     }}
                     className="w-full py-2.5 rounded-xl font-extrabold text-xs border transition-all hover:bg-slate-50 flex items-center justify-center gap-2"
                     style={{ borderColor: 'var(--color-border, #e2e8f0)', color: '#334155' }}

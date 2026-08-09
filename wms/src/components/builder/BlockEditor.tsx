@@ -1,8 +1,11 @@
 'use client'
 
-import { Block, BlockConfig } from '@repo/blocks'
-import { X, Copy, Trash2, Loader2, Plus, Sliders, Type, Palette, Image as ImageIcon, ArrowUp, ArrowDown, Sparkles, ChevronDown } from 'lucide-react'
+import { Block, BlockConfig, blockRegistry } from '@repo/blocks'
+import { X, Copy, Trash2, Loader2, Plus, Sliders, Type, Palette, Image as ImageIcon, ArrowUp, ArrowDown, Sparkles, ChevronDown, GripVertical } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import ImageUploadField from '@/components/builder/ImageUploadField'
+import { setDragPayload, readDragPayload } from '@/lib/block-dnd'
+import { moveNestedBetweenColumns } from '@/lib/block-order'
 
 interface BlockEditorProps {
   block: Block
@@ -14,6 +17,10 @@ interface BlockEditorProps {
   onDelete: () => void
   onMove?: (dir: -1 | 1) => void
   onGenerateAI?: (blockType: string) => Promise<void>
+  /** Lift a nested block out of a `columns` block up to the top level. */
+  onPromoteNestedBlock?: (parentId: string, nestedId: string, targetTopId?: string) => void
+  /** Pull a top-level block down into a column of this `columns` block. */
+  onDemoteBlock?: (blockId: string, parentId: string, colIdx: number, beforeNbId?: string) => void
 }
 
 const WINDOW_LABELS: Record<string, string> = {
@@ -94,11 +101,14 @@ function textInput(value: string, onChange: (v: string) => void, placeholder?: s
   )
 }
 
-export default function BlockEditor({ block, blockConfig, windows, onChange, onWindowChange, onDuplicate, onDelete, onMove, onGenerateAI }: BlockEditorProps) {
+export default function BlockEditor({ block, blockConfig, windows, onChange, onWindowChange, onDuplicate, onDelete, onMove, onGenerateAI, onPromoteNestedBlock, onDemoteBlock }: BlockEditorProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'style'>(() => loadEditorState(block.id)?.tab || 'content')
   const [collapsed, setCollapsed] = useState<string[]>(() => loadEditorState(block.id)?.collapsed || [])
   const [collapsedItems, setCollapsedItems] = useState<string[]>(() => loadEditorState(block.id)?.collapsedItems || [])
   const [generating, setGenerating] = useState(false)
+  // Drag & drop state for nested blocks (columns manager)
+  const [nestedDrag, setNestedDrag] = useState<{ id: string; colIdx: number; nbIdx: number } | null>(null)
+  const [columnDropTarget, setColumnDropTarget] = useState<{ colIdx: number; nbIdx?: number } | null>(null)
 
   // Restore this block's editor state when switching blocks, and persist on change
   useEffect(() => {
@@ -232,10 +242,13 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       return (
         <div className="space-y-4">
           {field('Nombre de la Marca (texto)', textInput(content.brandName || '', (v) => handleContentChange('brandName', v), 'ADRISU KIDS'))}
-          {field('URL del Logo (imagen)', textInput(content.logoUrl || '', (v) => handleContentChange('logoUrl', v), 'https://.../logo.png', true))}
-          {content.logoUrl && (
-            <img src={content.logoUrl} alt="Logo" className="h-12 w-auto rounded-lg border border-[var(--color-border)] object-contain bg-white p-1" />
-          )}
+          <ImageUploadField
+            label="Logo de la marca"
+            value={content.logoUrl || ''}
+            onChange={(v) => handleContentChange('logoUrl', v)}
+            previewClass="h-12 w-auto"
+            placeholder="https://.../logo.png"
+          />
           {field('Anuncio superior (barra)', textInput(content.announcement || '', (v) => handleContentChange('announcement', v), '✨ ENVÍO GRATIS EN COMPRAS MAYORES A S/120'))}
 
           <Section
@@ -290,10 +303,13 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
             {field('Botón Principal', textInput(content.buttonText || '', (v) => handleContentChange('buttonText', v), 'Ver Catálogo'))}
             {field('Botón Secundario', textInput(content.secondaryButtonText || '', (v) => handleContentChange('secondaryButtonText', v), 'Explorar Ofertas'))}
           </div>
-          {field('Imagen de fondo / Hero', textInput(content.heroImage || '', (v) => handleContentChange('heroImage', v), 'https://.../hero.jpg', true))}
-          {content.heroImage && (
-            <img src={content.heroImage} alt="Hero" className="h-24 w-full rounded-xl border border-[var(--color-border)] object-cover" />
-          )}
+          <ImageUploadField
+            label="Imagen de fondo / Hero"
+            value={content.heroImage || ''}
+            onChange={(v) => handleContentChange('heroImage', v)}
+            previewClass="h-24 w-full"
+            placeholder="https://.../hero.jpg"
+          />
         </div>
       )
     }
@@ -377,10 +393,13 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
                   {field('Categoría', textInput(item.category || '', (v) => updateItemInList('products', idx, 'category', v), 'ninos', true))}
                   {field('Badge descuento', textInput(item.discountBadge || '', (v) => updateItemInList('products', idx, 'discountBadge', v), '-33% OFF'))}
                 </div>
-                {field('Imagen (URL)', textInput(item.imageUrl || '', (v) => updateItemInList('products', idx, 'imageUrl', v), 'https://.../foto.jpg', true))}
-                {item.imageUrl && (
-                  <img src={item.imageUrl} alt={item.name} className="h-16 w-16 rounded-lg border border-[var(--color-border)] object-cover" />
-                )}
+                <ImageUploadField
+                  label="Imagen del producto"
+                  value={item.imageUrl || ''}
+                  onChange={(v) => updateItemInList('products', idx, 'imageUrl', v)}
+                  previewClass="h-16 w-16"
+                  placeholder="https://.../foto.jpg"
+                />
                 {field('Tallas (separadas por coma)', textInput(Array.isArray(item.sizes) ? item.sizes.join(', ') : item.sizes || '', (v) => updateItemInList('products', idx, 'sizes', v.split(',').map((s: string) => s.trim()).filter(Boolean)), '2T, 4T, 6T, 8T', true))}
                 {field('Descripción', (
                   <textarea value={item.description || ''} onChange={(e) => updateItemInList('products', idx, 'description', e.target.value)} rows={2} className="textarea-field text-xs" placeholder="Descripción del producto..." />
@@ -482,7 +501,13 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
                 </div>
                 {field('Nombre', textInput(m.name || '', (v) => updateItemInList('items', idx, 'name', v)))}
                 {field('Cargo', textInput(m.role || '', (v) => updateItemInList('items', idx, 'role', v), 'CEO / Fundador'))}
-                {field('Foto (URL)', textInput(m.photo || '', (v) => updateItemInList('items', idx, 'photo', v), 'https://...', true))}
+                <ImageUploadField
+                  label="Foto del miembro"
+                  value={m.photo || ''}
+                  onChange={(v) => updateItemInList('items', idx, 'photo', v)}
+                  previewClass="h-16 w-16 rounded-full"
+                  placeholder="https://..."
+                />
               </div>
             ))}
           </Section>
@@ -665,6 +690,187 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       )
     }
 
+    // COLUMNS (multi-column container with nested blocks)
+    if (type === 'columns') {
+      const cols = Math.max(1, parseInt(String(settings.columns || '2'), 10) || 2)
+      const rawItems = Array.isArray(content.items) ? content.items : []
+      const items = Array.from({ length: Math.max(cols, rawItems.length) }, (_, i) =>
+        rawItems[i] || { width: `${Math.round(100 / cols)}%`, blocks: [] }
+      )
+      const updateCol = (colIdx: number, newCol: any) => {
+        const next = [...items]
+        next[colIdx] = newCol
+        handleContentChange('items', next)
+      }
+      const addNestedBlock = (colIdx: number, typeName: string) => {
+        const cfg = blockRegistry.get(typeName as any)
+        const nb: any = {
+          id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          type: typeName,
+          windowId: block.windowId || 'home',
+          settings: cfg?.defaultSettings ? JSON.parse(JSON.stringify(cfg.defaultSettings)) : {},
+          content: cfg?.defaultContent ? JSON.parse(JSON.stringify(cfg.defaultContent)) : {},
+        }
+        const col = { ...(items[colIdx] || { width: '50%' }), blocks: [...(items[colIdx]?.blocks || []), nb] }
+        updateCol(colIdx, col)
+      }
+      const removeNestedBlock = (colIdx: number, nbIdx: number) => {
+        const col = items[colIdx]
+        if (!col) return
+        const blocks = [...(col.blocks || [])]
+        blocks.splice(nbIdx, 1)
+        updateCol(colIdx, { ...col, blocks })
+      }
+      const moveNestedBlock = (colIdx: number, nbIdx: number, dir: -1 | 1) => {
+        const col = items[colIdx]
+        if (!col) return
+        const blocks = [...(col.blocks || [])]
+        const target = nbIdx + dir
+        if (target < 0 || target >= blocks.length) return
+        const [nb] = blocks.splice(nbIdx, 1)
+        blocks.splice(target, 0, nb)
+        updateCol(colIdx, { ...col, blocks })
+      }
+      const handleColumnDrop = (e: React.DragEvent, colIdx: number, beforeNbId?: string, beforeNbIdx?: number) => {
+        e.preventDefault()
+        setNestedDrag(null)
+        setColumnDropTarget(null)
+        const payload = readDragPayload(e)
+        if (!payload) return
+        if (payload.kind === 'nested') {
+          // Only blocks dragged from this very columns block can be re-nested here.
+          if (payload.parentId !== block.id) return
+          if (payload.colIdx === colIdx && payload.nbIdx === beforeNbIdx) return
+          const next = moveNestedBetweenColumns(items, payload.colIdx, payload.nbIdx, colIdx, beforeNbIdx)
+          if (!next) return
+          handleContentChange('items', next)
+        } else {
+          onDemoteBlock?.(payload.blockId, block.id, colIdx, beforeNbId)
+        }
+      }
+      const nestedTypes = blockRegistry.getAll().filter(c => !['navbar', 'footer', 'columns'].includes(c.id))
+      return (
+        <div className="space-y-4">
+          <p className="text-[10px] text-[var(--color-text-tertiary)] leading-relaxed">
+            Contenedor de <b>{cols} columnas</b>. Arrastra los bloques <b>entre columnas</b> o suéltalos en la
+            lista de la izquierda para <b>subirlos a la página</b>; a la inversa, arrastra un bloque de la lista
+            hasta una columna para anidarlo aquí.
+          </p>
+          <Section
+            label="Columnas"
+            count={items.length}
+            open={isSectionOpen('items')}
+            onToggle={() => toggleSection('items')}
+          >
+            {items.map((col: any, colIdx: number) => (
+              <div
+                key={colIdx}
+                className={`p-2.5 rounded-xl border space-y-2 transition-all ${columnDropTarget?.colIdx === colIdx && columnDropTarget?.nbIdx === undefined ? 'border-sky-500 ring-2 ring-sky-500/50 shadow-sm' : 'border-[var(--color-border)] bg-[var(--color-bg-base)]'}`}
+              >
+                <div className="flex items-center justify-between sticky top-0 z-10 bg-[var(--color-bg-base)]">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+                    Columna {colIdx + 1} · {col.width || `${Math.round(100 / cols)}%`}
+                  </span>
+                </div>
+                {(Array.isArray(col.blocks) ? col.blocks : []).map((nb: any, nbIdx: number) => (
+                  <div
+                    key={nb.id || nbIdx}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDragPayload(e, { kind: 'nested', blockId: nb.id, parentId: block.id, colIdx, nbIdx })
+                      setNestedDrag({ id: nb.id, colIdx, nbIdx })
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      setColumnDropTarget({ colIdx, nbIdx })
+                    }}
+                    onDrop={(e) => handleColumnDrop(e, colIdx, nb.id, nbIdx)}
+                    onDragEnd={() => { setNestedDrag(null); setColumnDropTarget(null) }}
+                    className={`flex items-center gap-1.5 border rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing transition-all ${nestedDrag?.id === nb.id ? 'opacity-40' : ''} ${columnDropTarget?.colIdx === colIdx && columnDropTarget?.nbIdx === nbIdx ? 'border-sky-500 ring-2 ring-sky-500/70 shadow-sm' : 'border-[var(--color-border)]'}`}
+                    style={{ background: 'var(--color-bg-surface)' }}
+                    title="Arrastra para mover entre columnas o hasta la lista de la página"
+                  >
+                    <GripVertical size={11} className="shrink-0 text-[var(--color-text-tertiary)]" />
+                    <span className="text-[10px] font-bold capitalize truncate flex-1" style={{ color: 'var(--color-text-secondary)' }}>
+                      {nb.type.replace('-', ' ')}
+                    </span>
+                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, -1)} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Subir"><ArrowUp size={11} /></button>
+                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, 1)} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Bajar"><ArrowDown size={11} /></button>
+                    <button onClick={() => removeNestedBlock(colIdx, nbIdx)} className="p-0.5 text-[var(--color-error)] hover:opacity-80" title="Quitar"><Trash2 size={11} /></button>
+                  </div>
+                ))}
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addNestedBlock(colIdx, e.target.value)
+                      e.target.value = ''
+                    }
+                  }}
+                  className="select-field text-[10px] w-full"
+                  title="Añadir bloque a esta columna"
+                >
+                  <option value="">+ Añadir bloque a esta columna…</option>
+                  {nestedTypes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setColumnDropTarget({ colIdx })
+                  }}
+                  onDrop={(e) => handleColumnDrop(e, colIdx)}
+                  onDragLeave={(e) => {
+                    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setColumnDropTarget(null)
+                  }}
+                  className={`text-center text-[9px] font-bold uppercase tracking-wider rounded-lg border border-dashed px-2 py-1.5 transition-all ${columnDropTarget?.colIdx === colIdx && columnDropTarget?.nbIdx === undefined ? 'border-sky-500 text-sky-500 bg-sky-500/10' : 'border-[var(--color-border)] text-[var(--color-text-tertiary)]'}`}
+                >
+                  ⇩ Soltar aquí (añadir al final)
+                </div>
+              </div>
+            ))}
+          </Section>
+        </div>
+      )
+    }
+
+    // IMAGE
+    if (type === 'image') {
+      return (
+        <div className="space-y-4">
+          <ImageUploadField
+            label="Imagen"
+            value={content.src || content.imageUrl || ''}
+            onChange={(v) => handleContentChange('src', v)}
+            previewClass="h-24 w-full"
+            placeholder="https://.../imagen.jpg"
+          />
+          {field('Texto alternativo (alt)', textInput(content.alt || '', (v) => handleContentChange('alt', v), 'Descripción de la imagen'))}
+          {field('Pie de foto (caption)', textInput(content.caption || '', (v) => handleContentChange('caption', v), 'Opcional'))}
+          {field('Enlace (link)', textInput(content.link || '', (v) => handleContentChange('link', v), 'https://...', true))}
+        </div>
+      )
+    }
+
+    // TEXT
+    if (type === 'text') {
+      return (
+        <div className="space-y-4">
+          {field('Título (según variante)', textInput(content.title || '', (v) => handleContentChange('title', v), 'Título opcional'))}
+          {field('Contenido', (
+            <textarea value={content.text || ''} onChange={(e) => handleContentChange('text', e.target.value)} rows={7} className="textarea-field text-xs" placeholder="Escribe aquí... **negrita**, *cursiva*" />
+          ))}
+          <p className="text-[10px] text-[var(--color-text-tertiary)] leading-relaxed">
+            Formato: <code>**negrita**</code> y <code>*cursiva*</code>. La variante (párrafo, título + texto, cita) y la alineación se ajustan en <b>Estilos</b>.
+          </p>
+        </div>
+      )
+    }
+
     // Generic fallback: title / subtitle / body / buttons
     return (
       <div className="space-y-4">
@@ -771,6 +977,95 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       <div ref={scrollRef} onScroll={handleEditorScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {activeTab === 'content' ? renderContentEditors() : (
           <div className="space-y-4">
+            {(type === 'columns' || type === 'image' || type === 'text') && (
+              <div className="p-3 rounded-xl border border-[var(--color-border)] space-y-3" style={{ background: 'var(--color-bg-base)' }}>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)]">Configuración específica del bloque</p>
+
+                {type === 'columns' && (<>
+                  {field('Número de columnas', (
+                    <select value={String(settings.columns || '2')} onChange={(e) => handleSettingChange('columns', e.target.value)} className="select-field text-xs w-full">
+                      <option value="2">2 columnas</option>
+                      <option value="3">3 columnas</option>
+                      <option value="4">4 columnas</option>
+                    </select>
+                  ))}
+                  {field('Separación entre columnas (gap)', (
+                    <select value={settings.gap || '32px'} onChange={(e) => handleSettingChange('gap', e.target.value)} className="select-field text-xs w-full">
+                      <option value="16px">Pequeña (16px)</option>
+                      <option value="32px">Media (32px)</option>
+                      <option value="48px">Grande (48px)</option>
+                    </select>
+                  ))}
+                  {field('Alineación vertical', (
+                    <select value={settings.verticalAlign || 'top'} onChange={(e) => handleSettingChange('verticalAlign', e.target.value)} className="select-field text-xs w-full">
+                      <option value="top">Arriba</option>
+                      <option value="center">Centro</option>
+                      <option value="bottom">Abajo</option>
+                    </select>
+                  ))}
+                </>)}
+
+                {type === 'image' && (<>
+                  {field('Variante', (
+                    <select value={settings.variant || 'full'} onChange={(e) => handleSettingChange('variant', e.target.value)} className="select-field text-xs w-full">
+                      <option value="full">Ancho completo</option>
+                      <option value="contained">Contenido (centrada)</option>
+                      <option value="caption">Con pie de foto</option>
+                      <option value="background">Fondo</option>
+                    </select>
+                  ))}
+                  {field('Ancho', (
+                    <select value={settings.width || '100%'} onChange={(e) => handleSettingChange('width', e.target.value)} className="select-field text-xs w-full">
+                      <option value="100%">100%</option>
+                      <option value="75%">75%</option>
+                      <option value="50%">50%</option>
+                      <option value="25%">25%</option>
+                    </select>
+                  ))}
+                  {field('Ajuste (object-fit)', (
+                    <select value={settings.objectFit || 'cover'} onChange={(e) => handleSettingChange('objectFit', e.target.value)} className="select-field text-xs w-full">
+                      <option value="cover">Cubrir (cover)</option>
+                      <option value="contain">Contener (contain)</option>
+                    </select>
+                  ))}
+                  {field('Esquinas redondeadas', (
+                    <select value={settings.borderRadius || '0px'} onChange={(e) => handleSettingChange('borderRadius', e.target.value)} className="select-field text-xs w-full">
+                      <option value="0px">Sin redondeo</option>
+                      <option value="8px">8px</option>
+                      <option value="12px">12px</option>
+                      <option value="16px">16px</option>
+                      <option value="9999px">Completamente redondeada</option>
+                    </select>
+                  ))}
+                </>)}
+
+                {type === 'text' && (<>
+                  {field('Variante', (
+                    <select value={settings.variant || 'paragraph'} onChange={(e) => handleSettingChange('variant', e.target.value)} className="select-field text-xs w-full">
+                      <option value="paragraph">Párrafo</option>
+                      <option value="heading-text">Título + texto</option>
+                      <option value="quote">Cita</option>
+                    </select>
+                  ))}
+                  {field('Alineación', (
+                    <select value={settings.textAlign || 'left'} onChange={(e) => handleSettingChange('textAlign', e.target.value)} className="select-field text-xs w-full">
+                      <option value="left">Izquierda</option>
+                      <option value="center">Centro</option>
+                      <option value="right">Derecha</option>
+                    </select>
+                  ))}
+                  {field('Ancho máximo', (
+                    <select value={settings.maxWidth || '800px'} onChange={(e) => handleSettingChange('maxWidth', e.target.value)} className="select-field text-xs w-full">
+                      <option value="600px">Estrecho (600px)</option>
+                      <option value="800px">Medio (800px)</option>
+                      <option value="1000px">Ancho (1000px)</option>
+                      <option value="100%">Ancho completo</option>
+                    </select>
+                  ))}
+                </>)}
+              </div>
+            )}
+
             <div>
               <label className="form-label text-[11px] font-bold">Color de Fondo</label>
               <div className="flex items-center gap-2">

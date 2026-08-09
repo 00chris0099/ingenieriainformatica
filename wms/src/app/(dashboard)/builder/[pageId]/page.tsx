@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation'
 import {
   Save, Eye, ArrowLeft, Undo, Redo, Plus, Monitor, Tablet, Smartphone,
   Wand2, Check, Sparkles, X, Send, Bot, Layers, Sliders, Maximize2, Minimize2, ExternalLink,
-  Settings2, LayoutGrid, Trash2, Home, FilePlus2, Pencil, Copy, AlertTriangle, GripVertical, Search, ChevronDown, ChevronsDown, ChevronsUp, ZoomIn, ZoomOut, RotateCw, Frame
+  Settings2, LayoutGrid, Trash2, Home, FilePlus2, Pencil, Copy, AlertTriangle, GripVertical, Search, ChevronDown, ChevronsDown, ChevronsUp, ZoomIn, ZoomOut, RotateCw, Frame, Rocket, Loader2, ShoppingBag, MoveRight
 } from 'lucide-react'
 import { Block, blockRegistry } from '@repo/blocks'
 import BlockEditor from '@/components/builder/BlockEditor'
+import ImageUploadField from '@/components/builder/ImageUploadField'
+import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { Button } from '@/components/ui/Button'
 import { reorderLinksByStoredOrder, windowIdsFromLinks } from '@/lib/window-order'
-import { moveBlockTo } from '@/lib/block-order'
+import { moveBlockTo, promoteNestedBlock, demoteBlock, moveBlockToWindow, promoteNestedBlockToWindow, blockHasProductContent } from '@/lib/block-order'
+import { setDragPayload, readDragPayload, type BlockDragPayload } from '@/lib/block-dnd'
 
 interface PageData {
   id: string
@@ -104,11 +107,12 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   const [dragOverWindowId, setDragOverWindowId] = useState<string | null>(null)
   const [dragBlockId, setDragBlockId] = useState<string | null>(null)
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null)
+  const [dragOverWindowHeader, setDragOverWindowHeader] = useState<string | null>(null)
+  const [confirmMoveWindow, setConfirmMoveWindow] = useState<{ payload: BlockDragPayload; targetWindow: string } | null>(null)
   const [siteSettings, setSiteSettings] = useState<Record<string, any>>({})
 
-  // Canvas scroll persistence (iframe inner scroll + outer container, per window)
+  // Canvas scroll persistence (outer container, per window)
   const outerScrollRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const pendingScrollRestore = useRef(false)
   const lastScrollWindowRef = useRef<string>('home')
   const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -127,6 +131,10 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   // True when the current zoom was set by auto-fit (so resize re-fits); false = user chose it manually
   const fitManagedRef = useRef(false)
 
+  // Latest selection id (used to ignore duplicate canvas clicks) + retry budget for scroll-into-view
+  const selectedBlockIdRef = useRef<string | null>(null)
+  const scrollRetryRef = useRef(0)
+
   // AI Chat Messages
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -142,8 +150,12 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.data && e.data.type === 'SELECT_BLOCK' && e.data.blockId) {
-        scrollToSelectedRef.current = true
-        setSelectedBlockId(e.data.blockId)
+        if (selectedBlockIdRef.current !== e.data.blockId) {
+          selectedBlockIdRef.current = e.data.blockId
+          scrollRetryRef.current = 0
+          scrollToSelectedRef.current = true
+          setSelectedBlockId(e.data.blockId)
+        }
       }
       if (e.data && e.data.type === 'NAVIGATE_WINDOW' && e.data.windowId) {
         setPreviewWindow(e.data.windowId)
@@ -202,15 +214,10 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   useEffect(() => { writeStored(selectedBlockKey(pageId), selectedBlockId ?? '') }, [selectedBlockId, pageId])
 
   // ── Canvas scroll persistence (per window) ──────────────────────────────
-  /** Reads the current canvas scroll (iframe inner + outer container) */
+  /** Reads the current canvas scroll (outer container) */
   const readCanvasScroll = (): { top: number; inner: number } => {
     const top = outerScrollRef.current?.scrollTop ?? 0
-    let inner = 0
-    try {
-      const w = iframeRef.current?.contentWindow
-      if (w && w.document && typeof w.scrollY === 'number') inner = w.scrollY
-    } catch { /* same-origin srcdoc, but be safe */ }
-    return { top, inner }
+    return { top, inner: 0 }
   }
 
   /** Saves the current canvas scroll under the given window */
@@ -234,10 +241,6 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     if (!pos) return
     requestAnimationFrame(() => {
       if (outerScrollRef.current) outerScrollRef.current.scrollTop = pos.top ?? 0
-      try {
-        const w = iframeRef.current?.contentWindow
-        if (w && w.document) w.scrollTo(0, pos.inner ?? 0)
-      } catch { /* ignore */ }
     })
   }
 
@@ -247,11 +250,19 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     scrollSaveTimer.current = setTimeout(() => saveCanvasScroll(previewWindow), 400)
   }
 
-  // Track the active window and mark the next iframe load to restore its scroll
+  // Track the active window and mark the next render to restore its scroll
   useEffect(() => {
     lastScrollWindowRef.current = previewWindow
     pendingScrollRestore.current = true
   }, [previewWindow, pageId])
+
+  // Restore the persisted canvas scroll once the new window's blocks are rendered
+  useEffect(() => {
+    if (!pendingScrollRestore.current || blocks.length === 0) return
+    pendingScrollRestore.current = false
+    const t = requestAnimationFrame(() => restoreCanvasScroll(previewWindow))
+    return () => cancelAnimationFrame(t)
+  }, [blocks, previewWindow])
 
   // Save the canvas scroll on unload so a reload restores the exact position
   useEffect(() => {
@@ -291,9 +302,17 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
         setCollapsedWindows(next)
         writeStored(windowCollapseKey(pageId), JSON.stringify(next))
       }
+      // Hard budget: never retry more than 3 times per selection (guarantees no loop)
+      scrollRetryRef.current += 1
+      if (scrollRetryRef.current > 3) {
+        scrollToSelectedRef.current = false
+        scrollRetryRef.current = 0
+        return
+      }
       scrollToSelectedRef.current = true
       return
     }
+    scrollRetryRef.current = 0
     scrollToSelectedRef.current = false
     row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     setFlashBlockId(selectedBlockId)
@@ -558,6 +577,69 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     setSelectedBlockId(draggedId)
   }
 
+  /** Lifts a nested block out of its `columns` parent up to the top level (before target, or after parent). */
+  const handlePromoteNestedBlock = (parentId: string, nestedId: string, targetTopId?: string) => {
+    const updated = promoteNestedBlock(blocks, parentId, nestedId, targetTopId)
+    if (!updated) return
+    updateBlocks(updated)
+    setSelectedBlockId(nestedId)
+  }
+
+  /** Pulls a top-level block down into a column of the given `columns` block. */
+  const handleDemoteBlock = (blockId: string, parentId: string, colIdx: number, beforeNbId?: string) => {
+    const updated = demoteBlock(blocks, blockId, parentId, colIdx, beforeNbId)
+    if (!updated) return
+    updateBlocks(updated)
+  }
+
+  /** Finds a block by id, searching top-level blocks and nested column blocks. */
+  const findBlockAnywhere = (id: string): Block | null => {
+    const top = blocks.find(b => b.id === id)
+    if (top) return top
+    for (const b of blocks) {
+      if (b.type !== 'columns') continue
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      for (const col of items) {
+        const nb = (Array.isArray(col?.blocks) ? col.blocks : []).find((x: any) => x.id === id)
+        if (nb) return nb as Block
+      }
+    }
+    return null
+  }
+
+  /** Applies the actual window move (used by the drop and the confirm modal). */
+  const performMoveBlockToWindow = (payload: BlockDragPayload, targetWindow: string) => {
+    if (payload.kind === 'top') {
+      const updated = moveBlockToWindow(blocks, payload.blockId, targetWindow)
+      if (!updated) return
+      updateBlocks(updated)
+      setSelectedBlockId(payload.blockId)
+    } else {
+      const updated = promoteNestedBlockToWindow(blocks, payload.parentId, payload.blockId, targetWindow)
+      if (!updated) return
+      updateBlocks(updated)
+      setSelectedBlockId(payload.blockId)
+    }
+  }
+
+  /** Drag & drop onto a window header: moves the block to that window (confirming when it carries product content). */
+  const handleDropOnWindow = (payload: BlockDragPayload, targetWindow: string) => {
+    const affected = findBlockAnywhere(payload.blockId)
+    if (!affected) return
+    if ((affected.windowId || 'home') === targetWindow) return
+    if (blockHasProductContent(affected)) {
+      setConfirmMoveWindow({ payload, targetWindow })
+      return
+    }
+    performMoveBlockToWindow(payload, targetWindow)
+  }
+
+  const confirmMoveWindowAction = () => {
+    if (!confirmMoveWindow) return
+    performMoveBlockToWindow(confirmMoveWindow.payload, confirmMoveWindow.targetWindow)
+    setConfirmMoveWindow(null)
+  }
+
   // ── Keyboard shortcuts (undo/redo, delete, duplicate, move, escape) ─────
   const shortcutsRef = useRef<{
     undo: () => void
@@ -567,6 +649,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     move: (id: string | null, dir: -1 | 1) => void
     closeModals: () => void
   }>({ undo: () => {}, redo: () => {}, deleteBlock: () => {}, duplicate: () => {}, move: () => {}, closeModals: () => {} })
+  selectedBlockIdRef.current = selectedBlockId
   shortcutsRef.current = {
     undo: handleUndo,
     redo: handleRedo,
@@ -985,357 +1068,6 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     return () => observer.disconnect()
   }, [])
 
-  // Generate Iframe srcDoc HTML with interactive hover & click listeners
-  const generatePreviewHtml = () => {
-    const site = siteSettings || {}
-    // Window-aware preview: navbar/footer are global, the rest belong to the active window
-    const previewBlocks = blocks.filter(b => {
-      if (b.type === 'navbar' || b.type === 'footer') return true
-      return (b.windowId || 'home') === previewWindow
-    })
-    const blocksHtml = previewBlocks.map(b => {
-      const s = b.settings || {}
-      const c = b.content || {}
-      const isSelected = b.id === selectedBlockId
-
-      const activeBorder = isSelected ? 'outline: 3px solid #ec4899; outline-offset: -3px;' : ''
-
-      if (b.type === 'navbar') {
-        const links = Array.isArray(c.links) ? c.links : []
-        return `
-          <header style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; position:sticky; top:0; z-index:40; border-b:1px solid #e2e8f0; ${activeBorder}" data-block-id="${b.id}">
-            ${c.announcement ? `<div style="background:${s.accentColor || '#f43f5e'}; color:#fff; text-align:center; padding:6px 12px; font-size:11px; font-weight:800; letter-spacing:0.5px;">${c.announcement}</div>` : ''}
-            <div style="max-width:1200px; margin:0 auto; padding:12px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-              <div style="font-size:18px; font-weight:900; letter-spacing:-0.5px; color:${s.textColor || '#111'}; display:flex; align-items:center; gap:8px;">
-                ${c.logoUrl || site.logoUrl ? `<img src="${c.logoUrl || site.logoUrl}" style="height:26px; width:auto; max-width:130px; object-fit:contain;" />` : `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${s.accentColor || '#f43f5e'};"></span>`}
-                ${c.brandName || site.siteName || 'TIENDA VIRTUAL'}
-              </div>
-              <nav style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-                ${links.map((link: any) => `
-                  <a href="#" onclick="event.preventDefault(); window.parent.postMessage({ type: 'NAVIGATE_WINDOW', windowId: '${link.windowId || 'home'}', categoryId: '${link.categoryId || ''}' }, '*');" style="font-size:12px; font-weight:700; color:${s.textColor || '#475569'}; text-decoration:none; padding:4px 8px; border-radius:6px; transition:all 0.15s;" onmouseover="this.style.color='${s.accentColor || '#f43f5e'}'" onmouseout="this.style.color='${s.textColor || '#475569'}'">
-                    ${link.label}
-                  </a>
-                `).join('')}
-              </nav>
-            </div>
-          </header>
-        `
-      }
-
-      if (b.type === 'hero') {
-        return `
-          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 96}px 24px; text-align:center; position:relative; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width: 900px; margin:0 auto;">
-              ${c.badge ? `<span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; padding:6px 16px; border-radius:20px; background:rgba(244,63,94,0.15); color:${s.accentColor || '#f43f5e'}; display:inline-block; margin-bottom:16px; border:1px solid rgba(244,63,94,0.3);">${c.badge}</span>` : ''}
-              <h1 style="font-size: 42px; font-weight:900; margin-bottom:16px; line-height:1.1; tracking-tight;">${c.title || 'Moda & Tendencias'}</h1>
-              <p style="font-size:17px; opacity:0.85; margin-bottom:32px; max-width:650px; margin-left:auto; margin-right:auto; line-height:1.6;">${c.subtitle || 'Descubre prendas únicas diseñadas para destacar.'}</p>
-              <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-                <a style="background:${s.accentColor || '#f43f5e'}; color:#fff; padding:14px 32px; border-radius:12px; font-weight:800; text-decoration:none; box-shadow:0 10px 25px rgba(244,63,94,0.3); font-size:15px;" href="#productos">${c.buttonText || 'Ver Catálogo'}</a>
-                ${c.secondaryButtonText ? `<a style="background:rgba(255,255,255,0.1); color:#fff; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:15px; border:1px solid rgba(255,255,255,0.2);" href="#ofertas">${c.secondaryButtonText}</a>` : ''}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'product-grid') {
-        const products = Array.isArray(c.products) ? c.products : []
-        const tabs = Array.isArray(c.categoryTabs) ? c.categoryTabs : []
-        return `
-          <section id="productos" style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width: 1150px; margin:0 auto;">
-              <h2 style="font-size: 28px; font-weight:900; text-align:center; margin-bottom:8px;">${c.title || 'Catálogo de Productos'}</h2>
-              ${c.subtitle ? `<p style="text-align:center; font-size:14px; color:#64748b; margin-bottom:28px;">${c.subtitle}</p>` : ''}
-              
-              <!-- Multi-Window Category Tabs -->
-              ${tabs.length > 0 ? `
-                <div style="display:flex; justify-content:center; gap:8px; margin-bottom:36px; flex-wrap:wrap;">
-                  ${tabs.map((tab: any, idx: number) => `
-                    <button style="padding:8px 18px; border-radius:20px; font-size:12px; font-weight:700; border:${idx === 0 ? 'none' : '1px solid #e2e8f0'}; background:${idx === 0 ? (s.accentColor || '#f43f5e') : '#f8fafc'}; color:${idx === 0 ? '#fff' : '#475569'}; cursor:pointer;">
-                      ${tab.label}
-                    </button>
-                  `).join('')}
-                </div>
-              ` : ''}
-
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:24px;">
-                ${products.map((p: any) => `
-                  <div style="border:1px solid #e2e8f0; border-radius:20px; padding:20px; background:#fff; text-align:left; box-shadow:0 4px 20px rgba(0,0,0,0.03); position:relative; display:flex; flex-direction:column; justify-content:space-between;">
-                    ${p.discountBadge ? `<span style="position:absolute; top:12px; right:12px; background:#fff1f2; color:#f43f5e; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #fecdd3;">${p.discountBadge}</span>` : ''}
-                    <div>
-                      <div style="height:180px; background:#f8fafc; border-radius:14px; overflow:hidden; margin-bottom:16px; border:1px solid #f1f5f9;">
-                        ${p.imageUrl ? `
-                          <img src="${p.imageUrl}" alt="${p.name}" style="width:100%; height:100%; object-fit:cover;" />
-                        ` : `
-                          <div style="display:flex; height:100%; align-items:center; justify-content:center;">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                          </div>
-                        `}
-                      </div>
-                      <h3 style="font-size:15px; font-weight:800; margin-bottom:6px; color:#0f172a; line-height:1.3;">${p.name}</h3>
-                      <p style="font-size:12px; color:#64748b; margin-bottom:12px; line-height:1.4;">${p.description || ''}</p>
-                      
-                      <!-- Size selector badge options -->
-                      ${Array.isArray(p.sizes) ? `
-                        <div style="display:flex; gap:4px; margin-bottom:12px;">
-                          ${p.sizes.map((sz: string) => `<span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; background:#f1f5f9; color:#475569;">${sz}</span>`).join('')}
-                        </div>
-                      ` : ''}
-
-                      <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px;">
-                        <span style="font-size:22px; font-weight:900; color:${s.accentColor || '#f43f5e'};">${p.price}</span>
-                        ${p.originalPrice ? `<span style="font-size:13px; text-decoration:line-through; color:#94a3b8;">${p.originalPrice}</span>` : ''}
-                      </div>
-                    </div>
-                    
-                    <button style="width:100%; background:${s.accentColor || '#f43f5e'}; color:#fff; border:none; padding:12px; border-radius:12px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 8px 16px rgba(244,63,94,0.25);">
-                      Pedir por WhatsApp
-                    </button>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'features') {
-        const items = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width: 1100px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:26px; font-weight:900; margin-bottom:40px;">${c.title || 'Beneficios Exclusivos'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:24px;">
-                ${items.map((item: any) => `
-                  <div style="padding:24px; background:#fff; border-radius:20px; border:1px solid #e2e8f0; text-align:left; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
-                    <div style="width:44px; height:44px; border-radius:12px; background:#fff1f2; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${s.accentColor || '#f43f5e'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                    </div>
-                    <h3 style="font-size:16px; font-weight:800; margin-bottom:8px; color:#0f172a;">${item.title || 'Beneficio'}</h3>
-                    <p style="font-size:13px; color:#64748b; line-height:1.5;">${item.description || ''}</p>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'testimonials') {
-        const items = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width: 1000px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:26px; font-weight:800; margin-bottom:36px;">${c.title || 'Opiniones de nuestros Clientes'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
-                ${items.map((t: any) => `
-                  <div style="padding:20px; border-radius:16px; background:#f8fafc; border:1px solid #e2e8f0; text-align:left;">
-                    <div style="color:#f59e0b; margin-bottom:8px;">★★★★★</div>
-                    <p style="font-size:13px; color:#334155; font-style:italic; margin-bottom:12px;">"${t.text || t.comment || ''}"</p>
-                    <div style="font-weight:700; font-size:13px; color:#0f172a;">${t.name || 'Cliente'}</div>
-                    <div style="font-size:11px; opacity:0.6; color:#64748b;">${t.role || 'Comprador verificado'}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'cta') {
-        return `
-          <section style="background:${s.accentColor || '#ec4899'}; color:#fff; padding:${s.paddingY || 80}px 24px; text-align:center; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:800px; margin:0 auto;">
-              <h2 style="font-size:32px; font-weight:900; margin-bottom:16px;">${c.title || '¡Promoción Especial!'}</h2>
-              <p style="font-size:16px; opacity:0.9; margin-bottom:28px;">${c.description || ''}</p>
-              <button style="background:#fff; color:${s.accentColor || '#ec4899'}; border:none; padding:14px 36px; border-radius:12px; font-weight:900; font-size:16px; cursor:pointer; box-shadow:0 10px 20px rgba(0,0,0,0.15);">${c.buttonText || 'Obtener Oferta'}</button>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'footer') {
-        return `
-          <footer style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 48}px 24px; text-align:center; border-top:1px solid rgba(255,255,255,0.1); ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:1100px; margin:0 auto;">
-              <h3 style="font-size:20px; font-weight:900; margin-bottom:16px; letter-spacing:1px;">${c.brandName || 'MI TIENDA'}</h3>
-              <p style="font-size:13px; opacity:0.6; margin-bottom:24px;">${c.copyright || '© 2026 Todos los derechos reservados.'}</p>
-            </div>
-          </footer>
-        `
-      }
-
-      if (b.type === 'countdown') {
-        return `
-          <section style="background:${s.backgroundColor || '#0f172a'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 56}px 24px; text-align:center; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:800px; margin:0 auto;">
-              ${c.badge ? `<span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; padding:6px 16px; border-radius:20px; background:rgba(244,63,94,0.15); color:${s.accentColor || '#f43f5e'}; display:inline-block; margin-bottom:16px;">${c.badge}</span>` : ''}
-              <h2 style="font-size:28px; font-weight:900; margin-bottom:8px;">${c.title || 'Oferta Relámpago'}</h2>
-              ${c.subtitle ? `<p style="font-size:14px; opacity:0.75; margin-bottom:20px;">${c.subtitle}</p>` : ''}
-              <div style="display:flex; gap:10px; justify-content:center; margin-bottom:24px;">
-                ${['Días', 'Horas', 'Min', 'Seg'].map((u, i) => `<div style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:10px 14px; min-width:64px;"><div style="font-size:22px; font-weight:900;">00</div><div style="font-size:10px; opacity:0.6;">${u}</div></div>`).join('')}
-              </div>
-              <button style="background:${s.accentColor || '#f43f5e'}; color:#fff; border:none; padding:12px 28px; border-radius:12px; font-weight:800; font-size:14px; cursor:pointer;">${c.buttonText || 'Ver Ofertas'}</button>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'faq' || b.type === 'accordion') {
-        const items = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:760px; margin:0 auto;">
-              <h2 style="font-size:24px; font-weight:900; text-align:center; margin-bottom:28px;">${c.title || 'Preguntas Frecuentes'}</h2>
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                ${items.map((item: any, i: number) => `
-                  <div style="border:1px solid #e2e8f0; border-radius:14px; padding:14px 18px; background:#f8fafc;">
-                    <div style="font-weight:800; font-size:13px; color:#0f172a; margin-bottom:6px;">${item.question || item.title || 'Pregunta'}</div>
-                    <div style="font-size:12px; color:#475569;">${item.answer || item.content || ''}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'newsletter') {
-        return `
-          <section style="background:${s.backgroundColor || '#881337'}; color:${s.textColor || '#fff'}; padding:${s.paddingY || 48}px 24px; text-align:center; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:600px; margin:0 auto;">
-              <h2 style="font-size:24px; font-weight:900; margin-bottom:8px;">${c.title || 'Únete al Club VIP'}</h2>
-              ${c.subtitle ? `<p style="font-size:13px; opacity:0.8; margin-bottom:20px;">${c.subtitle}</p>` : ''}
-              <div style="display:flex; gap:8px; justify-content:center;">
-                <input placeholder="tu@correo.com" style="padding:10px 14px; border-radius:10px; border:none; font-size:13px; width:220px;" />
-                <button style="background:${s.accentColor || '#f43f5e'}; color:#fff; border:none; padding:10px 20px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer;">${c.buttonText || 'Suscribirme'}</button>
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'social-proof') {
-        const messages = Array.isArray(c.messages) ? c.messages : []
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:16px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:900px; margin:0 auto; display:flex; gap:10px; overflow:hidden; white-space:nowrap;">
-              ${messages.map((m: any) => `<span style="font-size:12px; font-weight:600; color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:20px; padding:6px 14px;">${typeof m === 'string' ? m : m.text || ''}</span>`).join('')}
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'pricing') {
-        const plans = Array.isArray(c.plans) ? c.plans : []
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 80}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:1050px; margin:0 auto;">
-              <h2 style="font-size:26px; font-weight:900; text-align:center; margin-bottom:32px;">${c.title || 'Planes y Precios'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
-                ${plans.map((plan: any, i: number) => {
-                  const featured = !!plan.highlight || i === 1
-                  return `
-                    <div style="border-radius:20px; padding:24px; border:1px solid #e2e8f0; ${featured ? 'background:' + (s.accentColor || '#ec4899') + '; color:#fff; box-shadow:0 14px 30px rgba(0,0,0,0.12);' : 'background:#fff;'}">
-                      <div style="font-weight:900; font-size:14px; margin-bottom:8px;">${plan.name}</div>
-                      <div style="font-size:26px; font-weight:900; margin-bottom:16px;">${plan.price}</div>
-                      <ul style="list-style:none; padding:0; margin:0 0 18px; display:flex; flex-direction:column; gap:8px;">
-                        ${(Array.isArray(plan.features) ? plan.features : []).map((f: string) => `<li style="font-size:12px; opacity:0.85;">✓ ${f}</li>`).join('')}
-                      </ul>
-                      <button style="width:100%; padding:11px; border-radius:10px; border:none; font-weight:800; font-size:12px; cursor:pointer; ${featured ? 'background:#fff; color:' + (s.accentColor || '#ec4899') : 'background:' + (s.accentColor || '#ec4899') + '; color:#fff;'}">${plan.ctaText || 'Elegir Plan'}</button>
-                    </div>
-                  `
-                }).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'team') {
-        const members = Array.isArray(c.items) ? c.items : []
-        return `
-          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 72}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:1000px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:26px; font-weight:900; margin-bottom:32px;">${c.title || 'Nuestro Equipo'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:24px;">
-                ${members.map((m: any) => `
-                  <div>
-                    <div style="width:88px; height:88px; border-radius:50%; margin:0 auto 10px; overflow:hidden; background:#e2e8f0; border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,0.08);">
-                      ${m.photo ? `<img src="${m.photo}" style="width:100%; height:100%; object-fit:cover;" />` : ''}
-                    </div>
-                    <div style="font-weight:800; font-size:13px;">${m.name || 'Miembro'}</div>
-                    <div style="font-size:11px; opacity:0.6;">${m.role || ''}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'gallery') {
-        const images = Array.isArray(c.images) ? c.images.map((img: any) => (typeof img === 'string' ? img : img.src || img.imageUrl || '')) : []
-        return `
-          <section style="background:${s.backgroundColor || '#f8fafc'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:1000px; margin:0 auto;">
-              <h2 style="font-size:24px; font-weight:900; text-align:center; margin-bottom:28px;">${c.title || 'Galería'}</h2>
-              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:14px;">
-                ${images.map((src: string) => `<div style="border-radius:14px; overflow:hidden; aspect-ratio:1; background:#e2e8f0;">${src ? `<img src="${src}" style="width:100%; height:100%; object-fit:cover;" />` : ''}</div>`).join('')}
-              </div>
-            </div>
-          </section>
-        `
-      }
-
-      if (b.type === 'contact') {
-        return `
-          <section style="background:${s.backgroundColor || '#fff'}; color:${s.textColor || '#111'}; padding:${s.paddingY || 64}px 24px; ${activeBorder}" data-block-id="${b.id}">
-            <div style="max-width:700px; margin:0 auto; text-align:center;">
-              <h2 style="font-size:24px; font-weight:900; margin-bottom:20px;">${c.title || 'Contáctanos'}</h2>
-              <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:#475569;">
-                ${c.address ? `<span>📍 ${c.address}</span>` : ''}
-                ${c.hours ? `<span>🕘 ${c.hours}</span>` : ''}
-                ${c.phone ? `<span>📞 ${c.phone}</span>` : ''}
-                ${c.email ? `<span>✉️ ${c.email}</span>` : ''}
-              </div>
-              <button style="margin-top:20px; background:${s.accentColor || '#f43f5e'}; color:#fff; border:none; padding:12px 26px; border-radius:12px; font-weight:800; font-size:13px; cursor:pointer;">Enviar Mensaje</button>
-            </div>
-          </section>
-        `
-      }
-
-      return `<div style="padding:40px; text-align:center; border:1px dashed #ccc;" data-block-id="${b.id}">${b.type}</div>`
-    }).join('')
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <style>
-            * { box-sizing: border-box; margin:0; padding:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-            body { background: #f8fafc; color: #0f172a; }
-            [data-block-id] { cursor: pointer; transition: all 0.2s ease; position: relative; }
-            [data-block-id]:hover { outline: 2px dashed #ec4899 !important; outline-offset: -2px; }
-          </style>
-        </head>
-        <body>
-          ${blocksHtml || '<div style="padding:100px; text-align:center; color:#94a3b8; font-weight:600;">Canvas Vacío. Haz clic en "+ Agregar Bloque" o usa el Copiloto de IA para comenzar.</div>'}
-          <script>
-            document.addEventListener('click', function(e) {
-              const el = e.target.closest('[data-block-id]');
-              if (el) {
-                const id = el.getAttribute('data-block-id');
-                window.parent.postMessage({ type: 'SELECT_BLOCK', blockId: id }, '*');
-              }
-            });
-          </script>
-        </body>
-      </html>
-    `
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[var(--color-bg-base)] overflow-hidden font-sans">
@@ -1681,7 +1413,27 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 const hasGroupSelection = !!selectedBlock && (selectedBlock.windowId || 'home') === w
                 return (
                   <div key={w} className="space-y-1">
-                    <div className="flex items-center gap-1">
+                    <div
+                      className={`flex items-center gap-1 rounded-lg transition-all ${dragOverWindowHeader === w ? 'ring-2 ring-sky-500/70 bg-sky-500/10' : ''}`}
+                      onDragOver={(e) => {
+                        const payload = readDragPayload(e)
+                        if (!payload) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        setDragOverWindowHeader(w)
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        setDragOverWindowHeader(null)
+                        const payload = readDragPayload(e)
+                        if (!payload) return
+                        handleDropOnWindow(payload, w)
+                      }}
+                      onDragLeave={(e) => {
+                        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragOverWindowHeader(null)
+                      }}
+                      title="Suelta un bloque aquí para moverlo a esta ventana"
+                    >
                       <button
                         onClick={() => toggleWindowCollapse(w)}
                         className={`flex-1 min-w-0 flex items-center justify-between px-1.5 py-1 rounded-lg transition-colors ${hasGroupSelection ? 'bg-[var(--color-accent-muted)]' : 'hover:bg-[var(--color-bg-hover)]'}`}
@@ -1708,9 +1460,15 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                         onClick={() => setSelectedBlockId(b.id)}
                         data-block-id={b.id}
                         draggable
-                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.id); setDragBlockId(b.id) }}
+                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragPayload(e, { kind: 'top', blockId: b.id }); setDragBlockId(b.id) }}
                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverBlockId(b.id) }}
-                        onDrop={(e) => { e.preventDefault(); if (dragBlockId) handleDropBlock(dragBlockId, b.id) }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          const payload = readDragPayload(e)
+                          if (!payload) return
+                          if (payload.kind === 'nested') handlePromoteNestedBlock(payload.parentId, payload.blockId, b.id)
+                          else handleDropBlock(payload.blockId, b.id)
+                        }}
                         onDragLeave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragOverBlockId(null) }}
                         onDragEnd={() => { setDragBlockId(null); setDragOverBlockId(null) }}
                         className={`p-2.5 rounded-xl border cursor-grab active:cursor-grabbing transition-all flex items-center justify-between ${selectedBlockId === b.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)] shadow-sm' : 'border-transparent hover:bg-[var(--color-bg-hover)]'} ${flashBlockId === b.id ? 'ring-2 ring-purple-500/60' : ''} ${dragBlockId === b.id ? 'opacity-40' : ''} ${dragOverBlockId === b.id ? 'ring-2 ring-sky-500/70 shadow-sm' : ''}`}
@@ -1745,25 +1503,41 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
 
         {/* Center column: canvas + status bar */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Center Frame Render */}
+          {/* Center Frame Render — renders the REAL public store component inline (100% parity with /p/[id]) */}
           <div ref={outerScrollRef} onScroll={handleCanvasScroll} className="flex-1 bg-slate-900/10 overflow-auto flex p-4">
             <div className={`transition-all duration-300 ${deviceWidths[device]}`} style={previewWidthStyle()}>
-              <iframe
-                ref={iframeRef}
-                srcDoc={generatePreviewHtml()}
-                className="w-full h-full min-h-[85vh] bg-white border-0 shadow-2xl rounded-xl"
-                title="Canvas Preview"
-                onLoad={() => {
-                  if (pendingScrollRestore.current) {
-                    pendingScrollRestore.current = false
-                    restoreCanvasScroll(previewWindow)
+              {/* Same fonts as the public site so the canvas renders pixel-identical */}
+              <link rel="preconnect" href="https://fonts.googleapis.com" />
+              <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+              <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" />
+              <style>{`
+                .editor-block { position: relative; cursor: pointer; }
+                .editor-block:hover { outline: 2px dashed rgba(236,72,153,0.55); outline-offset: -2px; }
+                .editor-block-selected { outline: 3px solid #a855f7 !important; outline-offset: -3px !important; box-shadow: 0 0 0 6px rgba(168,85,247,0.18) !important; }
+              `}</style>
+              <PublicStoreClient
+                pageTitle={page?.title || ''}
+                blocks={blocks}
+                settings={siteSettings}
+                seo={page?.seo}
+                editorMode
+                controlledWindow={previewWindow}
+                selectedBlockId={selectedBlockId}
+                onSelectBlock={(blockId) => {
+                  if (selectedBlockIdRef.current !== blockId) {
+                    selectedBlockIdRef.current = blockId
+                    scrollRetryRef.current = 0
+                    scrollToSelectedRef.current = true
+                    setSelectedBlockId(blockId)
                   }
-                  try {
-                    const w = iframeRef.current?.contentWindow
-                    if (w && w.document) w.addEventListener('scroll', handleCanvasScroll, { passive: true })
-                  } catch { /* ignore */ }
                 }}
+                onNavigateWindow={(windowId) => setPreviewWindow(windowId)}
               />
+              {blocks.length === 0 && (
+                <div className="py-24 text-center text-sm font-semibold" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Canvas vacío. Haz clic en «+ Agregar Bloque» o usa el Copiloto de IA para comenzar.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1817,6 +1591,28 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
 
             <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
 
+            {/* Undo / Redo */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Deshacer (Ctrl+Z)"
+              >
+                <Undo size={12} />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1}
+                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Rehacer (Ctrl+Shift+Z)"
+              >
+                <Redo size={12} />
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
             {/* Block counts */}
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <Layers size={12} className="text-[var(--color-text-tertiary)] shrink-0" />
@@ -1825,6 +1621,42 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 · {blocks.filter(b => (b.windowId || 'home') === previewWindow).length} en {windowLabel(previewWindow)}
               </span>
             </div>
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
+            {/* Publish status badge + quick save/publish */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${page?.status === 'published' ? 'text-emerald-600 bg-emerald-500/10 border-emerald-500/30' : 'text-amber-600 bg-amber-500/10 border-amber-500/30'}`}
+                title={page?.status === 'published' ? 'Esta página está publicada y visible en el sitio' : 'Esta página aún no está publicada'}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${page?.status === 'published' ? 'bg-emerald-500' : 'bg-amber-500'} ${saving ? 'animate-pulse' : ''}`} />
+                {page?.status === 'published' ? 'Publicado' : 'Borrador'}
+              </span>
+              <button
+                onClick={() => savePage(page?.status === 'published' ? undefined : 'published')}
+                disabled={saving}
+                className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${page?.status === 'published' ? 'hover:bg-[var(--color-bg-hover)]' : 'text-white border-transparent hover:opacity-90'}`}
+                style={page?.status === 'published' ? { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' } : { background: 'var(--color-accent)' }}
+                title={page?.status === 'published' ? 'Guardar los cambios actuales' : 'Guardar y publicar la página'}
+              >
+                {saving ? <Loader2 size={11} className="animate-spin" /> : savedOk ? <Check size={11} className={page?.status === 'published' ? 'text-emerald-500' : ''} /> : page?.status === 'published' ? <Save size={11} /> : <Rocket size={11} />}
+                {page?.status === 'published' ? (savedOk ? 'Guardado' : 'Guardar') : 'Publicar'}
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
+            {/* View public site */}
+            <button
+              onClick={openPublicView}
+              className="flex items-center gap-1.5 shrink-0 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:bg-[var(--color-bg-hover)]"
+              style={{ color: 'var(--color-text-secondary)' }}
+              title="Guardar y ver el sitio público en vivo"
+            >
+              <Eye size={12} className="text-emerald-500" />
+              <span className="hidden lg:inline">Ver sitio</span>
+            </button>
           </div>
         </div>
 
@@ -1839,6 +1671,8 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
             onMove={(dir) => handleMoveBlock(selectedBlock.id, dir)}
             onDuplicate={() => handleDuplicateBlock(selectedBlock.id)}
             onDelete={() => handleDeleteBlock(selectedBlock.id)}
+            onPromoteNestedBlock={(parentId, nestedId, targetTopId) => handlePromoteNestedBlock(parentId, nestedId, targetTopId)}
+            onDemoteBlock={(blockId, parentId, colIdx, beforeNbId) => handleDemoteBlock(blockId, parentId, colIdx, beforeNbId)}
           />
         )}
 
@@ -1984,30 +1818,21 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 />
               </div>
 
-              <div>
-                <label className="form-label text-[11px] font-bold">Logo (URL de imagen)</label>
-                <input
-                  type="text"
-                  value={siteSettings.logoUrl || ''}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, logoUrl: e.target.value })}
-                  className="input-field text-xs font-mono"
-                  placeholder="https://.../logo.png"
-                />
-                {siteSettings.logoUrl && (
-                  <img src={siteSettings.logoUrl} alt="Logo" className="h-14 w-auto mt-2 rounded-xl border border-[var(--color-border)] object-contain bg-white p-1.5" />
-                )}
-              </div>
+              <ImageUploadField
+                label="Logo del sitio (sube desde tu dispositivo)"
+                value={siteSettings.logoUrl || ''}
+                onChange={(v) => setSiteSettings({ ...siteSettings, logoUrl: v })}
+                previewClass="h-14 w-auto"
+                placeholder="https://.../logo.png"
+              />
 
-              <div>
-                <label className="form-label text-[11px] font-bold">Favicon (URL .ico / .png)</label>
-                <input
-                  type="text"
-                  value={siteSettings.faviconUrl || ''}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, faviconUrl: e.target.value })}
-                  className="input-field text-xs font-mono"
-                  placeholder="https://.../favicon.ico"
-                />
-              </div>
+              <ImageUploadField
+                label="Favicon (.png / .ico)"
+                value={siteSettings.faviconUrl || ''}
+                onChange={(v) => setSiteSettings({ ...siteSettings, faviconUrl: v })}
+                previewClass="h-10 w-10"
+                placeholder="https://.../favicon.png"
+              />
 
               <div>
                 <label className="form-label text-[11px] font-bold">WhatsApp / Teléfono de pedidos</label>
@@ -2107,6 +1932,49 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
           </div>
         </div>
       )}
+
+      {/* ═══════════════ WINDOW MOVE CONFIRMATION MODAL (product content) ═══════════════ */}
+      {confirmMoveWindow && (() => {
+        const affected = findBlockAnywhere(confirmMoveWindow.payload.blockId)
+        const sourceWindow = windowLabel(affected?.windowId || 'home')
+        const targetWindow = windowLabel(confirmMoveWindow.targetWindow)
+        return (
+          <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-sm rounded-2xl border p-5 surface-card shadow-2xl space-y-4">
+              <div className="flex items-center gap-2">
+                <ShoppingBag size={16} className="text-amber-500 shrink-0" />
+                <h3 className="text-sm font-bold">Mover bloque con contenido de producto</h3>
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                Este bloque pertenece a la ventana de producto{' '}
+                <b style={{ color: 'var(--color-text-primary)' }}>"{sourceWindow}"</b>
+                {confirmMoveWindow.targetWindow.startsWith('product:') && (
+                  <> y lo estás moviendo a la landing del producto{' '}
+                    <b style={{ color: 'var(--color-text-primary)' }}>"{targetWindow}"</b></>
+                )}
+                . Si lo mueves a{' '}
+                <b style={{ color: 'var(--color-text-primary)' }}>"{targetWindow}"</b>
+                , ese contenido dejará de verse en la página del producto actual. Puedes deshacer con Ctrl+Z.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setConfirmMoveWindow(null)}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl border hover:bg-[var(--color-bg-hover)] transition-all"
+                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmMoveWindowAction}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all flex items-center gap-1.5"
+                >
+                  <MoveRight size={12} /> Mover de todas formas
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Block Picker Modal */}
       {showBlockPicker && (
