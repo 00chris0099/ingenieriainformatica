@@ -61,7 +61,7 @@ export default function ImageBlockEditor({ content, onUpdate }: ImageBlockEditor
       if (url) {
         onUpdate({ url });
       } else {
-        setError('Error al subir imagen. Verifica que IMGBB_API_KEY este configurada.');
+        setError('Error al subir imagen. Verifica que la API key de IMGBB esté configurada (IMGBB o IMGBB_API_KEY).');
       }
     } catch {
       setError('Error al subir imagen. Verifica la conexion y la API key.');

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
+// Accept both `IMGBB_API_KEY` and the shorter `IMGBB` env name
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || process.env.IMGBB;
 
 export async function POST(request: NextRequest) {
   try {

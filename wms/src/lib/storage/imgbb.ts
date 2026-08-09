@@ -1,7 +1,8 @@
 // imgBB Image Upload Service
 // API Docs: https://api.imgbb.com/
 
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
+// Accept both `IMGBB_API_KEY` and the shorter `IMGBB` env name
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || process.env.IMGBB;
 const IMGBB_BASE_URL = 'https://api.imgbb.com/1';
 
 export interface ImgBBResponse {
