@@ -152,6 +152,7 @@ model User {
   assignedCycleCounts   CycleCount[]       @relation("CycleCountAssignee")
   qualityChecks         QualityCheck[]     @relation("QCAssigner")
   blogPosts             BlogPost[]
+  businesses            UserBusiness[]
 
   @@index([role])
   @@index([isActive])
@@ -178,6 +179,7 @@ model Session {
 model Category {
   id          String    @id @default(uuid()) @db.Uuid
   parentId    String?   @map("parent_id") @db.Uuid
+  businessId  String?   @map("business_id") @db.Uuid
   name        String
   slug        String    @unique
   description String?
@@ -190,8 +192,10 @@ model Category {
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryTree")
+  business Business?  @relation(fields: [businessId], references: [id], onDelete: SetNull)
   products Product[]
 
+  @@index([businessId])
   @@map("categories")
 }
 
@@ -234,12 +238,14 @@ model Product {
   stock            Int           @default(0)
   discountPercent  Decimal?      @map("discount_percent") @db.Decimal(5, 2)
   barcode          String?
+  businessId       String?        @map("business_id") @db.Uuid
 
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
   publishedAt      DateTime?     @map("published_at")
 
   category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  business           Business?           @relation(fields: [businessId], references: [id], onDelete: SetNull)
   versions           ProductVersion[]
   suggestedProducts  SuggestedProduct[]
   offers             Offer[]
@@ -258,6 +264,7 @@ model Product {
   cartItems          CartItem[]
 
   @@index([categoryId])
+  @@index([businessId])
   @@index([status])
   @@index([brand])
   @@index([createdAt])
@@ -413,6 +420,7 @@ model Customer {
   cart      Cart?
   returns   Return[]
   wishlists Wishlist[]
+  leads     Lead[]    @relation("LeadConvertedCustomer")
 
   @@map("customers")
 }
@@ -441,11 +449,13 @@ model Order {
   shippedAt       DateTime?     @map("shipped_at")
   deliveredAt     DateTime?     @map("delivered_at")
   cancelledAt     DateTime?     @map("cancelled_at")
+  businessId      String?       @map("business_id") @db.Uuid
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
   customer      Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
   placer        User?              @relation("PlacedBy", fields: [placedBy], references: [id], onDelete: SetNull)
+  business      Business?          @relation(fields: [businessId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   invoices      Invoice[]
@@ -453,6 +463,7 @@ model Order {
   payments      Payment[]
 
   @@index([customerId])
+  @@index([businessId])
   @@index([status])
   @@index([paymentStatus])
   @@index([createdAt])
@@ -1120,6 +1131,33 @@ model NewsletterSubscriber {
 }
 
 // ============================================================================
+// APPOINTMENTS (agenda del bloque calendario / calendly / google calendar)
+// ============================================================================
+
+model Appointment {
+  id            String   @id @default(uuid()) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  pageId        String?  @map("page_id") @db.Uuid
+  date          DateTime @map("date")
+  slotTime      String   @map("slot_time") // "09:00" (HH:MM)
+  customerName  String   @map("customer_name")
+  customerEmail String?  @map("customer_email")
+  customerPhone String   @map("customer_phone")
+  message       String?  @db.Text
+  status        String   @default("confirmed") // confirmed | cancelled | completed
+  source        String   @default("internal") // internal | calendly | google
+  externalRef   String?  @map("external_ref")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business Business @relation("BusinessAppointments", fields: [businessId], references: [id], onDelete: Cascade)
+  page     Page?    @relation("PageAppointments", fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, date])
+  @@map("appointments")
+}
+
+// ============================================================================
 // TAX CONFIG
 // ============================================================================
 
@@ -1190,10 +1228,29 @@ model SuggestedProduct {
 // BLOG POSTS
 // ============================================================================
 
+model BlogCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String?  @map("business_id") @db.Uuid
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business?  @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  posts    BlogPost[]
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@map("blog_categories")
+}
+
 model BlogPost {
   id              String    @id @default(uuid()) @db.Uuid
+  businessId      String?   @map("business_id") @db.Uuid
+  categoryId      String?   @map("category_id") @db.Uuid
   title           String
-  slug            String    @unique
+  slug            String
   content         String    @db.Text
   excerpt         String?
   coverImage      String?   @map("cover_image")
@@ -1208,8 +1265,14 @@ model BlogPost {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  author User? @relation(fields: [authorId], references: [id])
+  author       User?         @relation(fields: [authorId], references: [id])
+  business     Business?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  blogCategory BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@index([categoryId])
+  @@index([isPublished])
   @@map("blog_posts")
 }
 
@@ -1238,8 +1301,91 @@ model Business {
   themes         Theme[]
   aiGenerations  AIGeneration[]
   customDomains  CustomDomain[]
+  assignedUsers  UserBusiness[]
+  products       Product[]
+  categories     Category[]
+  orders         Order[]
+  blogPosts      BlogPost[]
+  blogCategories BlogCategory[]
+  appointments   Appointment[] @relation("BusinessAppointments")
+  leads          Lead[]         @relation("BusinessLeads")
+  pageViews      PageView[]     @relation("BusinessPageViews")
 
   @@map("businesses")
+}
+
+// ============================================================================
+// ANALYTICS (vistas de página del storefront público)
+// ============================================================================
+
+model PageView {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  pageId      String   @map("page_id") @db.Uuid
+  referrer    String?
+  source      String   @default("direct")
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  device      String   @default("desktop")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business Business @relation("BusinessPageViews", fields: [businessId], references: [id], onDelete: Cascade)
+  page     Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([pageId, createdAt])
+  @@map("page_views")
+}
+
+// ============================================================================
+// LEADS & CRM (prospectos capturados en landings / bloques de contacto)
+// ============================================================================
+
+model Lead {
+  id                  String   @id @default(uuid()) @db.Uuid
+  businessId          String   @map("business_id") @db.Uuid
+  pageId              String?  @map("page_id") @db.Uuid
+  source              String   @default("contact")
+  fullName            String   @map("full_name")
+  email               String?
+  phone               String?
+  message             String?
+  status              String   @default("new") // new | contacted | qualified | won | lost
+  tags                String[] @default([])
+  notes               String?
+  metadata            Json     @default("{}") // page slug, url, utm, device...
+  convertedCustomerId String?  @map("converted_customer_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  business          Business  @relation("BusinessLeads", fields: [businessId], references: [id], onDelete: Cascade)
+  page              Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  convertedCustomer Customer? @relation("LeadConvertedCustomer", fields: [convertedCustomerId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+// ============================================================================
+// USER ↔ BUSINESS (asignación de tiendas virtuales a clientes)
+// ============================================================================
+
+model UserBusiness {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  role       String   @default("owner") // owner | manager
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+  @@map("user_businesses")
 }
 
 model Page {
@@ -1261,6 +1407,9 @@ model Page {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   template Theme?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
   versions  PageVersion[]
+  appointments Appointment[] @relation("PageAppointments")
+  leads       Lead[]
+  pageViews   PageView[]
 
   @@unique([businessId, slug])
   @@index([status])

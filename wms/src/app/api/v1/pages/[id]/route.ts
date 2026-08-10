@@ -3,6 +3,8 @@ import { prisma } from '@repo/prisma';
 import { apiError, apiSuccess } from '@/lib/api';
 import { pageStore } from '@/lib/pageStore';
 import { ensureDefaultBusiness, DEFAULT_BUSINESS_ID } from '@/lib/business';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { canAccessBusiness } from '@/lib/api/business-access';
 import crypto from 'crypto';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,8 +32,16 @@ function syntheticPage(id: string): any {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  const authCheck = await requireAuth();
+  if (authCheck.error) return authCheck.error;
+  const user = authCheck.user as any;
+
   if (pageStore.has(id)) {
-    return apiSuccess(pageStore.get(id));
+    const stored = pageStore.get(id);
+    if (!(await canAccessBusiness(user, stored?.businessId))) {
+      return apiError('Forbidden: esta tienda no está asignada a tu cuenta', 403);
+    }
+    return apiSuccess(stored);
   }
 
   try {
@@ -43,11 +53,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
 
     if (page) {
+      if (!(await canAccessBusiness(user, page.businessId))) {
+        return apiError('Forbidden: esta tienda no está asignada a tu cuenta', 403);
+      }
       pageStore.set(page.id, page);
       return apiSuccess(page);
     }
   } catch (e) {
     console.warn(`[PAGE GET ${id}] DB error:`, (e as any)?.message?.slice(0, 80));
+  }
+
+  // Páginas sintéticas (nuevas) solo para staff — los clientes no crean páginas sueltas
+  if (!['super_admin', 'admin'].includes((user as any).role)) {
+    return apiError('Página no encontrada', 404);
   }
 
   const synthetic = syntheticPage(id);
@@ -59,6 +77,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
 
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+
+    // Guard de propiedad multi-tenant: el cliente solo puede guardar páginas de sus tiendas
+    if (isUuid(id)) {
+      try {
+        const existing = await prisma.page.findUnique({ where: { id }, select: { businessId: true } });
+        if (existing && !(await canAccessBusiness(user, existing.businessId))) {
+          return apiError('Forbidden: esta tienda no está asignada a tu cuenta', 403);
+        }
+        if (!existing && !['super_admin', 'admin'].includes((user as any).role)) {
+          return apiError('Forbidden: no puedes crear páginas nuevas', 403);
+        }
+      } catch (e) {
+        console.warn('[PAGE PUT] DB check error:', (e as any)?.message?.slice(0, 80));
+      }
+    } else if (!['super_admin', 'admin'].includes((user as any).role)) {
+      return apiError('Forbidden: no puedes crear páginas nuevas', 403);
+    }
+
     const body = await request.json();
     const { title, slug, description, type, status, blocks, seo, settings, templateId } = body;
 
@@ -123,6 +162,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  const authCheck = await requireAuth();
+  if (authCheck.error) return authCheck.error;
+  const user = authCheck.user as any;
+
+  // Guard de propiedad multi-tenant
+  try {
+    if (isUuid(id)) {
+      const existing = await prisma.page.findUnique({ where: { id }, select: { businessId: true } });
+      if (existing && !(await canAccessBusiness(user, existing.businessId))) {
+        return apiError('Forbidden: esta tienda no está asignada a tu cuenta', 403);
+      }
+    }
+  } catch (e) {
+    console.warn('[PAGE DELETE] DB check error:', (e as any)?.message?.slice(0, 80));
+  }
 
   pageStore.delete(id);
 

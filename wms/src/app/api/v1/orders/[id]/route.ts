@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { getBusinessScope, belongsToScope } from '@/lib/api/business-access';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -9,6 +11,11 @@ interface Props {
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const { id } = await params;
     const order = await prisma.order.findFirst({
       where: { OR: [{ id }, { orderNumber: id }] },
@@ -21,6 +28,9 @@ export async function GET(_request: NextRequest, { params }: Props) {
     });
 
     if (!order) return apiError('Order not found', 404);
+    if (!belongsToScope(order.businessId, scope)) {
+      return apiError('Forbidden: este pedido no pertenece a tus tiendas', 403);
+    }
 
     return apiSuccess({
       ...order,
@@ -44,12 +54,20 @@ export async function GET(_request: NextRequest, { params }: Props) {
 
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const body = await request.json();
     const { notes, internalNotes, paymentStatus } = body;
     const { id } = await params;
 
     const existing = await prisma.order.findUnique({ where: { id } });
     if (!existing) return apiError('Order not found', 404);
+    if (!belongsToScope(existing.businessId, scope)) {
+      return apiError('Forbidden: este pedido no pertenece a tus tiendas', 403);
+    }
 
     const updated = await prisma.order.update({
       where: { id },

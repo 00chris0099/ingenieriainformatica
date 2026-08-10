@@ -25,6 +25,18 @@ vi.mock('@/lib/cache', () => ({
   invalidateCache: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock auth: the products API is now multi-tenant and requires a session
+vi.mock('@/lib/api/auth-guard', () => ({
+  requireAuth: vi.fn().mockResolvedValue({
+    user: { id: 'staff-1', role: 'super_admin' },
+    session: { user: { id: 'staff-1', role: 'super_admin' } },
+  }),
+  requireRole: vi.fn().mockResolvedValue({
+    user: { id: 'staff-1', role: 'super_admin' },
+    session: {},
+  }),
+}));
+
 describe('Products API', () => {
   beforeEach(() => {
     vi.clearAllMocks();

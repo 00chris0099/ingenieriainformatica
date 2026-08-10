@@ -39,12 +39,13 @@ export default function NuevoPedidoPage() {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [items, setItems] = useState<OrderItem[]>([]);
   const [notes, setNotes] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     async function fetchData() {
       try {
         const [custRes, prodRes] = await Promise.all([
-          fetch('/api/v1/customers?limit=100'),
+          fetch('/api/v1/customers?table=customer&limit=100'),
           fetch('/api/v1/products?limit=100'),
         ]);
         if (custRes.ok) {
@@ -102,6 +103,7 @@ export default function NuevoPedidoPage() {
     if (!selectedCustomer || items.length === 0) return;
 
     setSaving(true);
+    setErrorMsg('');
     try {
       const res = await fetch('/api/v1/orders', {
         method: 'POST',
@@ -120,9 +122,13 @@ export default function NuevoPedidoPage() {
       if (res.ok) {
         const data = await res.json();
         router.push(`/pedidos?id=${data.data.id}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data?.error || `Error al crear el pedido (${res.status})`);
       }
     } catch (err) {
       console.error(err);
+      setErrorMsg('Error de red al crear el pedido');
     } finally {
       setSaving(false);
     }
@@ -263,6 +269,12 @@ export default function NuevoPedidoPage() {
           className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
         />
       </div>
+
+      {errorMsg && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-4 text-sm text-red-400">
+          {errorMsg}
+        </div>
+      )}
 
       {/* Submit */}
       <div className="flex gap-3">

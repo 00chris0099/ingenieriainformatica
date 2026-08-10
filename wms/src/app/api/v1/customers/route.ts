@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
-import { apiPaginated, getSearchParam, parsePagination } from '@/lib/api';
+import { apiSuccess, apiError, apiPaginated, getSearchParam, parsePagination } from '@/lib/api';
 import { SUPER_ADMIN_EMAIL } from '@/lib/super-admin';
 
 export async function GET(request: NextRequest) {
@@ -8,6 +8,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = getSearchParam(searchParams, 'q') || '';
     const { page, limit, offset } = parsePagination(searchParams);
+
+    // ?table=customer → solo registros de la tabla customers (compradores reales,
+    // con ids válidos para pedidos). Sin el filtro se devuelve la vista mixta de Clientes.
+    const onlyCustomers = searchParams.get('table') === 'customer';
+    if (onlyCustomers) {
+      const where: any = search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {};
+      const [records, total] = await Promise.all([
+        prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, skip: offset, take: limit }),
+        prisma.customer.count({ where }),
+      ]);
+      return apiPaginated(records, total, page, limit);
+    }
 
     let userRecords: any[] = [];
     let customerRecords: any[] = [];
@@ -131,5 +150,34 @@ export async function GET(request: NextRequest) {
         updatedAt: new Date().toISOString(),
       }
     ], 1, 1, 10);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { fullName, email, phone, taxId, companyName, customerType, billingAddress, creditLimit, notes, source } = body;
+
+    if (!fullName) return apiError('fullName is required', 400);
+
+    const customer = await prisma.customer.create({
+      data: {
+        source: source || 'wms',
+        customerType: customerType || 'individual',
+        fullName,
+        email: email || null,
+        phone: phone || null,
+        companyName: companyName || null,
+        taxId: taxId || null,
+        billingAddress: billingAddress || {},
+        creditLimit: typeof creditLimit === 'number' ? creditLimit : 0,
+        notes: notes || null,
+      },
+    });
+
+    return apiSuccess(customer, 201);
+  } catch (error) {
+    console.error('[customers] create failed:', (error as Error)?.message?.slice(0, 300));
+    return apiError(`Error al crear el cliente: ${(error as Error)?.message?.slice(0, 200) || 'desconocido'}`, 500);
   }
 }

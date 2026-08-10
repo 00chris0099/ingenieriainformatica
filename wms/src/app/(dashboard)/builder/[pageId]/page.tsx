@@ -13,7 +13,7 @@ import ImageUploadField from '@/components/builder/ImageUploadField'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { Button } from '@/components/ui/Button'
 import { reorderLinksByStoredOrder, windowIdsFromLinks } from '@/lib/window-order'
-import { moveBlockTo, promoteNestedBlock, demoteBlock, moveBlockToWindow, promoteNestedBlockToWindow, blockHasProductContent } from '@/lib/block-order'
+import { moveBlockTo, promoteNestedBlock, demoteBlock, moveBlockToWindow, promoteNestedBlockToWindow, blockHasProductContent, moveNestedBetweenColumns } from '@/lib/block-order'
 import { setDragPayload, readDragPayload, type BlockDragPayload } from '@/lib/block-dnd'
 
 interface PageData {
@@ -638,6 +638,32 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     if (!confirmMoveWindow) return
     performMoveBlockToWindow(confirmMoveWindow.payload, confirmMoveWindow.targetWindow)
     setConfirmMoveWindow(null)
+  }
+
+  /** Canvas DnD: drop on a `columns` block (or a nested block inside it). */
+  const handleCanvasBlockDrop = (parentId: string, colIdx: number, beforeNbId: string | undefined, payload: BlockDragPayload) => {
+    if (payload.kind === 'nested') {
+      // Only blocks from this same columns block can be re-nested here.
+      if (payload.parentId !== parentId) return
+      const parentIdx = blocks.findIndex(b => b.id === parentId)
+      if (parentIdx < 0) return
+      const parent = blocks[parentIdx]!
+      const items = Array.isArray(parent.content?.items) ? parent.content.items as any[] : []
+      const fromColBlocks = (items[payload.colIdx]?.blocks as any[]) || []
+      const moved = fromColBlocks[payload.nbIdx]
+      const beforeIdx = beforeNbId
+        ? ((items[colIdx]?.blocks as any[]) || []).findIndex((x: any) => x.id === beforeNbId)
+        : undefined
+      if (payload.colIdx === colIdx && payload.nbIdx === beforeIdx) return
+      const next = moveNestedBetweenColumns(items, payload.colIdx, payload.nbIdx, colIdx, beforeIdx ?? undefined)
+      if (!next) return
+      const updated = [...blocks]
+      updated[parentIdx] = { ...parent, content: { ...parent.content, items: next } }
+      updateBlocks(updated)
+      if (moved) setSelectedBlockId(moved.id)
+    } else {
+      handleDemoteBlock(payload.blockId, parentId, colIdx, beforeNbId)
+    }
   }
 
   // ── Keyboard shortcuts (undo/redo, delete, duplicate, move, escape) ─────
@@ -1514,12 +1540,15 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 .editor-block { position: relative; cursor: pointer; }
                 .editor-block:hover { outline: 2px dashed rgba(236,72,153,0.55); outline-offset: -2px; }
                 .editor-block-selected { outline: 3px solid #a855f7 !important; outline-offset: -3px !important; box-shadow: 0 0 0 6px rgba(168,85,247,0.18) !important; }
+                .editor-block-dragging { opacity: 0.4; }
+                .editor-block-drop-target { outline: 2px solid #0ea5e9 !important; outline-offset: -2px !important; box-shadow: 0 0 0 5px rgba(14,165,233,0.22) !important; cursor: copy; }
               `}</style>
               <PublicStoreClient
                 pageTitle={page?.title || ''}
                 blocks={blocks}
                 settings={siteSettings}
                 seo={page?.seo}
+                pageId={pageId}
                 editorMode
                 controlledWindow={previewWindow}
                 selectedBlockId={selectedBlockId}
@@ -1532,6 +1561,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                   }
                 }}
                 onNavigateWindow={(windowId) => setPreviewWindow(windowId)}
+                onCanvasBlockDrop={(parentId, colIdx, beforeNbId, payload) => handleCanvasBlockDrop(parentId, colIdx, beforeNbId, payload)}
               />
               {blocks.length === 0 && (
                 <div className="py-24 text-center text-sm font-semibold" style={{ color: 'var(--color-text-tertiary)' }}>

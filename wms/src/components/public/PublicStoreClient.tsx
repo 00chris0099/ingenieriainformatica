@@ -2,13 +2,19 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { IconRenderer } from '@/components/ui/IconRenderer'
-import { X, ShoppingBag, Check, Plus, Minus, MessageSquare, Star, Trash2, ArrowLeft, ExternalLink } from 'lucide-react'
+import { X, ShoppingBag, Check, Plus, Minus, MessageSquare, Star, Trash2, ArrowLeft, ExternalLink, Facebook, Instagram, Youtube, Linkedin, Loader2, CreditCard, Lock, CheckCircle2, Send } from 'lucide-react'
+import { setDragPayload, readDragPayload, type BlockDragPayload } from '@/lib/block-dnd'
+import { currencySymbol as resolveSymbol, parsePrice as libParsePrice } from '@/lib/payments/checkout'
 
 interface PublicStoreClientProps {
   pageTitle: string
   blocks: any[]
   settings?: Record<string, any>
   seo?: Record<string, any>
+  /** Slug del negocio (tienda) — usado por el bloque articles en modo 'blog' para traer los posts reales. */
+  businessSlug?: string
+  /** Id de la página — usado por el bloque calendar para registrar de qué página vino la cita. */
+  pageId?: string
   // Editor mode: renders this exact component inline inside the builder canvas
   // (100% parity with /p/[id]) with controlled-window navigation and per-block
   // selection instead of hash routing.
@@ -17,6 +23,8 @@ interface PublicStoreClientProps {
   selectedBlockId?: string | null
   onSelectBlock?: (blockId: string) => void
   onNavigateWindow?: (windowId: string) => void
+  /** Editor DnD: a block was dropped on a `columns` block (container or a nested block inside it). */
+  onCanvasBlockDrop?: (parentId: string, colIdx: number, beforeNbId: string | undefined, payload: BlockDragPayload) => void
 }
 
 interface CartItem {
@@ -33,11 +41,18 @@ interface CartItem {
 const DEFAULT_WHATSAPP = '51999888777'
 const FONT_STACK = "'Sora', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"
 
-/** Parse 'S/ 59.90' -> 59.9 (tolerates commas/dots and bare numbers) */
+/** Parse 'S/ 59.90' -> 59.9 (tolerates commas/dots, US/EU thousands) */
 function parsePrice(label: any): number {
-  if (typeof label === 'number') return label
-  const m = String(label || '').match(/(\d+[.,]\d+|\d+)/)
-  return m ? parseFloat((m[1] || '0').replace(',', '.')) : 0
+  return libParsePrice(label)
+}
+
+function isDarkBg(hex: string): boolean {
+  const m = (hex || '').replace('#', '')
+  if (m.length !== 6) return false
+  const r = parseInt(m.slice(0, 2), 16)
+  const g = parseInt(m.slice(2, 4), 16)
+  const b = parseInt(m.slice(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 < 140
 }
 
 function softBg(hex: string, alphaHex = '14'): string {
@@ -84,11 +99,14 @@ export default function PublicStoreClient({
   blocks,
   settings,
   seo,
+  businessSlug,
+  pageId,
   editorMode = false,
   controlledWindow,
   selectedBlockId,
   onSelectBlock,
   onNavigateWindow,
+  onCanvasBlockDrop,
 }: PublicStoreClientProps) {
   const whatsappNumber = settings?.whatsappNumber || DEFAULT_WHATSAPP
   const rootAccent = settings?.accentColor || settings?.primaryColor || '#f43f5e'
@@ -101,6 +119,82 @@ export default function PublicStoreClient({
   const [cartOpen, setCartOpen] = useState<boolean>(false)
   const [showNotification, setShowNotification] = useState<boolean>(false)
   const [navOpen, setNavOpen] = useState<boolean>(false)
+
+  // ── Cart persistence (survives reloads, keyed per page) ───────────────
+  const cartStorageKey = `wms-cart-${pageId || 'anon'}`
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(cartStorageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) setCart(parsed)
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    try {
+      if (cart.length > 0) window.localStorage.setItem(cartStorageKey, JSON.stringify(cart))
+      else window.localStorage.removeItem(cartStorageKey)
+    } catch {
+      /* ignore */
+    }
+  }, [cart, cartStorageKey])
+
+  // ── Analytics: registra una vista real (una vez por sesión por página) ─
+  useEffect(() => {
+    if (editorMode || !pageId) return
+    try {
+      if (window.sessionStorage.getItem(`viewed:${pageId}`)) return
+      window.sessionStorage.setItem(`viewed:${pageId}`, '1')
+      // clientId estable para GA4 Measurement Protocol (persiste entre sesiones)
+      let clientId = ''
+      try {
+        clientId = window.localStorage.getItem('wms_ga4_client_id') || ''
+        if (!clientId) {
+          clientId = `wms-${Date.now()}.${Math.floor(Math.random() * 1e9)}`
+          window.localStorage.setItem('wms_ga4_client_id', clientId)
+        }
+      } catch {
+        clientId = ''
+      }
+      const params = new URLSearchParams(window.location.search)
+      fetch('/api/v1/store/analytics/view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId,
+          clientId: clientId || undefined,
+          referrer: document.referrer || undefined,
+          utm: {
+            source: params.get('utm_source') || undefined,
+            medium: params.get('utm_medium') || undefined,
+            campaign: params.get('utm_campaign') || undefined,
+          },
+          device: /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+        }),
+      }).catch(() => {})
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, editorMode])
+
+  // ── Checkout state ────────────────────────────────────────────────────
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<'form' | 'processing' | 'success'>('form')
+  const [checkoutForm, setCheckoutForm] = useState({ fullName: '', email: '', phone: '', address: '', notes: '' })
+  const [paymentMethod, setPaymentMethod] = useState<'mercadopago' | 'whatsapp'>('whatsapp')
+  const [orderResult, setOrderResult] = useState<any>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const paymentsCfg: any = settings?.payments && typeof settings.payments === 'object' ? settings.payments : {}
+  const mpAvailable = paymentsCfg?.mercadopago?.enabled !== false
+  const symbol = resolveSymbol(settings?.currency)
+  // Editor DnD visuals: which block is being dragged / which target is highlighted
+  const [canvasDragId, setCanvasDragId] = useState<string | null>(null)
+  const [canvasDropTarget, setCanvasDropTarget] = useState<{ parentId: string; nbId?: string } | null>(null)
 
   // ── Multi-window engine ────────────────────────────────────────────────
   // Windows are real views, not scroll anchors: 'home', 'catalogo' (with
@@ -197,19 +291,70 @@ export default function PublicStoreClient({
   /**
    * Editor mode: wraps any block node with the selection outline + click
    * handler, so the canvas is pixel-identical to the public site AND every
-   * block (navbar/footer included) is directly selectable.
+   * block (navbar/footer included) is directly selectable. Blocks are also
+   * draggable: top-level ones carry `{kind:'top'}` and nested ones (inside a
+   * columns block, `dragMeta` set) carry `{kind:'nested'}` with their position,
+   * so they can be dropped onto the left panel list (promote/reorder) and onto
+   * columns blocks in the canvas (nest/insert).
    */
-  const withSelection = (b: any, node: React.ReactNode) => {
+  const withSelection = (b: any, node: React.ReactNode, dragMeta?: { parentId: string; colIdx: number; nbIdx: number }) => {
     if (!editorMode) return node
+    const isColumnsContainer = b.type === 'columns' && !dragMeta
+    const isNested = !!dragMeta
+    const dt = canvasDropTarget
+    const dropTargetHere = dt !== null && dt.parentId === b.id && (isNested ? dt.nbId === b.id : !dt.nbId)
+    const dragging = canvasDragId === b.id
     return (
       <div
         key={b.id}
         data-block-id={b.id}
-        className={`editor-block ${selectedBlockId === b.id ? 'editor-block-selected' : ''}`}
+        draggable
+        onDragStart={(e) => {
+          // Nested blocks live inside the draggable columns container: without
+          // this, the container's own dragstart would hijack (and overwrite)
+          // the payload once the event bubbles up.
+          e.stopPropagation()
+          e.dataTransfer.effectAllowed = 'move'
+          if (dragMeta) {
+            setDragPayload(e, { kind: 'nested', blockId: b.id, parentId: dragMeta.parentId, colIdx: dragMeta.colIdx, nbIdx: dragMeta.nbIdx })
+          } else {
+            setDragPayload(e, { kind: 'top', blockId: b.id })
+          }
+          setCanvasDragId(b.id)
+        }}
+        onDragEnd={() => {
+          setCanvasDragId(null)
+          setCanvasDropTarget(null)
+        }}
+        onDragOver={(e) => {
+          if (!isColumnsContainer && !isNested) return
+          const p = readDragPayload(e)
+          if (!p) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          if (isNested) {
+            e.stopPropagation()
+            setCanvasDropTarget({ parentId: dragMeta!.parentId, nbId: b.id })
+          } else {
+            setCanvasDropTarget({ parentId: b.id })
+          }
+        }}
+        onDrop={(e) => {
+          if (!isColumnsContainer && !isNested) return
+          e.preventDefault()
+          const p = readDragPayload(e)
+          setCanvasDropTarget(null)
+          setCanvasDragId(null)
+          if (!p) return
+          if (isNested) e.stopPropagation()
+          if (isNested) onCanvasBlockDrop?.(dragMeta!.parentId, dragMeta!.colIdx, b.id, p)
+          else onCanvasBlockDrop?.(b.id, 0, undefined, p)
+        }}
         onClick={(e) => {
           e.stopPropagation()
           onSelectBlock?.(b.id)
         }}
+        className={`editor-block ${selectedBlockId === b.id ? 'editor-block-selected' : ''} ${dragging ? 'editor-block-dragging' : ''} ${dropTargetHere ? 'editor-block-drop-target' : ''}`}
       >
         {node}
       </div>
@@ -392,40 +537,101 @@ export default function PublicStoreClient({
           </div>
         </div>
 
-        {/* Mobile nav drawer */}
+        {/* Mobile lateral drawer (slide-in desde la derecha, como toda página responsive) */}
         {navOpen && (
-          <nav
-            className="md:hidden border-t animate-fade-in-down px-4 py-3 space-y-1"
-            style={{ backgroundColor: navBg, borderColor: 'rgba(128,128,128,0.15)' }}
-          >
-            {links.map((link: any, idx: number) => (
-              isWhatsappLink(link) ? (
-                <a
-                  key={idx}
-                  href={`https://wa.me/${whatsappNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+          <div className="md:hidden fixed inset-0 z-[80]">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+              onClick={closeNav}
+              aria-hidden="true"
+            />
+            <aside
+              className="absolute top-0 right-0 h-full w-[84%] max-w-[330px] shadow-2xl animate-slide-in-right flex flex-col"
+              style={{ backgroundColor: navBg, borderLeft: '1px solid rgba(128,128,128,0.15)' }}
+              role="dialog"
+              aria-label="Menú de navegación"
+            >
+              {/* Header del drawer */}
+              <div
+                className="flex items-center justify-between px-4 py-4 border-b shrink-0"
+                style={{ borderColor: 'rgba(128,128,128,0.15)' }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[120px] object-contain shrink-0" />
+                  ) : (
+                    <span className="w-3 h-3 rounded-full inline-block shrink-0" style={{ backgroundColor: accent }} />
+                  )}
+                  <span className="text-sm font-black truncate" style={{ color: navText }}>{brandName}</span>
+                </div>
+                <button
                   onClick={closeNav}
-                  className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
+                  className="p-2 rounded-xl hover:opacity-70 transition-opacity shrink-0"
                   style={{ color: navText }}
+                  aria-label="Cerrar menú"
                 >
-                  <IconRenderer name={link.iconName} size={14} />
-                  {link.label}
-                </a>
-              ) : (
-                <a
-                  key={idx}
-                  href={hashHref(link)}
-                  onClick={(e) => handleNavClick(e, link)}
-                  className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 hover:opacity-70"
-                  style={{ color: navText }}
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Links del drawer */}
+              <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+                {links.map((link: any, idx: number) => {
+                  const active = isLinkActive(link)
+                  const cls = `w-full text-left px-3.5 py-3 rounded-xl text-sm font-bold transition-all inline-flex items-center gap-2.5 ${
+                    active ? 'opacity-100' : 'opacity-80 hover:opacity-100'
+                  }`
+                  const style = active
+                    ? { backgroundColor: softBg(accent, '16'), color: accent }
+                    : { color: navText }
+                  return isWhatsappLink(link) ? (
+                    <a
+                      key={idx}
+                      href={`https://wa.me/${whatsappNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={closeNav}
+                      className={cls}
+                      style={style}
+                    >
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: softBg(accent, '12') }}>
+                        <IconRenderer name={link.iconName} size={14} />
+                      </span>
+                      {link.label}
+                    </a>
+                  ) : (
+                    <a
+                      key={idx}
+                      href={hashHref(link)}
+                      onClick={(e) => { handleNavClick(e, link); closeNav() }}
+                      className={cls}
+                      style={style}
+                    >
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: softBg(accent, '12') }}>
+                        <IconRenderer name={link.iconName} size={14} />
+                      </span>
+                      {link.label}
+                    </a>
+                  )
+                })}
+              </nav>
+
+              {/* Pie del drawer: carrito + WhatsApp */}
+              <div
+                className="px-4 py-4 border-t space-y-2 shrink-0"
+                style={{ borderColor: 'rgba(128,128,128,0.15)' }}
+              >
+                <button
+                  onClick={() => { setCartOpen(true); closeNav() }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-extrabold transition-all"
+                  style={{ backgroundColor: accent, color: '#fff' }}
                 >
-                  <IconRenderer name={link.iconName} size={14} />
-                  {link.label}
-                </a>
-              )
-            ))}
-          </nav>
+                  <ShoppingBag size={15} />
+                  Ver carrito{cartCount > 0 ? ` (${cartCount})` : ''}
+                </button>
+              </div>
+            </aside>
+          </div>
         )}
       </header>
     )
@@ -436,19 +642,109 @@ export default function PublicStoreClient({
     const s = b.settings || {}
     const c = b.content || {}
     const logoUrl = s.logoUrl || settings?.logoUrl || ''
-    return (
-      <footer
-        key={b.id}
-        style={{ backgroundColor: s.backgroundColor || '#0f172a', color: s.textColor || '#fff' }}
-        className="px-6 py-12 text-center border-t border-white/10 space-y-4"
-      >
-        <div className="max-w-5xl mx-auto space-y-3">
-          {logoUrl && (
-            <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />
-          )}
-          <h3 className="text-xl font-black tracking-wider">{c.brandName || settings?.siteName || 'TIENDA VIRTUAL'}</h3>
-          <p className="text-xs opacity-60">{c.copyright || '© 2026 Todos los derechos reservados. Impulsado por WMS Platform.'}</p>
+    const variant = s.variant || 'standard'
+    const fg = s.textColor || '#fff'
+    const bg = s.backgroundColor || '#0f172a'
+    const brand = c.companyName || c.brandName || settings?.siteName || 'TIENDA VIRTUAL'
+    const cols: any[] = Array.isArray(c.columns) ? c.columns : []
+    const socials: any[] = Array.isArray(c.socialLinks) ? c.socialLinks : []
+    const border = 'rgba(255,255,255,0.1)'
+
+    const socialIcon = (platform: string) => {
+      const p = (platform || '').toLowerCase()
+      if (p.includes('face')) return <Facebook size={14} />
+      if (p.includes('insta')) return <Instagram size={14} />
+      if (p.includes('yout')) return <Youtube size={14} />
+      if (p.includes('linked')) return <Linkedin size={14} />
+      if (p.includes('whats')) return <MessageSquare size={14} />
+      if (p.includes('tiktok')) return <ExternalLink size={14} />
+      return <ExternalLink size={14} />
+    }
+
+    const renderColumns = () => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
+        {cols.map((col: any, ci: number) => (
+          <div key={ci}>
+            <h4 className="text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: fg }}>{col.title || 'Sección'}</h4>
+            <ul className="space-y-2">
+              {(Array.isArray(col.links) ? col.links : []).map((l: any, li: number) => (
+                <li key={li}>
+                  <a href={l.url || '#'} onClick={(e) => {
+                    // Enlaces internos de la tienda (#/ventana/...) navegan igual que el navbar
+                    if (l.url?.startsWith('#/')) {
+                      const win = l.url.replace('#/ventana/', '').replace('#/', '')
+                      if (editorMode) { e.preventDefault(); onNavigateWindow?.(win) }
+                      else if (win) { e.preventDefault(); window.location.hash = `#/ventana/${win}` }
+                    }
+                  }} className="text-xs opacity-70 hover:opacity-100 transition-opacity" style={{ color: fg }}>
+                    {l.label || l.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    )
+
+    const renderSocial = () =>
+      socials.length > 0 && (
+        <div className="flex items-center gap-2">
+          {socials.map((sc: any, si: number) => (
+            <a
+              key={si}
+              href={sc.url || '#'}
+              target={sc.url && !sc.url.startsWith('#') ? '_blank' : undefined}
+              rel="noopener noreferrer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border transition-all hover:scale-105"
+              style={{ borderColor: border, color: fg }}
+              aria-label={sc.platform || 'red social'}
+            >
+              {socialIcon(sc.platform)}
+            </a>
+          ))}
         </div>
+      )
+
+    const renderBottomBar = () => (
+      <div className="border-t pt-5 mt-10 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: border }}>
+        <p className="text-[11px] opacity-50">{c.copyright || '© 2026 Todos los derechos reservados. Impulsado por WMS Platform.'}</p>
+        {(s.showSocial !== false) && renderSocial()}
+      </div>
+    )
+
+    return (
+      <footer key={b.id} style={{ backgroundColor: bg, color: fg }} className="px-6 py-12 border-t border-white/10">
+        {variant === 'minimal' ? (
+          <div className="max-w-5xl mx-auto text-center space-y-3">
+            {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />}
+            <h3 className="text-xl font-black tracking-wider">{brand}</h3>
+            <p className="text-xs opacity-60">{c.copyright || '© 2026 Todos los derechos reservados.'}</p>
+          </div>
+        ) : variant === 'centered' ? (
+          <div className="max-w-5xl mx-auto text-center space-y-6">
+            <div className="space-y-3">
+              {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />}
+              <h3 className="text-xl font-black tracking-wider">{brand}</h3>
+              {c.tagline && <p className="text-xs opacity-60 max-w-md mx-auto">{c.tagline}</p>}
+            </div>
+            <div className="flex items-center justify-center">{renderSocial()}</div>
+            <p className="text-[11px] opacity-50">{c.copyright || '© 2026 Todos los derechos reservados.'}</p>
+          </div>
+        ) : (
+          // standard: marca + columnas de enlaces + barra inferior
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+              <div className="md:col-span-1 space-y-3">
+                {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-9 w-auto max-w-[160px] object-contain" />}
+                <h3 className="text-sm font-black tracking-wider">{brand}</h3>
+                {c.tagline && <p className="text-[11px] opacity-60 leading-relaxed">{c.tagline}</p>}
+              </div>
+              <div className="md:col-span-4">{renderColumns()}</div>
+            </div>
+            {renderBottomBar()}
+          </div>
+        )}
       </footer>
     )
   }
@@ -498,10 +794,68 @@ export default function PublicStoreClient({
   const buildCartWhatsappUrl = () => {
     if (cart.length === 0) return `https://wa.me/${whatsappNumber}`
     const lines = cart.map(
-      (it) => `- ${it.name}${it.size ? ` (Talla: ${it.size})` : ''} x${it.qty} = S/ ${(it.price * it.qty).toFixed(2)}`
+      (it) => `- ${it.name}${it.size ? ` (Talla: ${it.size})` : ''} x${it.qty} = ${symbol} ${(it.price * it.qty).toFixed(2)}`
     )
-    const message = `Hola! Deseo completar mi pedido:\n${lines.join('\n')}\n\nTotal: S/ ${cartTotal.toFixed(2)}`
+    const message = `Hola! Deseo completar mi pedido:\n${lines.join('\n')}\n\nTotal: ${symbol} ${cartTotal.toFixed(2)}`
     return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`
+  }
+
+  /**
+   * Real checkout: creates the order server-side (prices validated against the
+   * published page) and routes to MercadoPago or WhatsApp.
+   */
+  const submitCheckout = async () => {
+    setCheckoutError(null)
+    if (!checkoutForm.fullName.trim()) {
+      setCheckoutError('Ingresa tu nombre completo')
+      return
+    }
+    if (!checkoutForm.email.trim() && !checkoutForm.phone.trim()) {
+      setCheckoutError('Ingresa tu email o teléfono para coordinar tu pedido')
+      return
+    }
+    if (cart.length === 0) {
+      setCheckoutError('Tu carrito está vacío')
+      return
+    }
+    setCheckoutStep('processing')
+    try {
+      const res = await fetch('/api/v1/store/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId,
+          items: cart.map((it) => ({ id: it.id, size: it.size, qty: it.qty })),
+          customer: {
+            fullName: checkoutForm.fullName,
+            email: checkoutForm.email,
+            phone: checkoutForm.phone,
+            address: checkoutForm.address ? { street: checkoutForm.address } : undefined,
+          },
+          paymentMethod,
+          notes: checkoutForm.notes || undefined,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      const data = json?.data
+      if (!res.ok || !data) {
+        setCheckoutStep('form')
+        setCheckoutError(json?.error || 'No se pudo procesar el pedido. Intenta de nuevo.')
+        return
+      }
+      setOrderResult(data)
+      setCart([])
+      setCheckoutStep('success')
+      if (data.checkoutUrl) {
+        // MercadoPago Checkout Pro: redirect to pay (returns via back_url → /pedido/...)
+        window.location.href = data.checkoutUrl
+      } else if (data.whatsappUrl) {
+        window.open(data.whatsappUrl, '_blank', 'noopener')
+      }
+    } catch {
+      setCheckoutStep('form')
+      setCheckoutError('Error de conexión. Revisa tu internet e intenta de nuevo.')
+    }
   }
 
   /** Renders any block node — shared by windowBlocks and nested blocks (columns). */
@@ -548,42 +902,28 @@ export default function PublicStoreClient({
                   </Reveal>
                   <Reveal delay={240}>
                     <div className="flex items-center justify-center gap-4 flex-wrap pt-4">
-                      <a
-                        href={hasCatalogoWindow || allProducts.length > 0 ? '#/catalogo' : '#/ofertas'}
-                        onClick={(e) => {
-                          if (editorMode) {
-                            e.preventDefault()
-                            onNavigateWindow?.(hasCatalogoWindow || allProducts.length > 0 ? 'catalogo' : 'ofertas')
-                            return
-                          }
-                          if (hasCatalogoWindow || allProducts.length > 0) return
-                          e.preventDefault()
-                          document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
-                        }}
+                      <LinkButton
+                        link={c.primaryLink}
+                        fallback={{ type: 'window', value: hasCatalogoWindow || allProducts.length > 0 ? 'catalogo' : 'ofertas' }}
+                        editorMode={editorMode}
+                        onNavigateWindow={onNavigateWindow}
                         style={{ backgroundColor: accent, boxShadow: `0 16px 40px -14px ${accent}` }}
                         className="px-8 py-4 rounded-xl text-white font-extrabold text-base hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2"
                       >
                         <IconRenderer name="ShoppingBag" size={18} />
                         {c.buttonText || 'Ver Catálogo'}
-                      </a>
+                      </LinkButton>
                       {c.secondaryButtonText && (
-                        <a
-                          href={hasOfertasWindow ? '#/ventana/ofertas' : '#/ofertas'}
-                          onClick={(e) => {
-                            if (editorMode) {
-                              e.preventDefault()
-                              onNavigateWindow?.('ofertas')
-                              return
-                            }
-                            if (hasOfertasWindow) return
-                            e.preventDefault()
-                            document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' })
-                          }}
+                        <LinkButton
+                          link={c.secondaryLink}
+                          fallback={hasOfertasWindow ? { type: 'window', value: 'ofertas' } : { type: 'anchor', value: '#ofertas' }}
+                          editorMode={editorMode}
+                          onNavigateWindow={onNavigateWindow}
                           className="px-7 py-4 rounded-xl text-white font-bold text-base bg-white/10 border border-white/20 hover:bg-white/20 transition-all inline-flex items-center gap-2"
                         >
                           <IconRenderer name="Flame" size={18} />
                           {c.secondaryButtonText}
-                        </a>
+                        </LinkButton>
                       )}
                     </div>
                   </Reveal>
@@ -910,16 +1250,17 @@ export default function PublicStoreClient({
                   <Reveal>
                     <h2 className="text-3xl md:text-5xl font-black">{c.title || '¡Promoción Especial!'}</h2>
                     <p className="text-base opacity-90 leading-relaxed max-w-xl mx-auto">{c.description || ''}</p>
-                    <a
-                      href={`https://wa.me/${whatsappNumber}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <LinkButton
+                      link={c.buttonLink}
+                      fallback={{ type: 'whatsapp', value: whatsappNumber }}
+                      editorMode={editorMode}
+                      onNavigateWindow={onNavigateWindow}
                       className="inline-flex items-center gap-2 bg-white px-9 py-4 rounded-2xl font-black text-base shadow-2xl hover:scale-105 transition-all"
                       style={{ color: accent }}
                     >
                       <MessageSquare size={18} />
                       {c.buttonText || 'Obtener Oferta por WhatsApp'}
-                    </a>
+                    </LinkButton>
                   </Reveal>
                 </div>
               </section>
@@ -1007,7 +1348,7 @@ export default function PublicStoreClient({
 
           if (b.type === 'contact') {
             return (
-              <ContactBlock key={b.id} content={c} settings={s} accent={accent} whatsappNumber={whatsappNumber} />
+              <ContactBlock key={b.id} content={c} settings={s} accent={accent} whatsappNumber={whatsappNumber} pageId={pageId} />
             )
           }
 
@@ -1047,7 +1388,7 @@ export default function PublicStoreClient({
                       {(Array.isArray(col.blocks) ? col.blocks : []).map((nb: any, nbIdx: number) => {
                         const nested = renderBlockNode(nb, nbIdx)
                         if (!nested) return null
-                        return withSelection(nb, nested)
+                        return withSelection(nb, nested, { parentId: b.id, colIdx, nbIdx })
                       })}
                     </div>
                   ))}
@@ -1151,6 +1492,106 @@ export default function PublicStoreClient({
                       dangerouslySetInnerHTML={{ __html: renderInline(c.text) }}
                     />
                   )}
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'calendar') {
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor || '#0f172a',
+                  color: s.textColor || '#fff',
+                  paddingTop: `${s.paddingY || 72}px`,
+                  paddingBottom: `${s.paddingY || 72}px`,
+                  '--accent': accent,
+                } as React.CSSProperties}
+                className="px-6"
+              >
+                <div className="max-w-3xl mx-auto">
+                  <Reveal>
+                    <div className="text-center space-y-3 mb-8">
+                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Agenda tu sesión'}</h2>
+                      {c.subtitle && <p className="text-sm md:text-base opacity-70 max-w-xl mx-auto leading-relaxed">{c.subtitle}</p>}
+                    </div>
+                  </Reveal>
+                  <CalendarSection content={c} settings={s} accent={accent} businessSlug={businessSlug} pageId={pageId} editorMode={editorMode} />
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'vsl') {
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor || '#0f172a',
+                  color: s.textColor || '#fff',
+                  paddingTop: `${s.paddingY || 72}px`,
+                  paddingBottom: `${s.paddingY || 72}px`,
+                  '--accent': accent,
+                } as React.CSSProperties}
+                className="px-6"
+              >
+                <div className="max-w-3xl mx-auto space-y-6">
+                  <Reveal>
+                    <div className="text-center space-y-3">
+                      {c.badge && (
+                        <span
+                          className="inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest border"
+                          style={{ backgroundColor: softBg(accent, '18'), color: accent, borderColor: `${accent}55` }}
+                        >
+                          {c.badge}
+                        </span>
+                      )}
+                      {c.headline && <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-tight">{c.headline}</h2>}
+                    </div>
+                  </Reveal>
+                  <Reveal delay={100}>
+                    <VslSection content={c} settings={s} accent={accent} />
+                  </Reveal>
+                  {c.ctaText && (
+                    <Reveal delay={180}>
+                      <div className="text-center">
+                        <a
+                          href={c.ctaUrl || '#cta'}
+                          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-extrabold text-base hover:scale-105 active:scale-95 transition-all"
+                          style={{ backgroundColor: accent, boxShadow: `0 16px 40px -14px ${accent}` }}
+                        >
+                          {c.ctaText}
+                        </a>
+                      </div>
+                    </Reveal>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          if (b.type === 'articles') {
+            return (
+              <section
+                key={b.id}
+                style={{
+                  backgroundColor: s.backgroundColor || '#ffffff',
+                  color: s.textColor || '#0f172a',
+                  paddingTop: `${s.paddingY || 72}px`,
+                  paddingBottom: `${s.paddingY || 72}px`,
+                  '--accent': accent,
+                } as React.CSSProperties}
+                className="px-6"
+              >
+                <div className="max-w-7xl mx-auto space-y-10">
+                  <Reveal>
+                    <div className="text-center space-y-2">
+                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Últimas publicaciones'}</h2>
+                      {c.subtitle && <p className="text-sm max-w-xl mx-auto opacity-60">{c.subtitle}</p>}
+                    </div>
+                  </Reveal>
+                  <ArticlesSection content={c} settings={s} accent={accent} businessSlug={businessSlug} />
                 </div>
               </section>
             )
@@ -1558,7 +1999,7 @@ export default function PublicStoreClient({
                       {it.size && <p className="text-[10px] text-slate-400 mt-0.5">Talla: {it.size}</p>}
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-sm font-black" style={{ color: rootAccent }}>
-                          S/ {(it.price * it.qty).toFixed(2)}
+                          {symbol} {(it.price * it.qty).toFixed(2)}
                         </span>
                         <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-0.5">
                           <button onClick={() => updateQty(it.key, -1)} className="w-6 h-6 rounded-md bg-white shadow-sm flex items-center justify-center hover:bg-slate-200">
@@ -1580,22 +2021,267 @@ export default function PublicStoreClient({
             </div>
 
             {cart.length > 0 && (
-              <div className="border-t border-slate-100 px-5 py-4 space-y-3">
+              <div className="border-t border-slate-100 px-5 py-4 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-slate-600">Total</span>
                   <span className="text-2xl font-black" style={{ color: rootAccent }}>
-                    S/ {cartTotal.toFixed(2)}
+                    {symbol} {cartTotal.toFixed(2)}
                   </span>
                 </div>
+                <button
+                  onClick={() => setCheckoutOpen(true)}
+                  className="w-full text-white py-3.5 rounded-xl font-extrabold text-sm shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                  style={{ backgroundColor: rootAccent, boxShadow: `0 12px 28px -10px ${rootAccent}` }}
+                >
+                  <Lock size={15} />
+                  Finalizar Compra
+                </button>
                 <a
                   href={buildCartWhatsappUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-extrabold text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-extrabold text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all"
                 >
-                  <MessageSquare size={16} />
-                  Completar Pedido por WhatsApp
+                  <MessageSquare size={15} />
+                  Pedir por WhatsApp
                 </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ CHECKOUT OVERLAY ═══════════════ */}
+      {checkoutOpen && (
+        <div className="fixed inset-0 z-[70] flex justify-end bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => checkoutStep !== 'processing' && setCheckoutOpen(false)}>
+          <div
+            className="w-full max-w-3xl h-full bg-white text-slate-900 shadow-2xl flex flex-col animate-slide-in-right"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-black text-lg flex items-center gap-2">
+                <Lock size={17} style={{ color: rootAccent }} />
+                Checkout Seguro
+              </h3>
+              <button
+                onClick={() => setCheckoutOpen(false)}
+                disabled={checkoutStep === 'processing'}
+                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-40"
+                aria-label="Cerrar checkout"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {checkoutStep === 'form' && (
+              <div className="flex-1 overflow-y-auto grid md:grid-cols-5">
+                {/* Customer form */}
+                <div className="md:col-span-3 px-6 py-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-600 mb-1.5">Nombre completo *</label>
+                    <input
+                      value={checkoutForm.fullName}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, fullName: e.target.value })}
+                      placeholder="Ej: María Pérez"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-transparent focus:ring-2 outline-none text-sm font-semibold placeholder:text-slate-300"
+                      style={{ ['--tw-ring-color' as any]: rootAccent }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-extrabold text-slate-600 mb-1.5">Email</label>
+                      <input
+                        type="email"
+                        value={checkoutForm.email}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, email: e.target.value })}
+                        placeholder="tucorreo@ejemplo.com"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none text-sm font-semibold placeholder:text-slate-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-extrabold text-slate-600 mb-1.5">Teléfono / WhatsApp</label>
+                      <input
+                        value={checkoutForm.phone}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })}
+                        placeholder="+51 999 888 777"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none text-sm font-semibold placeholder:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-600 mb-1.5">Dirección de entrega</label>
+                    <input
+                      value={checkoutForm.address}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
+                      placeholder="Calle, ciudad, referencia"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none text-sm font-semibold placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-600 mb-1.5">Notas del pedido</label>
+                    <textarea
+                      value={checkoutForm.notes}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, notes: e.target.value })}
+                      placeholder="Detalles que quieras indicar…"
+                      rows={2}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 outline-none text-sm font-semibold placeholder:text-slate-300 resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Summary + payment method */}
+                <div className="md:col-span-2 bg-slate-50 px-6 py-6 flex flex-col gap-5">
+                  <div className="space-y-3">
+                    {cart.map((it) => (
+                      <div key={it.key} className="flex items-center gap-3">
+                        {it.image ? (
+                          <img src={it.image} alt={it.name} className="w-11 h-11 rounded-lg object-cover bg-white" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center" style={{ color: rootAccent }}>
+                            <IconRenderer name="Shirt" size={18} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-extrabold truncate">{it.name} × {it.qty}</p>
+                          {it.size && <p className="text-[10px] text-slate-400">Talla: {it.size}</p>}
+                        </div>
+                        <span className="text-xs font-black">{symbol} {(it.price * it.qty).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-200 pt-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Subtotal</span>
+                      <span>{symbol} {cartTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500">
+                      <span>Envío</span>
+                      <span>{cartTotal >= 150 ? 'GRATIS' : `${symbol} 10.00`}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                      <span className="font-black">Total</span>
+                      <span className="text-xl font-black" style={{ color: rootAccent }}>
+                        {symbol} {(cartTotal + (cartTotal >= 150 ? 0 : 10)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Payment method */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Método de pago</p>
+                    {mpAvailable && (
+                      <button
+                        onClick={() => setPaymentMethod('mercadopago')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                          paymentMethod === 'mercadopago' ? 'border-[#009ee3] bg-[#009ee3]/5' : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <CreditCard size={17} style={{ color: paymentMethod === 'mercadopago' ? '#009ee3' : '#64748b' }} />
+                        <span className="flex-1">
+                          <span className="block text-xs font-extrabold">Tarjeta / MercadoPago</span>
+                          <span className="block text-[10px] text-slate-400">Pago seguro con tarjeta, Yape o Plin</span>
+                        </span>
+                        {paymentMethod === 'mercadopago' && <Check size={15} className="text-[#009ee3]" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setPaymentMethod('whatsapp')}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                        paymentMethod === 'whatsapp' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <MessageSquare size={17} style={{ color: paymentMethod === 'whatsapp' ? '#10b981' : '#64748b' }} />
+                      <span className="flex-1">
+                        <span className="block text-xs font-extrabold">WhatsApp</span>
+                        <span className="block text-[10px] text-slate-400">Confirmas el pedido y pagas al recibir</span>
+                      </span>
+                      {paymentMethod === 'whatsapp' && <Check size={15} className="text-emerald-500" />}
+                    </button>
+                  </div>
+
+                  {checkoutError && (
+                    <p className="text-xs font-bold text-red-500 bg-red-50 rounded-xl px-3 py-2.5">{checkoutError}</p>
+                  )}
+
+                  <button
+                    onClick={submitCheckout}
+                    className="w-full text-white py-4 rounded-xl font-extrabold text-sm shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                    style={{ backgroundColor: rootAccent, boxShadow: `0 14px 30px -10px ${rootAccent}` }}
+                  >
+                    <Lock size={15} />
+                    Pagar {symbol} {(cartTotal + (cartTotal >= 150 ? 0 : 10)).toFixed(2)}
+                  </button>
+                  <p className="text-center text-[10px] text-slate-400">🔒 Tus datos están protegidos. No compartimos tu información.</p>
+                </div>
+              </div>
+            )}
+
+            {checkoutStep === 'processing' && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
+                <Loader2 size={40} className="animate-spin" style={{ color: rootAccent }} />
+                <p className="font-black text-sm">Procesando tu pedido…</p>
+                <p className="text-xs text-slate-400">Estamos validando los productos y generando el pago seguro.</p>
+              </div>
+            )}
+
+            {checkoutStep === 'success' && orderResult && (
+              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-5 px-6 py-10 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-xl shadow-emerald-500/30">
+                  <CheckCircle2 size={30} />
+                </div>
+                <div>
+                  <h4 className="text-xl font-black">¡Pedido {orderResult.order?.orderNumber} creado!</h4>
+                  <p className="text-sm text-slate-500 mt-1.5 max-w-sm">
+                    {orderResult.checkoutUrl
+                      ? 'Te enviamos a MercadoPago para completar el pago. Si no se abrió, usa el botón de abajo.'
+                      : 'Abrimos WhatsApp con tu pedido. Envíalo al vendedor para confirmar la compra.'}
+                  </p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl px-6 py-4 flex items-center gap-6">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total</p>
+                    <p className="text-2xl font-black" style={{ color: rootAccent }}>
+                      {orderResult.order?.symbol || symbol} {Number(orderResult.order?.total || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-slate-200" />
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Estado</p>
+                    <p className="text-sm font-extrabold text-amber-500">Pendiente de pago</p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {orderResult.checkoutUrl ? (
+                    <a
+                      href={orderResult.checkoutUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 rounded-xl text-white font-extrabold text-sm inline-flex items-center gap-2"
+                      style={{ backgroundColor: rootAccent }}
+                    >
+                      <CreditCard size={15} /> Pagar con MercadoPago
+                    </a>
+                  ) : (
+                    <a
+                      href={orderResult.whatsappUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 rounded-xl bg-emerald-500 text-white font-extrabold text-sm inline-flex items-center gap-2"
+                    >
+                      <MessageSquare size={15} /> Reabrir WhatsApp
+                    </a>
+                  )}
+                  <a
+                    href={`/pedido/${orderResult.order?.orderNumber}`}
+                    className="px-6 py-3 rounded-xl border border-slate-200 font-extrabold text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Ver estado del pedido
+                  </a>
+                </div>
+                <button onClick={() => setCheckoutOpen(false)} className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                  Seguir comprando
+                </button>
               </div>
             )}
           </div>
@@ -1809,11 +2495,52 @@ function SocialProofBlock({ content, settings, accent, messages }: { content: an
   )
 }
 
-function ContactBlock({ content, settings, accent, whatsappNumber }: { content: any; settings: any; accent: string; whatsappNumber: string }) {
-  const [form, setForm] = useState({ name: '', phone: '', message: '' })
-  const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+function ContactBlock({ content, settings, accent, whatsappNumber, pageId }: { content: any; settings: any; accent: string; whatsappNumber: string; pageId?: string }) {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+
+  // Captura real de leads: el prospecto queda en el CRM de la tienda (tipo contact)
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim() || (!form.email.trim() && !form.phone.trim())) {
+      setError('Ingresa tu nombre y un email o teléfono')
+      return
+    }
+    setError('')
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/v1/store/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          message: form.message,
+          source: 'contact',
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.data) {
+        setError(json?.error || 'No se pudo enviar. Intenta de nuevo.')
+        setSubmitting(false)
+        return
+      }
+      setSubmitted(true)
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+      setSubmitting(false)
+    }
+  }
+
+  const waUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
     `Hola! Soy ${form.name || 'un cliente'}${form.phone ? ` (${form.phone})` : ''}. ${form.message || 'Quisiera más información.'}`
   )}`
+
   return (
     <section
       id="contacto"
@@ -1831,42 +2558,562 @@ function ContactBlock({ content, settings, accent, whatsappNumber }: { content: 
           {content.subtitle && <p className="text-xs text-center opacity-60 mt-1">{content.subtitle}</p>}
         </Reveal>
         <Reveal>
-          <div className="p-6 md:p-8 rounded-3xl bg-white border border-black/10 shadow-sm space-y-4">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Tu nombre"
-              className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2"
-              style={{ '--tw-ring-color': accent } as any}
-            />
-            <input
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Tu teléfono / WhatsApp"
-              className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2"
-              style={{ '--tw-ring-color': accent } as any}
-            />
-            <textarea
-              value={form.message}
-              onChange={(e) => setForm({ ...form, message: e.target.value })}
-              placeholder="¿En qué podemos ayudarte?"
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2 resize-none"
-              style={{ '--tw-ring-color': accent } as any}
-            />
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-extrabold text-sm hover:opacity-90 transition-all"
-              style={{ backgroundColor: accent }}
-            >
-              <MessageSquare size={16} />
-              {content.buttonText || 'Enviar por WhatsApp'}
-            </a>
-          </div>
+          {submitted ? (
+            <div className="p-8 md:p-10 rounded-3xl bg-white border border-black/10 shadow-sm text-center space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center" style={{ backgroundColor: softBg(accent, '12'), color: accent }}>
+                <CheckCircle2 size={26} />
+              </div>
+              <h3 className="text-lg font-extrabold">{content.successTitle || '¡Gracias por escribirnos!'}</h3>
+              <p className="text-sm opacity-60">{content.successMessage || 'Recibimos tu mensaje. Te contactaremos muy pronto.'}</p>
+              <a href={waUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold opacity-70 hover:opacity-100 transition-opacity mt-2">
+                <MessageSquare size={13} /> ¿Prefieres WhatsApp? Escríbenos aquí
+              </a>
+            </div>
+          ) : (
+            <form onSubmit={submit} className="p-6 md:p-8 rounded-3xl bg-white border border-black/10 shadow-sm space-y-4">
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Tu nombre *"
+                className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': accent } as any}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="Tu email"
+                  className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': accent } as any}
+                />
+                <input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="Tu teléfono / WhatsApp"
+                  className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': accent } as any}
+                />
+              </div>
+              <textarea
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                placeholder="¿En qué podemos ayudarte?"
+                rows={4}
+                className="w-full px-4 py-3 rounded-xl border border-black/10 text-sm text-slate-900 focus:outline-none focus:ring-2 resize-none"
+                style={{ '--tw-ring-color': accent } as any}
+              />
+              {error && <p className="text-xs font-bold text-rose-500">{error}</p>}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-extrabold text-sm hover:opacity-90 transition-all disabled:opacity-60"
+                style={{ backgroundColor: accent }}
+              >
+                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
+                {content.buttonText || 'Enviar Mensaje'}
+              </button>
+            </form>
+          )}
         </Reveal>
       </div>
     </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bloques por tipo: Calendar (landing), VSL (landing), Articles (corporativa)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function extractVideoEmbed(videoUrl: string): { kind: 'youtube' | 'vimeo' | 'mp4' | 'none'; src: string } {
+  if (!videoUrl) return { kind: 'none', src: '' }
+  const yt = videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/)
+  if (yt) return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1&rel=0` }
+  const vm = videoUrl.match(/vimeo\.com\/(\d+)/)
+  if (vm) return { kind: 'vimeo', src: `https://player.vimeo.com/video/${vm[1]}?autoplay=1` }
+  if (/\.(mp4|webm|ogg)(\?|$)/i.test(videoUrl)) return { kind: 'mp4', src: videoUrl }
+  return { kind: 'none', src: '' }
+}
+
+function CalendarSection({ content, settings, accent, businessSlug, pageId, editorMode }: {
+  content: any
+  settings: any
+  accent: string
+  businessSlug?: string
+  pageId?: string
+  editorMode?: boolean
+}) {
+  const integration = content.integration || 'internal'
+  const bookingUrl = content.bookingUrl || ''
+
+  // ── Calendly: agenda externa real embebida ──────────────────────────────
+  if (integration === 'calendly' && bookingUrl) {
+    return <CalendlyEmbed url={bookingUrl} />
+  }
+
+  const [selDate, setSelDate] = useState<string | null>(null)
+  const [selTime, setSelTime] = useState<string | null>(null)
+  const [taken, setTaken] = useState<string[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [form, setForm] = useState({ name: '', phone: '', email: '', message: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<null | { booking: any; googleCalendarUrl: string }>(null)
+  const [error, setError] = useState('')
+
+  // Cargar slots ocupados al elegir día (en el editor sin slug se muestran todos libres)
+  useEffect(() => {
+    if (!selDate || !businessSlug) { setTaken([]); return }
+    let alive = true
+    setSlotsLoading(true)
+    fetch(`/api/v1/store/bookings/availability?business=${encodeURIComponent(businessSlug)}&date=${selDate}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setTaken(Array.isArray(d?.data?.taken) ? d.data.taken : []) })
+      .catch(() => { if (alive) setTaken([]) })
+      .finally(() => { if (alive) setSlotsLoading(false) })
+    return () => { alive = false }
+  }, [selDate, businessSlug])
+
+  const days = useMemo(() => {
+    const arr: Array<{ key: string; weekday: string; date: string; month: string }> = []
+    const now = new Date()
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(now)
+      d.setDate(now.getDate() + i)
+      arr.push({
+        key: d.toISOString().slice(0, 10),
+        weekday: d.toLocaleDateString('es-PE', { weekday: 'short' }).replace('.', ''),
+        date: String(d.getDate()),
+        month: d.toLocaleDateString('es-PE', { month: 'short' }).replace('.', ''),
+      })
+    }
+    return arr
+  }, [])
+
+  const hours: string[] = Array.isArray(content.hours) ? content.hours : ['10:00', '16:00']
+  const cols = settings?.columns === '3' ? 'grid-cols-3' : 'grid-cols-2'
+  const waNumber = content.whatsappNumber || settings?.whatsappNumber || ''
+
+  const confirmEnabled = !!selDate && !!selTime && form.name.trim().length > 0 && form.phone.trim().length > 0
+
+  async function handleConfirm() {
+    if (!selDate || !selTime || !confirmEnabled || editorMode) return
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/v1/store/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessSlug,
+          date: selDate,
+          time: selTime,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || undefined,
+          message: form.message.trim() || undefined,
+          pageId,
+          duration: content.duration || '30',
+          notificationEmail: content.notificationEmail || undefined,
+          notificationWhatsapp: content.notificationWhatsapp || undefined,
+        }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(d?.error || `Error (${res.status}). Intenta con otra hora.`)
+        if (res.status === 409) setSelTime(null)
+        return
+      }
+      setResult({ booking: d?.data?.booking, googleCalendarUrl: d?.data?.googleCalendarUrl || '' })
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ── Pantalla de éxito ────────────────────────────────────────────────────
+  if (result) {
+    const d = new Date(result.booking?.date + 'Z')
+    const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })
+    const waLink = waNumber
+      ? `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
+          `Hola! Confirmo mi cita del ${fecha} a las ${result.booking?.slotTime}. Soy ${result.booking?.customerName}.`
+        )}`
+      : ''
+    return (
+      <div className="rounded-2xl border border-white/10 overflow-hidden text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+        <div className="p-6 sm:p-8 space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center text-2xl" style={{ backgroundColor: `${accent}22`, color: accent }}>
+            ✓
+          </div>
+          <div>
+            <h3 className="text-xl font-black">¡Cita reservada!</h3>
+            <p className="text-sm opacity-70 mt-1">
+              {fecha} a las <strong>{result.booking?.slotTime}</strong> · {result.booking?.customerName}
+            </p>
+            <p className="text-xs opacity-50 mt-2 max-w-md mx-auto">
+              {integration === 'google'
+                ? 'Añade el evento a tu calendario de Google con el botón de abajo. Te contactaremos para confirmar.'
+                : 'Guarda el evento en tu calendario y te confirmaremos por WhatsApp.'}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
+            {result.googleCalendarUrl && (
+              <a
+                href={result.googleCalendarUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-extrabold transition-all hover:scale-105"
+                style={{ backgroundColor: accent, color: '#0b0f1a', boxShadow: `0 12px 30px -12px ${accent}` }}
+              >
+                🗓 Añadir a Google Calendar
+              </a>
+            )}
+            {waLink && (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-extrabold transition-all border hover:bg-white/5"
+                style={{ borderColor: 'rgba(255,255,255,0.15)' }}
+              >
+                💬 Confirmar por WhatsApp
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+      <div className="p-4 sm:p-5">
+        <p className="text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: accent }}>
+          Paso 1 · Elige el día
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {days.map((d) => (
+            <button
+              key={d.key}
+              onClick={() => { setSelDate(d.key); setSelTime(null) }}
+              className={`rounded-xl px-1 py-2.5 text-center transition-all border ${
+                selDate === d.key ? 'scale-105' : 'hover:bg-white/5'
+              }`}
+              style={selDate === d.key
+                ? { backgroundColor: accent, borderColor: accent, color: '#0b0f1a' }
+                : { borderColor: 'rgba(255,255,255,0.12)' }}
+            >
+              <span className="block text-[10px] uppercase opacity-70">{d.weekday}</span>
+              <span className="block text-lg font-black leading-tight">{d.date}</span>
+              <span className="block text-[10px] uppercase opacity-70">{d.month}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {selDate && (
+        <div className="p-4 sm:p-5 border-t border-white/10 animate-fade-in-down">
+          <p className="text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: accent }}>
+            Paso 2 · Elige la hora
+          </p>
+          {slotsLoading ? (
+            <p className="text-xs opacity-50 py-2">Cargando disponibilidad…</p>
+          ) : (
+            <div className={`grid ${cols} gap-2`}>
+              {hours.map((h) => {
+                const busy = taken.includes(h)
+                return (
+                  <button
+                    key={h}
+                    disabled={busy}
+                    onClick={() => setSelTime(h)}
+                    title={busy ? 'Horario ocupado' : h}
+                    className={`rounded-lg px-3 py-2 text-sm font-bold transition-all border ${
+                      busy
+                        ? 'opacity-30 line-through cursor-not-allowed'
+                        : selTime === h ? 'scale-105' : 'hover:bg-white/5'
+                    }`}
+                    style={selTime === h && !busy
+                      ? { backgroundColor: accent, borderColor: accent, color: '#0b0f1a' }
+                      : { borderColor: 'rgba(255,255,255,0.12)' }}
+                  >
+                    {h}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="border-t border-white/10 mt-5 pt-5">
+            <p className="text-xs font-extrabold uppercase tracking-widest mb-3" style={{ color: accent }}>
+              Paso 3 · Tus datos
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Nombre completo *"
+                className="rounded-lg px-3 py-2.5 text-sm bg-white/5 border border-white/15 outline-none focus:border-white/40 placeholder:text-white/30"
+              />
+              <input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="Teléfono / WhatsApp *"
+                inputMode="tel"
+                className="rounded-lg px-3 py-2.5 text-sm bg-white/5 border border-white/15 outline-none focus:border-white/40 placeholder:text-white/30"
+              />
+              <input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="Email (opcional)"
+                inputMode="email"
+                className="rounded-lg px-3 py-2.5 text-sm bg-white/5 border border-white/15 outline-none focus:border-white/40 placeholder:text-white/30"
+              />
+              <input
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                placeholder="Motivo / nota (opcional)"
+                className="rounded-lg px-3 py-2.5 text-sm bg-white/5 border border-white/15 outline-none focus:border-white/40 placeholder:text-white/30"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-xs font-semibold mt-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>{error}</p>}
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4">
+            <p className="text-xs opacity-60">{content.note || 'Sesión de 30 minutos · Sin compromiso'}</p>
+            {editorMode ? (
+              <span className="text-[11px] font-bold px-3 py-2 rounded-lg border border-dashed" style={{ borderColor: 'rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.6)' }}>
+                Modo edición · la reserva se guarda en la versión publicada
+              </span>
+            ) : (
+              <button
+                onClick={handleConfirm}
+                disabled={!confirmEnabled || submitting}
+                className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white font-extrabold text-sm transition-all ${
+                  confirmEnabled && !submitting ? 'hover:scale-105 active:scale-95' : 'opacity-50 pointer-events-none'
+                }`}
+                style={{ backgroundColor: accent, boxShadow: `0 12px 30px -12px ${accent}` }}
+              >
+                {submitting ? 'Reservando…' : content.buttonLabel || 'Confirmar reserva'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CalendlyEmbed({ url }: { url: string }) {
+  let embedUrl = url.trim()
+  if (!/^https?:\/\//i.test(embedUrl)) embedUrl = `https://calendly.com/${embedUrl.replace(/^\/+/, '')}`
+  embedUrl = embedUrl.replace(/\/$/, '')
+  const [domain, setDomain] = useState('')
+  useEffect(() => { setDomain(window.location.hostname) }, [])
+  return (
+    <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
+      <iframe
+        src={`${embedUrl}?embed_domain=${domain}&embed_type=Inline`}
+        width="100%"
+        height="680"
+        frameBorder="0"
+        title="Calendly"
+        className="w-full"
+      />
+    </div>
+  )
+}
+
+function VslSection({ content, settings, accent }: { content: any; settings: any; accent: string }) {
+  const [playing, setPlaying] = useState(false)
+  const { kind, src } = extractVideoEmbed(content.videoUrl || '')
+  const rounded = settings?.rounded || '16px'
+
+  if (kind === 'none') {
+    return (
+      <div
+        className="w-full aspect-video rounded-2xl border border-dashed border-white/20 flex items-center justify-center text-sm opacity-60"
+        style={{ borderRadius: rounded }}
+      >
+        Configura una URL de video (YouTube, Vimeo o MP4)
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="relative w-full aspect-video overflow-hidden shadow-2xl"
+      style={{ borderRadius: rounded, border: '1px solid rgba(255,255,255,0.12)' }}
+    >
+      {playing ? (
+        kind === 'mp4' ? (
+          <video src={src} controls autoPlay className="w-full h-full object-cover" />
+        ) : (
+          <iframe src={src} title="VSL" className="w-full h-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
+        )
+      ) : (
+        <button onClick={() => setPlaying(true)} className="w-full h-full group relative block cursor-pointer" aria-label="Reproducir video">
+          {content.thumbnailUrl ? (
+            <img src={content.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)' }} />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110"
+              style={{ backgroundColor: accent }}
+            >
+              <svg viewBox="0 0 24 24" className="w-8 h-8 text-white ml-1" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </div>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ArticlesSection({ content, settings, accent, businessSlug }: { content: any; settings: any; accent: string; businessSlug?: string }) {
+  const source = content.source === 'blog' ? 'blog' : 'static'
+  const cols = settings?.columns === '4' ? 'sm:grid-cols-2 lg:grid-cols-4' : settings?.columns === '2' ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'
+  const showDate = settings?.showDate !== false
+  const showReadMore = settings?.showReadMore !== false
+  const dark = isDarkBg(settings?.backgroundColor || '#ffffff')
+
+  // Modo 'blog': trae los artículos REALES publicados de la tienda (gestor de blog)
+  const [livePosts, setLivePosts] = useState<any[] | null>(source === 'blog' ? [] : null)
+  useEffect(() => {
+    if (source !== 'blog') return
+    let cancelled = false
+    setLivePosts([])
+    if (!businessSlug) { setLivePosts(null); return }
+    fetch(`/api/v1/store/blog?business=${encodeURIComponent(businessSlug)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setLivePosts(Array.isArray(d?.data?.posts) ? d.data.posts : []) })
+      .catch(() => { if (!cancelled) setLivePosts([]) })
+    return () => { cancelled = true }
+  }, [source, businessSlug])
+
+  let articles: any[]
+  if (source === 'blog') {
+    if (livePosts === null) {
+      return (
+        <div className="text-center py-10 text-sm opacity-50 border border-dashed rounded-2xl">
+          Los artículos publicados de tu tienda aparecerán aquí (gestor de blog → Artículos)
+        </div>
+      )
+    }
+    articles = (livePosts || []).map((p: any) => ({
+      id: p.id,
+      title: p.title,
+      excerpt: p.excerpt,
+      imageUrl: p.coverImage,
+      date: p.publishedAt || p.updatedAt,
+      tag: p.category,
+      link: `/blog/${p.slug}`,
+    }))
+    if (articles.length === 0) {
+      return (
+        <div className="text-center py-10 text-sm opacity-50 border border-dashed rounded-2xl">
+          Aún no hay artículos publicados en el blog de tu tienda
+        </div>
+      )
+    }
+  } else {
+    articles = Array.isArray(content.articles) ? content.articles : []
+    if (articles.length === 0) {
+      return (
+        <div className="text-center py-10 text-sm opacity-50 border border-dashed rounded-2xl">
+          Agrega artículos desde el editor
+        </div>
+      )
+    }
+  }
+
+  return (
+    <div className={`grid ${cols} gap-5`}>
+      {articles.map((a: any) => (
+        <a
+          key={a.id || a.title}
+          href={a.link || '#'}
+          className="group rounded-2xl overflow-hidden border transition-all hover:-translate-y-1 hover:shadow-xl"
+          style={{ borderColor: 'rgba(128,128,128,0.18)', background: dark ? 'rgba(255,255,255,0.04)' : '#fff' }}
+        >
+          {a.imageUrl && (
+            <div className="aspect-video overflow-hidden">
+              <img src={a.imageUrl} alt={a.title || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+            </div>
+          )}
+          <div className="p-4 space-y-2">
+            {a.tag && (
+              <span
+                className="inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
+                style={{ backgroundColor: softBg(accent, '18'), color: accent }}
+              >
+                {a.tag}
+              </span>
+            )}
+            <h3 className="text-sm font-bold leading-snug line-clamp-2 group-hover:underline" style={{ color: dark ? '#fff' : '#0f172a' }}>
+              {a.title}
+            </h3>
+            {a.excerpt && <p className="text-xs opacity-60 leading-relaxed line-clamp-3">{a.excerpt}</p>}
+            <div className="flex items-center justify-between pt-1">
+              {showDate && a.date && <span className="text-[10px] opacity-50">{new Date(a.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+              {showReadMore && (
+                <span className="text-[11px] font-extrabold" style={{ color: accent }}>
+                  Leer más →
+                </span>
+              )}
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Botón con destino configurable (ventana / ancla / externo / WhatsApp)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function resolveLinkHref(link: any, fallback: any = { type: 'external', value: '#' }): { href: string; isWindow: boolean; value: string } {
+  const l = link || fallback
+  if (typeof l === 'string') return { href: l, isWindow: false, value: l }
+  const t = l.type || 'external'
+  const val = l.value || ''
+  if (t === 'window') return { href: `#/ventana/${val}`, isWindow: true, value: val }
+  if (t === 'anchor') return { href: val.startsWith('#') ? val : `#${val}`, isWindow: false, value: val }
+  if (t === 'whatsapp') return { href: `https://wa.me/${String(val).replace(/\D/g, '')}`, isWindow: false, value: val }
+  return { href: val || '#', isWindow: false, value: val }
+}
+
+function LinkButton({ link, fallback, children, className, style, editorMode, onNavigateWindow }: {
+  link: any
+  fallback?: any
+  children: React.ReactNode
+  className?: string
+  style?: React.CSSProperties
+  editorMode?: boolean
+  onNavigateWindow?: (w: string) => void
+}) {
+  const { href, isWindow, value } = resolveLinkHref(link, fallback)
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        if (!isWindow) return
+        e.preventDefault()
+        const win = value.replace('#/ventana/', '')
+        if (editorMode) onNavigateWindow?.(win)
+        else window.location.hash = `#/ventana/${win}`
+      }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </a>
   )
 }

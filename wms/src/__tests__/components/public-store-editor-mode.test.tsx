@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { BUILTIN_TEMPLATES } from '@/lib/builtinTemplates'
+import { BLOCK_DND_MIME } from '@/lib/block-dnd'
 
 // jsdom lacks IntersectionObserver used by the Reveal wrapper
 class MockIntersectionObserver {
@@ -102,5 +103,108 @@ describe('PublicStoreClient editor mode (100% parity canvas)', () => {
     renderEditor({ controlledWindow: 'product:p1' })
     expect(screen.getByText(/Conjunto Algodón Orgánico Dino Explorer/i)).toBeInTheDocument()
     expect(screen.getByText(/También te puede gustar/i)).toBeInTheDocument()
+  })
+})
+
+describe('PublicStoreClient editor DnD (canvas drag & drop)', () => {
+  const dndBlocks: any[] = [
+    { id: 'dnd-nav', type: 'navbar', windowId: 'home', settings: {}, content: { links: [] } },
+    {
+      id: 'dnd-cols',
+      type: 'columns',
+      windowId: 'home',
+      settings: { columns: '2' },
+      content: {
+        items: [
+          { width: '50%', blocks: [{ id: 'dnd-nb-a', type: 'text', settings: {}, content: { text: 'Nested A' } }] },
+          { width: '50%', blocks: [] },
+        ],
+      },
+    },
+    { id: 'dnd-hero', type: 'hero', windowId: 'home', settings: {}, content: { title: 'Hero Page' } },
+    { id: 'dnd-footer', type: 'footer', windowId: 'home', settings: {}, content: {} },
+  ]
+
+  const makeDt = (seed: Record<string, string> = {}) => {
+    const store = new Map<string, string>(Object.entries(seed))
+    return {
+      setData: (t: string, v: string) => { store.set(t, v) },
+      getData: (t: string) => store.get(t) || '',
+    }
+  }
+
+  beforeAll(() => {
+    ;(global as any).IntersectionObserver = MockIntersectionObserver
+  })
+
+  afterEach(() => {
+    cleanup()
+    window.location.hash = ''
+    vi.restoreAllMocks()
+  })
+
+  it('nested blocks inside columns start a nested drag payload with their position', () => {
+    renderEditor({ blocks: dndBlocks })
+    const nbWrapper = screen.getByText('Nested A').closest('[data-block-id="dnd-nb-a"]') as Element
+    const dt = makeDt()
+    fireEvent.dragStart(nbWrapper, { dataTransfer: dt })
+    expect(JSON.parse(dt.getData(BLOCK_DND_MIME) || 'null')).toEqual({
+      kind: 'nested',
+      blockId: 'dnd-nb-a',
+      parentId: 'dnd-cols',
+      colIdx: 0,
+      nbIdx: 0,
+    })
+  })
+
+  it('top-level blocks start a top drag payload', () => {
+    renderEditor({ blocks: dndBlocks })
+    const heroWrapper = screen.getByText('Hero Page').closest('[data-block-id="dnd-hero"]') as Element
+    const dt = makeDt()
+    fireEvent.dragStart(heroWrapper, { dataTransfer: dt })
+    expect(JSON.parse(dt.getData(BLOCK_DND_MIME) || 'null')).toEqual({ kind: 'top', blockId: 'dnd-hero' })
+  })
+
+  it('dropping a top-level block on the columns container nests it (append to first column)', () => {
+    const onCanvasBlockDrop = vi.fn()
+    renderEditor({ blocks: dndBlocks, onCanvasBlockDrop })
+    const colsWrapper = screen.getByText('Nested A').closest('[data-block-id="dnd-cols"]') as Element
+    const dt = makeDt()
+    dt.setData(BLOCK_DND_MIME, JSON.stringify({ kind: 'top', blockId: 'dnd-hero' }))
+    fireEvent.drop(colsWrapper, { dataTransfer: dt })
+    expect(onCanvasBlockDrop).toHaveBeenCalledTimes(1)
+    expect(onCanvasBlockDrop).toHaveBeenCalledWith('dnd-cols', 0, undefined, { kind: 'top', blockId: 'dnd-hero' })
+  })
+
+  it('dropping on a nested block reports insert-before it without bubbling to the container', () => {
+    const onCanvasBlockDrop = vi.fn()
+    renderEditor({ blocks: dndBlocks, onCanvasBlockDrop })
+    const nbWrapper = screen.getByText('Nested A').closest('[data-block-id="dnd-nb-a"]') as Element
+    const dt = makeDt()
+    dt.setData(BLOCK_DND_MIME, JSON.stringify({ kind: 'top', blockId: 'dnd-hero' }))
+    fireEvent.drop(nbWrapper, { dataTransfer: dt })
+    expect(onCanvasBlockDrop).toHaveBeenCalledTimes(1)
+    expect(onCanvasBlockDrop).toHaveBeenCalledWith('dnd-cols', 0, 'dnd-nb-a', { kind: 'top', blockId: 'dnd-hero' })
+  })
+
+  it('non-columns blocks are not drop targets', () => {
+    const onCanvasBlockDrop = vi.fn()
+    renderEditor({ blocks: dndBlocks, onCanvasBlockDrop })
+    const heroWrapper = screen.getByText('Hero Page').closest('[data-block-id="dnd-hero"]') as Element
+    const dt = makeDt()
+    dt.setData(BLOCK_DND_MIME, JSON.stringify({ kind: 'top', blockId: 'dnd-hero' }))
+    fireEvent.drop(heroWrapper, { dataTransfer: dt })
+    expect(onCanvasBlockDrop).not.toHaveBeenCalled()
+  })
+
+  it('forwards nested payloads to the builder (which guards cross-columns moves)', () => {
+    const onCanvasBlockDrop = vi.fn()
+    renderEditor({ blocks: dndBlocks, onCanvasBlockDrop })
+    const nbWrapper = screen.getByText('Nested A').closest('[data-block-id="dnd-nb-a"]') as Element
+    const dt = makeDt()
+    dt.setData(BLOCK_DND_MIME, JSON.stringify({ kind: 'nested', blockId: 'x', parentId: 'otro-cols', colIdx: 0, nbIdx: 0 }))
+    fireEvent.drop(nbWrapper, { dataTransfer: dt })
+    expect(onCanvasBlockDrop).toHaveBeenCalledTimes(1)
+    expect(onCanvasBlockDrop).toHaveBeenCalledWith('dnd-cols', 0, 'dnd-nb-a', { kind: 'nested', blockId: 'x', parentId: 'otro-cols', colIdx: 0, nbIdx: 0 })
   })
 })

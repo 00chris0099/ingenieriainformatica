@@ -18,6 +18,9 @@ import { socialProofBlock } from './blocks/social-proof'
 import { accordionBlock } from './blocks/accordion'
 import { navbarBlock } from './blocks/navbar'
 import { teamBlock } from './blocks/team'
+import { calendarBlock } from './blocks/calendar'
+import { vslBlock } from './blocks/vsl'
+import { articlesBlock } from './blocks/articles'
 
 // Register all blocks
 blockRegistry.registerMany([
@@ -40,6 +43,9 @@ blockRegistry.registerMany([
   socialProofBlock,
   accordionBlock,
   teamBlock,
+  calendarBlock,
+  vslBlock,
+  articlesBlock,
 ])
 
 export { blockRegistry } from './registry'

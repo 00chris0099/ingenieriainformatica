@@ -28,7 +28,10 @@ const PUBLIC_ROUTES = [
   '/api/v1/auth',
   '/api/v1/health',
   '/api/v1/store',
+  '/api/v1/payments',
   '/p/',
+  '/pedido/',
+  '/blog/',
   '/manifest.json',
   '/sw.js',
   '/site.webmanifest',
@@ -119,10 +122,14 @@ export default auth((req) => {
   const isSuperAdmin = ['super_admin', 'admin'].includes(userRole || '');
 
   // Restrict Super Admin pages (Visual Builder, Theme settings, Audit, System Users) from Store Clients
-  const isSuperAdminPage = SUPER_ADMIN_ONLY_PAGES.some((p) => pathname.startsWith(p));
+  // Exception: a client may open /builder/<uuid> (their own assigned store page) — the pages API
+  // enforces the multi-tenant ownership check server-side.
+  const BUILDER_PAGE_REGEX = /^\/builder\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const isSuperAdminPage =
+    SUPER_ADMIN_ONLY_PAGES.some((p) => pathname.startsWith(p)) && !BUILDER_PAGE_REGEX.test(pathname);
   if (isSuperAdminPage && !isSuperAdmin) {
     // Redirect store client to their simplified merchant portal (/catalogo or /pedidos)
-    return NextResponse.redirect(new URL('/catalogo', req.url));
+    return NextResponse.redirect(new URL('/mis-tiendas', req.url));
   }
 
   // Restrict Super Admin APIs
@@ -135,8 +142,13 @@ export default auth((req) => {
   }
 
   if (isAdminMutationRoute && req.method !== 'GET' && !isSuperAdmin) {
-    const response = NextResponse.json({ success: false, error: 'Forbidden: super_admin access required' }, { status: 403 });
-    return addCorsHeaders(response, origin);
+    // La ruta de agencia es /api/v1/business (exacto): '/api/v1/businesses/...'
+    // es multi-tenant y NO debe bloquearse aquí (el guard de propiedad vive en la API).
+    const isExactBusinessRoute = pathname === '/api/v1/business' || pathname.startsWith('/api/v1/business/');
+    if (isExactBusinessRoute) {
+      const response = NextResponse.json({ success: false, error: 'Forbidden: super_admin access required' }, { status: 403 });
+      return addCorsHeaders(response, origin);
+    }
   }
 
   // Block readonly users from mutations on any route

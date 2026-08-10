@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     const { page, limit, offset } = parsePagination(searchParams);
     const result = await cached(`users:${page}:${limit}`, () =>
       prisma.user.findMany({
-        select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, lastLoginAt: true },
+        select: {
+          id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true, lastLoginAt: true,
+          _count: { select: { businesses: true } },
+        },
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,

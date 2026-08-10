@@ -1,15 +1,23 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError, getSearchParam } from '@/lib/api';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { getBusinessScope } from '@/lib/api/business-access';
 
 export async function GET(request: NextRequest) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const { searchParams } = new URL(request.url);
     const format = getSearchParam(searchParams, 'format') || 'json';
     const category = getSearchParam(searchParams, 'category');
     const status = getSearchParam(searchParams, 'status');
 
     const where: any = {};
+    if (!scope.isStaff) where.businessId = { in: scope.ids };
     if (category) where.category = { slug: category };
     if (status) where.status = status;
 

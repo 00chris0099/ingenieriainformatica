@@ -4,6 +4,8 @@ import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam } f
 import { pageStore } from '@/lib/pageStore';
 import { ensureDefaultBusiness, DEFAULT_BUSINESS_ID } from '@/lib/business';
 import { BUILTIN_TEMPLATES } from '@/lib/builtinTemplates';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { getUserBusinessIds, isStaffRole } from '@/lib/api/business-access';
 import crypto from 'crypto';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,6 +43,10 @@ function makeFallbackPage(overrides: any = {}): any {
 
 export async function GET(request: NextRequest) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+
     const { searchParams } = new URL(request.url);
     const { page, limit, offset } = parsePagination(searchParams);
 
@@ -63,8 +69,15 @@ export async function GET(request: NextRequest) {
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 
-    const paginated = combined.slice(offset, offset + limit);
-    return apiPaginated(paginated, combined.length, page, limit);
+    // Multi-tenant: un cliente solo ve las páginas de las tiendas que le fueron asignadas
+    let visible: any[] = combined;
+    if (!isStaffRole(user.role)) {
+      const ids = await getUserBusinessIds((user as any).id);
+      visible = combined.filter((p: any) => ids.has(p.businessId));
+    }
+
+    const paginated = visible.slice(offset, offset + limit);
+    return apiPaginated(paginated, visible.length, page, limit);
   } catch (error) {
     const all = Array.from(pageStore.values());
     return apiPaginated(all, all.length, 1, 100);

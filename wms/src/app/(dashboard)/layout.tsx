@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Users,
   Settings, Menu, X, ChevronRight, ChevronDown,
   DollarSign, FileText, LogOut, User,
-  PanelLeftClose, PanelLeft, Search, Wand2, ShieldAlert
+  PanelLeftClose, PanelLeft, Search, Wand2, ShieldAlert, Store, Newspaper, CalendarDays, CreditCard, TrendingUp
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -36,9 +36,19 @@ const superAdminNavGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'CONTENIDO & SEO',
+    items: [
+      { href: '/blog', label: 'Blog & Artículos', icon: Newspaper },
+      { href: '/leads', label: 'Leads & CRM', icon: Users },
+      { href: '/analytics', label: 'Analytics & Embudo', icon: TrendingUp },
+      { href: '/citas', label: 'Citas & Agenda', icon: CalendarDays },
+    ],
+  },
+  {
     label: 'CONTROL SUPER ADMIN',
     items: [
       { href: '/configuracion', label: 'Configuración & Dominios', icon: Settings },
+      { href: '/pagos', label: 'Pagos & Cobros', icon: CreditCard },
       { href: '/auditoria', label: 'Auditoría & Logs', icon: ShieldAlert },
     ],
   },
@@ -47,11 +57,17 @@ const superAdminNavGroups: NavGroup[] = [
 // Simplified Client Store Navigation Groups
 const clientNavGroups: NavGroup[] = [
   {
-    label: 'MI TIENDA VIRTUAL',
+    label: 'MIS TIENDAS VIRTUALES',
     items: [
+      { href: '/mis-tiendas', label: 'Mis Tiendas', icon: Store },
       { href: '/', label: 'Panel de Control', icon: LayoutDashboard },
       { href: '/catalogo', label: 'Catálogo de Productos', icon: Package },
       { href: '/pedidos', label: 'Pedidos & WhatsApp', icon: ShoppingCart },
+      { href: '/pagos', label: 'Pagos & Cobros', icon: CreditCard },
+      { href: '/leads', label: 'Leads de mis Landings', icon: Users },
+      { href: '/analytics', label: 'Analytics de mi Tienda', icon: TrendingUp },
+      { href: '/blog', label: 'Blog de mi Tienda', icon: Newspaper },
+      { href: '/citas', label: 'Citas & Agenda', icon: CalendarDays },
     ],
   },
 ]

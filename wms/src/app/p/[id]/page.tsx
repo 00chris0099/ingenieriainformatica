@@ -3,15 +3,22 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@repo/prisma'
 import { Block } from '@repo/blocks'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
+import { resolveAnalyticsConfig, isMPConfigured } from '@/lib/analytics'
 
 /** Only published pages are ever served publicly. Drafts/synthetic pages → 404. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const getPublishedPage = cache(async (idOrSlug: string): Promise<any | null> => {
   try {
+    // Only match `id` when it's a real UUID — otherwise Postgres raises
+    // "Inconsistent column data" on the uuid column and slugs never resolve.
+    const isUuid = UUID_REGEX.test(idOrSlug)
     return await prisma.page.findFirst({
       where: {
-        OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+        ...(isUuid ? { id: idOrSlug } : { slug: idOrSlug }),
         status: 'published',
       },
+      include: { business: { select: { id: true, slug: true, name: true, logoUrl: true, settings: true } } },
     })
   } catch (e) {
     console.warn('[PUBLIC PAGE] DB error:', (e as any)?.message?.slice(0, 80))
@@ -94,6 +101,19 @@ export default async function PublicPageRenderer({ params }: { params: Promise<{
 
   const blocks: Block[] = Array.isArray(page.blocks) ? page.blocks : []
   const settings = extractSettings(page)
+  // Merge business-level payment config into the storefront settings so the
+  // checkout UI knows which methods are enabled (payments, whatsapp, currency).
+  const bizSettings: Record<string, any> =
+    page.business?.settings && typeof page.business.settings === 'object' && !Array.isArray(page.business.settings)
+      ? page.business.settings
+      : {}
+  const storeSettings: Record<string, any> = {
+    ...settings,
+    ...(bizSettings.payments && typeof bizSettings.payments === 'object' ? { payments: bizSettings.payments } : {}),
+    ...(bizSettings.whatsappNumber ? { whatsappNumber: bizSettings.whatsappNumber } : {}),
+    ...(bizSettings.currency ? { currency: bizSettings.currency } : {}),
+    businessId: page.business?.id || settings.businessId || null,
+  }
   const seo = extractSeo(page)
   const products = extractProducts(page)
   const faqs = extractFaqs(page)
@@ -101,6 +121,7 @@ export default async function PublicPageRenderer({ params }: { params: Promise<{
   const pageUrl = `${baseUrl}/p/${id}`
   const businessName = seo.organizationName || page.title || 'Mi Tienda'
   const whatsapp = settings.whatsappNumber || '51999888777'
+  const analytics = resolveAnalyticsConfig(page.business)
 
   // ─── JSON-LD structured data (SEO + GEO) ─────────────────────────────────
   const orgLd = {
@@ -168,6 +189,21 @@ export default async function PublicPageRenderer({ params }: { params: Promise<{
       />
       <link rel="canonical" href={pageUrl} />
 
+      {/* Analytics externo: GA4 (gtag) y/o Plausible — scripts reales de medición */}
+      {analytics.enabled && analytics.gaId && (
+        <>
+          <script async src={`https://www.googletagmanager.com/gtag/js?id=${analytics.gaId}`} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${analytics.gaId}',{send_page_view:${isMPConfigured(page.business) ? 'false' : 'true'}});`,
+            }}
+          />
+        </>
+      )}
+      {analytics.enabled && analytics.plausibleDomain && (
+        <script defer data-domain={analytics.plausibleDomain} src="https://plausible.io/js/script.js" />
+      )}
+
       {/* JSON-LD: Organization (GEO: entity recognition) */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }} />
       {/* JSON-LD: WebSite */}
@@ -181,7 +217,7 @@ export default async function PublicPageRenderer({ params }: { params: Promise<{
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       )}
 
-      <PublicStoreClient pageTitle={page.title} blocks={blocks} settings={settings} seo={seo} />
+      <PublicStoreClient pageTitle={page.title} blocks={blocks} settings={storeSettings} seo={seo} businessSlug={page.business?.slug} pageId={page.id} />
     </>
   )
 }

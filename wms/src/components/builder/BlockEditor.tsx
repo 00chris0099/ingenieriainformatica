@@ -101,6 +101,64 @@ function textInput(value: string, onChange: (v: string) => void, placeholder?: s
   )
 }
 
+// Editor de destino de enlace: ventana de la tienda / ancla de la misma página / URL externa / WhatsApp
+export interface LinkDest { type: 'window' | 'anchor' | 'external' | 'whatsapp'; value: string }
+
+export function normalizeLink(value: any): LinkDest {
+  if (!value) return { type: 'external', value: '' }
+  if (typeof value === 'string') return { type: 'external', value }
+  return { type: value.type || 'external', value: value.value || '' }
+}
+
+export function LinkField({ label, value, onChange, windows, hint }: {
+  label: string
+  value: any
+  onChange: (v: LinkDest) => void
+  windows: string[]
+  hint?: string
+}) {
+  const v = normalizeLink(value)
+  const placeholder =
+    v.type === 'anchor' ? '#productos' :
+    v.type === 'whatsapp' ? '51999999999' :
+    v.type === 'external' ? 'https://…' :
+    ''
+  return (
+    <div>
+      <label className="form-label text-[11px] font-bold">{label}</label>
+      <div className="space-y-1.5">
+        <select
+          value={v.type}
+          onChange={(e) => onChange({ type: e.target.value as LinkDest['type'], value: v.value })}
+          className="select-field text-[10px] w-full"
+        >
+          <option value="window">Ventana de la tienda</option>
+          <option value="anchor">Misma página (ancla)</option>
+          <option value="external">Enlace externo</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+        {v.type === 'window' ? (
+          <select value={v.value || ''} onChange={(e) => onChange({ type: v.type, value: e.target.value })} className="select-field text-[10px] w-full">
+            <option value="">Selecciona la ventana…</option>
+            {(windows || []).map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={v.value || ''}
+            onChange={(e) => onChange({ type: v.type, value: e.target.value })}
+            placeholder={placeholder}
+            className="input-field text-xs font-mono"
+          />
+        )}
+      </div>
+      {hint && <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{hint}</p>}
+    </div>
+  )
+}
+
 export default function BlockEditor({ block, blockConfig, windows, onChange, onWindowChange, onDuplicate, onDelete, onMove, onGenerateAI, onPromoteNestedBlock, onDemoteBlock }: BlockEditorProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'style'>(() => loadEditorState(block.id)?.tab || 'content')
   const [collapsed, setCollapsed] = useState<string[]>(() => loadEditorState(block.id)?.collapsed || [])
@@ -303,6 +361,19 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
             {field('Botón Principal', textInput(content.buttonText || '', (v) => handleContentChange('buttonText', v), 'Ver Catálogo'))}
             {field('Botón Secundario', textInput(content.secondaryButtonText || '', (v) => handleContentChange('secondaryButtonText', v), 'Explorar Ofertas'))}
           </div>
+          <LinkField
+            label="Destino del botón principal"
+            value={content.primaryLink}
+            onChange={(v) => handleContentChange('primaryLink', v)}
+            windows={windows}
+            hint="Ventana de la tienda, ancla de la misma página, URL externa o WhatsApp"
+          />
+          <LinkField
+            label="Destino del botón secundario"
+            value={content.secondaryLink}
+            onChange={(v) => handleContentChange('secondaryLink', v)}
+            windows={windows}
+          />
           <ImageUploadField
             label="Imagen de fondo / Hero"
             value={content.heroImage || ''}
@@ -871,6 +942,294 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       )
     }
 
+    // CALENDAR (agenda de citas — landing)
+    if (type === 'calendar') {
+      const hoursStr = Array.isArray(content.hours) ? content.hours.join(', ') : String(content.hours || '')
+      return (
+        <div className="space-y-4">
+          {field('Título', textInput(content.title || '', (v) => handleContentChange('title', v), 'Agenda tu sesión gratuita'))}
+          {field('Subtítulo', (
+            <textarea value={content.subtitle || ''} onChange={(e) => handleContentChange('subtitle', e.target.value)} rows={2} className="textarea-field text-xs" />
+          ))}
+          {field('Texto del botón', textInput(content.buttonLabel || '', (v) => handleContentChange('buttonLabel', v), 'Confirmar reserva'))}
+          {field('Integración de agenda', (
+            <select value={content.integration || 'internal'} onChange={(e) => handleContentChange('integration', e.target.value)} className="select-field text-xs w-full">
+              <option value="internal">Agenda interna (slots en la BD de la tienda)</option>
+              <option value="calendly">Calendly (embed externo)</option>
+              <option value="google">Google Calendar (reserva interna + enlace al evento)</option>
+            </select>
+          ))}
+          {(content.integration === 'calendly') && field('URL de Calendly', textInput(content.bookingUrl || '', (v) => handleContentChange('bookingUrl', v), 'https://calendly.com/tu-usuario', true), 'Se incrusta el calendario real de Calendly en la página.')}
+          {field('Duración de la cita', (
+            <select value={String(content.duration || '30')} onChange={(e) => handleContentChange('duration', e.target.value)} className="select-field text-xs w-full">
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+              <option value="90">90 min</option>
+            </select>
+          ))}
+          {field('Email de notificación (vacío = dueños de la tienda)', textInput(content.notificationEmail || '', (v) => handleContentChange('notificationEmail', v), 'ventas@mitienda.com', true), 'Se avisa por email cada vez que alguien reserva.')}
+          {field('WhatsApp de notificación (vacío = número del bloque)', textInput(content.notificationWhatsapp || '', (v) => handleContentChange('notificationWhatsapp', v), '51999999999', true), 'Recibe el aviso de cada reserva por WhatsApp.')}
+          {field('WhatsApp de la tienda (contacto)', textInput(content.whatsappNumber || '', (v) => handleContentChange('whatsappNumber', v), '51999999999', true))}
+          {field('Horarios disponibles', textInput(hoursStr, (v) => handleContentChange('hours', v.split(',').map((h: string) => h.trim()).filter(Boolean)), '09:00, 10:00, 11:00, 16:00, 17:00'), 'Separados por coma')}
+          {field('Nota al pie', textInput(content.note || '', (v) => handleContentChange('note', v), 'Sesión de 30 minutos · Sin compromiso'))}
+        </div>
+      )
+    }
+
+    // VSL (video sales letter — landing)
+    if (type === 'vsl') {
+      return (
+        <div className="space-y-4">
+          {field('Etiqueta superior', textInput(content.badge || '', (v) => handleContentChange('badge', v), '▶ Video explicativo'))}
+          {field('Titular', textInput(content.headline || '', (v) => handleContentChange('headline', v), 'Mira este video de 5 minutos'))}
+          {field('URL del video', textInput(content.videoUrl || '', (v) => handleContentChange('videoUrl', v), 'https://www.youtube.com/watch?v=...', true), 'YouTube, Vimeo o MP4 directo')}
+          <ImageUploadField
+            label="Imagen de portada"
+            value={content.thumbnailUrl || ''}
+            onChange={(v) => handleContentChange('thumbnailUrl', v)}
+            previewClass="h-20 w-full"
+            placeholder="Opcional — si está vacía se usa un fondo oscuro"
+          />
+          {field('Texto del botón', textInput(content.ctaText || '', (v) => handleContentChange('ctaText', v), 'Quiero empezar ahora'))}
+          {field('Destino del botón', textInput(content.ctaUrl || '', (v) => handleContentChange('ctaUrl', v), '#cta', true), 'Enlace, ancla (#seccion) o ventana')}
+        </div>
+      )
+    }
+
+    // ARTICLES (blog corporativo — corporate)
+    if (type === 'articles') {
+      const articles = Array.isArray(content.articles) ? content.articles : []
+      const updateArticle = (idx: number, patch: any) => {
+        const next = articles.map((a: any, i: number) => (i === idx ? { ...a, ...patch } : a))
+        handleContentChange('articles', next)
+      }
+      const removeArticle = (idx: number) => {
+        const next = articles.filter((_: any, i: number) => i !== idx)
+        handleContentChange('articles', next)
+      }
+      const addArticle = () => {
+        handleContentChange('articles', [
+          ...articles,
+          { id: `a${Date.now()}`, title: 'Nuevo artículo', excerpt: '', date: new Date().toISOString().slice(0, 10), imageUrl: '', link: '#', tag: 'Nuevo' },
+        ])
+      }
+      const isBlogSource = content.source === 'blog'
+      return (
+        <div className="space-y-4">
+          {field('Fuente de artículos', (
+            <select
+              value={content.source || 'static'}
+              onChange={(e) => handleContentChange('source', e.target.value)}
+              className="select-field text-xs"
+            >
+              <option value="blog">Posts reales del blog (gestor de blog)</option>
+              <option value="static">Artículos manuales (editor)</option>
+            </select>
+          ))}
+          {isBlogSource && (
+            <div className="p-3 rounded-xl border border-blue-500/25 bg-blue-500/5 text-[11px] leading-relaxed">
+              Este bloque muestra automáticamente los artículos <b>publicados</b> en el <b>gestor de blog</b> de esta tienda
+              (menú <b>Blog</b>), enlazando a su URL pública <span className="font-mono">/blog/[slug]</span>.
+              Gestiona los artículos desde <b>Blog → Artículos</b>.
+            </div>
+          )}
+          {field('Título de la sección', textInput(content.title || '', (v) => handleContentChange('title', v), 'Últimas publicaciones'))}
+          {field('Subtítulo', (
+            <textarea value={content.subtitle || ''} onChange={(e) => handleContentChange('subtitle', e.target.value)} rows={2} className="textarea-field text-xs" />
+          ))}
+          {isBlogSource ? null : (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="form-label text-[11px] font-bold">Artículos ({articles.length})</label>
+              <button onClick={addArticle} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-85">
+                <Plus size={10} /> Añadir artículo
+              </button>
+            </div>
+            {articles.length === 0 && (
+              <p className="text-[10px] text-[var(--color-text-tertiary)]">Sin artículos todavía. Añade el primero.</p>
+            )}
+            {articles.map((a: any, idx: number) => (
+              <div key={a.id || idx} className="p-3 rounded-xl border border-[var(--color-border)] space-y-2 mb-2" style={{ background: 'var(--color-bg-base)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)]">Artículo {idx + 1}</span>
+                  <button onClick={() => removeArticle(idx)} className="p-1 text-[var(--color-error)] hover:opacity-75" title="Eliminar"><Trash2 size={11} /></button>
+                </div>
+                <ImageUploadField
+                  label="Imagen"
+                  value={a.imageUrl || ''}
+                  onChange={(v) => updateArticle(idx, { imageUrl: v })}
+                  previewClass="h-16 w-full"
+                  placeholder="https://.../portada.jpg"
+                />
+                {field('Título', textInput(a.title || '', (v) => updateArticle(idx, { title: v })))}
+                {field('Resumen', (
+                  <textarea value={a.excerpt || ''} onChange={(e) => updateArticle(idx, { excerpt: e.target.value })} rows={2} className="textarea-field text-xs" />
+                ))}
+                <div className="grid grid-cols-2 gap-2">
+                  {field('Etiqueta', textInput(a.tag || '', (v) => updateArticle(idx, { tag: v }), 'Guías'))}
+                  {field('Fecha', textInput(a.date || '', (v) => updateArticle(idx, { date: v }), '2026-01-01'))}
+                </div>
+                {field('Enlace del artículo', textInput(a.link || '', (v) => updateArticle(idx, { link: v }), 'https://...', true))}
+              </div>
+            ))}
+          </div>
+          )}
+        </div>
+      )
+    }
+
+    // FOOTER (configurable: columnas de enlaces, redes, variantes)
+    if (type === 'footer') {
+      const cols: any[] = Array.isArray(content.columns) ? content.columns : []
+      const socials: any[] = Array.isArray(content.socialLinks) ? content.socialLinks : []
+      const updateCol = (ci: number, patch: any) => {
+        const next = cols.map((col: any, i: number) => (i === ci ? { ...col, ...patch } : col))
+        handleContentChange('columns', next)
+      }
+      const updateColLink = (ci: number, li: number, patch: any) => {
+        const links = Array.isArray(cols[ci]?.links) ? cols[ci].links : []
+        const nextLinks = links.map((l: any, i: number) => (i === li ? { ...l, ...patch } : l))
+        updateCol(ci, { links: nextLinks })
+      }
+      const addColLink = (ci: number) => {
+        const links = Array.isArray(cols[ci]?.links) ? cols[ci].links : []
+        updateCol(ci, { links: [...links, { label: 'Nuevo enlace', url: '#' }] })
+      }
+      const removeColLink = (ci: number, li: number) => {
+        const links = Array.isArray(cols[ci]?.links) ? cols[ci].links : []
+        updateCol(ci, { links: links.filter((_: any, i: number) => i !== li) })
+      }
+      const updateSocial = (si: number, patch: any) => {
+        const next = socials.map((sc: any, i: number) => (i === si ? { ...sc, ...patch } : sc))
+        handleContentChange('socialLinks', next)
+      }
+      return (
+        <div className="space-y-4">
+          {field('Nombre de la marca', textInput(content.companyName || content.brandName || '', (v) => handleContentChange('companyName', v), 'Mi Empresa'))}
+          {field('Frase (tagline)', textInput(content.tagline || '', (v) => handleContentChange('tagline', v), 'Construyendo el futuro, paso a paso'))}
+          {field('Copyright', textInput(content.copyright || '', (v) => handleContentChange('copyright', v), '© 2026 Mi Empresa. Todos los derechos reservados.'))}
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="form-label text-[11px] font-bold">Columnas de enlaces ({cols.length})</label>
+              <button
+                onClick={() => handleContentChange('columns', [...cols, { title: 'Nueva sección', links: [{ label: 'Enlace', url: '#' }] }])}
+                className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-85"
+              >
+                <Plus size={10} /> Añadir columna
+              </button>
+            </div>
+            <p className="text-[10px] text-[var(--color-text-tertiary)] mb-2">
+              Los enlaces con <code>#/ventana/…</code> navegan a otra ventana de la tienda; los demás van como enlace normal.
+            </p>
+            {cols.length === 0 && <p className="text-[10px] text-[var(--color-text-tertiary)]">Sin columnas todavía.</p>}
+            {cols.map((col: any, ci: number) => (
+              <div key={ci} className="p-3 rounded-xl border border-[var(--color-border)] space-y-2 mb-2" style={{ background: 'var(--color-bg-base)' }}>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={col.title || ''}
+                    onChange={(e) => updateCol(ci, { title: e.target.value })}
+                    className="input-field text-xs flex-1"
+                    placeholder="Título de la columna"
+                  />
+                  <button
+                    onClick={() => handleContentChange('columns', cols.filter((_: any, i: number) => i !== ci))}
+                    className="p-1 text-[var(--color-error)] hover:opacity-75"
+                    title="Eliminar columna"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+                {(Array.isArray(col.links) ? col.links : []).map((l: any, li: number) => (
+                  <div key={li} className="grid grid-cols-5 gap-1.5 items-center">
+                    <input
+                      value={l.label || ''}
+                      onChange={(e) => updateColLink(ci, li, { label: e.target.value })}
+                      className="input-field text-[10px] col-span-2"
+                      placeholder="Texto"
+                    />
+                    <input
+                      value={l.url || ''}
+                      onChange={(e) => updateColLink(ci, li, { url: e.target.value })}
+                      className="input-field text-[10px] col-span-2"
+                      placeholder="# o https://… o #/ventana/…"
+                    />
+                    <button onClick={() => removeColLink(ci, li)} className="p-1 text-[var(--color-error)] hover:opacity-75" title="Quitar enlace">
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+                <button onClick={() => addColLink(ci)} className="flex items-center gap-1 text-[10px] font-bold text-[var(--color-accent)] hover:opacity-80">
+                  <Plus size={10} /> Añadir enlace
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <label className="form-label text-[11px] font-bold">Redes sociales</label>
+            {socials.map((sc: any, si: number) => (
+              <div key={si} className="grid grid-cols-5 gap-1.5 items-center mb-1.5">
+                <select
+                  value={sc.platform || ''}
+                  onChange={(e) => updateSocial(si, { platform: e.target.value })}
+                  className="select-field text-[10px] col-span-2"
+                >
+                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="twitter">X / Twitter</option>
+                </select>
+                <input
+                  value={sc.url || ''}
+                  onChange={(e) => updateSocial(si, { url: e.target.value })}
+                  className="input-field text-[10px] col-span-2"
+                  placeholder="https://…"
+                />
+                <button
+                  onClick={() => handleContentChange('socialLinks', socials.filter((_: any, i: number) => i !== si))}
+                  className="p-1 text-[var(--color-error)] hover:opacity-75"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => handleContentChange('socialLinks', [...socials, { platform: 'instagram', url: '#' }])}
+              className="flex items-center gap-1 text-[10px] font-bold text-[var(--color-accent)] hover:opacity-80"
+            >
+              <Plus size={10} /> Añadir red social
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    // CTA (botón de conversión con destino configurable)
+    if (type === 'cta') {
+      return (
+        <div className="space-y-4">
+          {field('Título', textInput(content.title || '', (v) => handleContentChange('title', v), '¿Listo para empezar?'))}
+          {field('Subtítulo', (
+            <textarea value={content.subtitle || ''} onChange={(e) => handleContentChange('subtitle', e.target.value)} rows={2} className="textarea-field text-xs" />
+          ))}
+          {field('Texto del botón', textInput(content.buttonText || '', (v) => handleContentChange('buttonText', v), 'Empezar ahora'))}
+          <LinkField
+            label="Destino del botón"
+            value={content.buttonLink}
+            onChange={(v) => handleContentChange('buttonLink', v)}
+            windows={windows}
+            hint="Ventana de la tienda, ancla de la misma página, URL externa o WhatsApp"
+          />
+        </div>
+      )
+    }
+
     // Generic fallback: title / subtitle / body / buttons
     return (
       <div className="space-y-4">
@@ -977,7 +1336,7 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       <div ref={scrollRef} onScroll={handleEditorScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {activeTab === 'content' ? renderContentEditors() : (
           <div className="space-y-4">
-            {(type === 'columns' || type === 'image' || type === 'text') && (
+            {(type === 'columns' || type === 'image' || type === 'text' || type === 'calendar' || type === 'vsl' || type === 'articles' || type === 'footer') && (
               <div className="p-3 rounded-xl border border-[var(--color-border)] space-y-3" style={{ background: 'var(--color-bg-base)' }}>
                 <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)]">Configuración específica del bloque</p>
 
@@ -1062,6 +1421,74 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
                       <option value="100%">Ancho completo</option>
                     </select>
                   ))}
+                </>)}
+
+                {type === 'calendar' && (<>
+                  {field('Columnas de horarios', (
+                    <select value={String(settings.columns || '2')} onChange={(e) => handleSettingChange('columns', e.target.value)} className="select-field text-xs w-full">
+                      <option value="2">2 columnas</option>
+                      <option value="3">3 columnas</option>
+                    </select>
+                  ))}
+                  {field('Color de acento', (
+                    <input type="color" value={settings.accentColor || '#f59e0b'} onChange={(e) => handleSettingChange('accentColor', e.target.value)} className="w-10 h-8 rounded-lg border border-[var(--color-border)] cursor-pointer" />
+                  ))}
+                </>)}
+
+                {type === 'vsl' && (<>
+                  {field('Esquinas del video', (
+                    <select value={settings.rounded || '16px'} onChange={(e) => handleSettingChange('rounded', e.target.value)} className="select-field text-xs w-full">
+                      <option value="16px">Redondeadas</option>
+                      <option value="28px">Muy redondeadas</option>
+                      <option value="0px">Rectas</option>
+                    </select>
+                  ))}
+                  <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>Reproducción automática (autoplay)</span>
+                    <input type="checkbox" checked={settings.autoplay === true} onChange={(e) => handleSettingChange('autoplay', e.target.checked)} className="w-4 h-4" />
+                  </label>
+                  {field('Color de acento', (
+                    <input type="color" value={settings.accentColor || '#f43f5e'} onChange={(e) => handleSettingChange('accentColor', e.target.value)} className="w-10 h-8 rounded-lg border border-[var(--color-border)] cursor-pointer" />
+                  ))}
+                </>)}
+
+                {type === 'articles' && (<>
+                  {field('Columnas', (
+                    <select value={String(settings.columns || '3')} onChange={(e) => handleSettingChange('columns', e.target.value)} className="select-field text-xs w-full">
+                      <option value="2">2 columnas</option>
+                      <option value="3">3 columnas</option>
+                      <option value="4">4 columnas</option>
+                    </select>
+                  ))}
+                  <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>Mostrar fecha</span>
+                    <input type="checkbox" checked={settings.showDate !== false} onChange={(e) => handleSettingChange('showDate', e.target.checked)} className="w-4 h-4" />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>Mostrar "Leer más"</span>
+                    <input type="checkbox" checked={settings.showReadMore !== false} onChange={(e) => handleSettingChange('showReadMore', e.target.checked)} className="w-4 h-4" />
+                  </label>
+                  {field('Color de acento', (
+                    <input type="color" value={settings.accentColor || '#2563eb'} onChange={(e) => handleSettingChange('accentColor', e.target.value)} className="w-10 h-8 rounded-lg border border-[var(--color-border)] cursor-pointer" />
+                  ))}
+                </>)}
+
+                {type === 'footer' && (<>
+                  {field('Disposición', (
+                    <select value={settings.variant || 'standard'} onChange={(e) => handleSettingChange('variant', e.target.value)} className="select-field text-xs w-full">
+                      <option value="standard">Estándar (marca + columnas)</option>
+                      <option value="centered">Centrada (marca + redes)</option>
+                      <option value="minimal">Mínima (solo marca)</option>
+                    </select>
+                  ))}
+                  <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>Mostrar logo</span>
+                    <input type="checkbox" checked={settings.showLogo !== false} onChange={(e) => handleSettingChange('showLogo', e.target.checked)} className="w-4 h-4" />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>Mostrar redes sociales</span>
+                    <input type="checkbox" checked={settings.showSocial !== false} onChange={(e) => handleSettingChange('showSocial', e.target.checked)} className="w-4 h-4" />
+                  </label>
                 </>)}
               </div>
             )}

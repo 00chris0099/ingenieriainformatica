@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { apiSuccess, apiError, handleApiError } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { getBusinessScope, belongsToScope } from '@/lib/api/business-access';
 
 function safeParseJson(value: any): any {
   if (value === null || value === undefined) return null;
@@ -18,6 +20,11 @@ interface Props {
 
 export async function GET(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const { id } = await params;
     const identifier = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
@@ -28,6 +35,9 @@ export async function GET(_request: NextRequest, { params }: Props) {
     });
 
     if (!product) return apiError('Product not found', 404);
+    if (!belongsToScope(product.businessId, scope)) {
+      return apiError('Forbidden: este producto no pertenece a tus tiendas', 403);
+    }
 
     return apiSuccess({
       ...product,
@@ -47,6 +57,11 @@ export async function GET(_request: NextRequest, { params }: Props) {
 
 export async function PUT(request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const body = await request.json();
     const {
       name, slug: newSlug, model, description, shortDescription, categoryId, status, tags, images, brand,
@@ -58,6 +73,16 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) return apiError('Product not found', 404);
+    if (!belongsToScope(existing.businessId, scope)) {
+      return apiError('Forbidden: este producto no pertenece a tus tiendas', 403);
+    }
+    // El cliente no puede mover el producto a otra tienda
+    if (categoryId) {
+      const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { businessId: true } });
+      if (!cat || !belongsToScope(cat.businessId, scope)) {
+        return apiError('La categoría no pertenece a tus tiendas', 400);
+      }
+    }
 
     const slug = newSlug || (name ? name.toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -109,9 +134,17 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
 export async function DELETE(_request: NextRequest, { params }: Props) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const { id } = await params;
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) return apiError('Product not found', 404);
+    if (!belongsToScope(existing.businessId, scope)) {
+      return apiError('Forbidden: este producto no pertenece a tus tiendas', 403);
+    }
 
     await prisma.product.update({
       where: { id },

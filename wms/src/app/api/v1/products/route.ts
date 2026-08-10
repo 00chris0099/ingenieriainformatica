@@ -3,6 +3,8 @@ import { prisma } from '@repo/prisma';
 import { apiPaginated, apiError, apiSuccess, parsePagination, getSearchParam, handleApiError, checkRateLimit, validate } from '@/lib/api';
 import { cached, invalidateCache } from '@/lib/cache';
 import { generateSequentialSku } from '@/lib/sku-generator';
+import { requireAuth } from '@/lib/api/auth-guard';
+import { getBusinessScope, belongsToScope } from '@/lib/api/business-access';
 
 function safeParseJson(value: any): any {
   if (value === null || value === undefined) return null;
@@ -15,16 +17,22 @@ function safeParseJson(value: any): any {
 
 export async function GET(request: NextRequest) {
   try {
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const { searchParams } = new URL(request.url);
     const search = getSearchParam(searchParams, 'q');
     const category = getSearchParam(searchParams, 'category');
     const status = getSearchParam(searchParams, 'status');
     const { page, limit, offset } = parsePagination(searchParams);
 
-    const cacheKey = `products:${page}:${limit}:${search}:${category}:${status}`;
+    const cacheKey = `products:${page}:${limit}:${search}:${category}:${status}:${scope.isStaff ? 'all' : scope.ids.join(',')}`;
 
     const result = await cached(cacheKey, async () => {
       const where: any = {};
+      if (!scope.isStaff) where.businessId = { in: scope.ids };
       if (status) where.status = status;
       if (category) where.category = { slug: category };
       if (search) {
@@ -97,6 +105,11 @@ export async function POST(request: NextRequest) {
     const rateCheck = checkRateLimit(`products-create:${ip}`, 10, 60);
     if (!rateCheck.allowed) return apiError('Too many requests', 429);
 
+    const authCheck = await requireAuth();
+    if (authCheck.error) return authCheck.error;
+    const user = authCheck.user as any;
+    const scope = await getBusinessScope(user);
+
     const body = await request.json();
 
     const validationError = validate(body, {
@@ -115,6 +128,28 @@ export async function POST(request: NextRequest) {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
+    // Multi-tenant: el cliente crea productos solo dentro de sus tiendas
+    let targetBusinessId: string | null = null;
+    if (scope.isStaff) {
+      targetBusinessId = body.businessId || null;
+    } else {
+      if (body.businessId && scope.ids.includes(body.businessId)) {
+        targetBusinessId = body.businessId;
+      } else {
+        targetBusinessId = scope.ids[0] || null;
+      }
+      if (!targetBusinessId) {
+        return apiError('No tienes tiendas asignadas. Contacta al administrador.', 403);
+      }
+      // La categoría debe pertenecer a una de tus tiendas
+      if (categoryId) {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { businessId: true } });
+        if (!cat || !belongsToScope(cat.businessId, scope)) {
+          return apiError('La categoría no pertenece a tus tiendas', 400);
+        }
+      }
+    }
+
     let sku = requestedSku;
     if (!sku) {
       let categoryName = null;
@@ -130,6 +165,7 @@ export async function POST(request: NextRequest) {
         sku,
         name,
         slug,
+        businessId: targetBusinessId,
         model: model || null,
         description: description || null,
         shortDescription: shortDescription || null,
