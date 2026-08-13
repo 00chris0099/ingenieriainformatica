@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import ThemeToggle from '@/components/ui/ThemeToggle'
+import ImpersonationBanner from '@/components/ImpersonationBanner'
 import {
   LayoutDashboard, Package, ShoppingCart, Users,
   Settings, Menu, X, ChevronRight, ChevronDown,
   DollarSign, FileText, LogOut, User,
-  PanelLeftClose, PanelLeft, Search, Wand2, ShieldAlert, Store, Newspaper, CalendarDays, CreditCard, TrendingUp
+  PanelLeftClose, PanelLeft, Search, Wand2, ShieldAlert, Store, Newspaper, CalendarDays, CreditCard, TrendingUp, ShoppingBag, ShieldCheck
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface NavGroup {
   label: string
@@ -32,6 +33,7 @@ const superAdminNavGroups: NavGroup[] = [
     label: 'GESTIÓN DE CLIENTES',
     items: [
       { href: '/clientes', label: 'Clientes Registrados', icon: Users },
+      { href: '/roles', label: 'Roles & Accesos', icon: ShieldCheck },
       { href: '/finanzas', label: 'Finanzas & Facturación', icon: DollarSign },
     ],
   },
@@ -40,6 +42,7 @@ const superAdminNavGroups: NavGroup[] = [
     items: [
       { href: '/blog', label: 'Blog & Artículos', icon: Newspaper },
       { href: '/leads', label: 'Leads & CRM', icon: Users },
+      { href: '/carritos-abandonados', label: 'Carritos Abandonados', icon: ShoppingBag },
       { href: '/analytics', label: 'Analytics & Embudo', icon: TrendingUp },
       { href: '/citas', label: 'Citas & Agenda', icon: CalendarDays },
     ],
@@ -65,6 +68,7 @@ const clientNavGroups: NavGroup[] = [
       { href: '/pedidos', label: 'Pedidos & WhatsApp', icon: ShoppingCart },
       { href: '/pagos', label: 'Pagos & Cobros', icon: CreditCard },
       { href: '/leads', label: 'Leads de mis Landings', icon: Users },
+      { href: '/carritos-abandonados', label: 'Carritos Abandonados', icon: ShoppingBag },
       { href: '/analytics', label: 'Analytics de mi Tienda', icon: TrendingUp },
       { href: '/blog', label: 'Blog de mi Tienda', icon: Newspaper },
       { href: '/citas', label: 'Citas & Agenda', icon: CalendarDays },
@@ -86,6 +90,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [profileOpen, setProfileOpen] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
+  const impersonating = !!(session?.user as any)?.impersonating
+  const impersonatedByEmail = (session?.user as any)?.impersonatedByEmail
+  const impersonatedUntil = (session?.user as any)?.impersonatedUntil
+  const impersonationMode = (session?.user as any)?.impersonationMode
+  const impersonationRenewalsLeft = (session?.user as any)?.impersonationRenewalsLeft
+
+  // Enterprise: heartbeat de sesión (registra dispositivo/IP) y expulsión si
+  // la sesión fue revocada desde Configuración → Seguridad.
+  const sessUser = session?.user as any
+  useEffect(() => {
+    if (impersonating) return
+    if (sessUser?.sid) {
+      fetch('/api/v1/sessions/heartbeat', { method: 'POST' }).catch(() => {})
+    }
+    if (sessUser?.sessionRevoked) {
+      signOut({ callbackUrl: '/login?expired=1' })
+    }
+  }, [impersonating, sessUser?.sid, sessUser?.sessionRevoked])
+
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev)
@@ -106,7 +129,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebarWidth = sidebarCollapsed ? 'w-[70px]' : 'w-[270px]'
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-bg-base)' }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--color-bg-base)' }}>
+      {impersonating && (
+        <ImpersonationBanner
+          userEmail={userEmail}
+          impersonatedByEmail={impersonatedByEmail}
+          impersonatedUntil={impersonatedUntil}
+          impersonationMode={impersonationMode}
+          renewalsLeft={impersonationRenewalsLeft}
+        />
+      )}
+      <div className="flex flex-1 min-h-0">
       {/* ═══════════════ DESKTOP SIDEBAR ═══════════════ */}
       <aside className={`hidden lg:flex flex-col shrink-0 transition-all duration-300 ease-[var(--ease-spring)] ${sidebarWidth}`}
         style={{
@@ -212,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
                 <div className="flex-1 min-w-0 text-left">
                   <p className="text-xs font-extrabold text-white truncate flex items-center gap-1.5">
-                    <span>{isSuperAdmin ? 'Super Admin' : 'Cliente'}</span>
+                    <span>{isSuperAdmin ? 'Super Admin' : impersonating ? 'Cliente · modo soporte' : 'Cliente'}</span>
                     {isSuperAdmin && (
                       <span className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
                         PRO
@@ -317,7 +350,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Breadcrumb */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-semibold">{isSuperAdmin ? 'Panel Super Admin' : 'Panel Cliente'}</span>
+              <span className="text-xs text-gray-500 font-semibold">{isSuperAdmin ? 'Panel Super Admin' : impersonating ? 'Panel Cliente · modo soporte' : 'Panel Cliente'}</span>
               <ChevronRight size={12} className="text-gray-600" />
               <span className="text-sm font-bold text-white">{currentLabel}</span>
             </div>
@@ -341,6 +374,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 lg:pb-6">
           {children}
         </main>
+      </div>
       </div>
     </div>
   )

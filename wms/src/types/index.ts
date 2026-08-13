@@ -15,7 +15,7 @@ export type ProductStatus = 'draft' | 'active' | 'archived' | 'discontinued';
 
 export type InvoiceStatus = 'draft' | 'issued' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'voided';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'import' | 'approve' | 'reject' | 'execute';
+export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'import' | 'approve' | 'reject' | 'execute' | 'impersonate' | 'impersonate_end';
 
 export type PickListStatus = 'draft' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
 

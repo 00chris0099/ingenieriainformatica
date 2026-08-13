@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck, Zap, CheckCircle2, XCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck, Zap, CheckCircle2, XCircle, KeyRound, Monitor, Smartphone, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 
-type Tab = 'general' | 'ai' | 'appearance' | 'domain'
+type Tab = 'general' | 'ai' | 'appearance' | 'domain' | 'security'
 
 interface BusinessData {
   name: string
@@ -45,6 +45,7 @@ const tabs: Array<{ id: Tab; label: string; icon: any }> = [
   { id: 'ai', label: 'Conector Multi-IA', icon: Sparkles },
   { id: 'appearance', label: 'Apariencia & Marca', icon: Palette },
   { id: 'domain', label: 'Dominios & SSL', icon: Globe },
+  { id: 'security', label: 'Seguridad & Sesiones', icon: ShieldCheck },
 ]
 
 const industries = [
@@ -61,7 +62,7 @@ export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     if (typeof window !== 'undefined') {
       const t = new URLSearchParams(window.location.search).get('tab')
-      if (t === 'ai' || t === 'general' || t === 'appearance' || t === 'domain') return t as Tab
+      if (t === 'ai' || t === 'general' || t === 'appearance' || t === 'domain' || t === 'security') return t as Tab
     }
     return 'general'
   })
@@ -199,6 +200,7 @@ export default function ConfiguracionPage() {
           {activeTab === 'domain' && (
             <DomainTab business={business} setBusiness={setBusiness} onSave={saveBusiness} saving={saving} saved={saved} />
           )}
+          {activeTab === 'security' && <SecurityTab />}
         </div>
       </div>
     </div>
@@ -630,6 +632,251 @@ function DomainTab({ business, setBusiness, onSave, saving, saved }: {
       </Section>
 
       <SaveBar onSave={onSave} saving={saving} saved={saved} />
+    </div>
+  )
+}
+
+// ============================================================================
+// Security Tab — cambio de contraseña + sesiones activas por dispositivo
+// ============================================================================
+interface ActiveSession {
+  id: string
+  deviceLabel: string | null
+  ipAddress: string | null
+  isNewDevice: boolean
+  createdAt: string
+  lastActiveAt: string
+  isCurrent: boolean
+}
+
+function SecurityTab() {
+  const [curPwd, setCurPwd] = useState('')
+  const [newPwd, setNewPwd] = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
+  const [pwdBusy, setPwdBusy] = useState(false)
+  const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [sessions, setSessions] = useState<ActiveSession[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+  const [revokingAll, setRevokingAll] = useState(false)
+  const [sessionMsg, setSessionMsg] = useState<string | null>(null)
+
+  const fetchSessions = useCallback(async () => {
+    setLoadingSessions(true)
+    try {
+      const res = await fetch('/api/v1/sessions')
+      if (res.ok) {
+        const json = await res.json()
+        setSessions(Array.isArray(json.data?.sessions) ? json.data.sessions : [])
+      }
+    } catch { /* fallback */ } finally {
+      setLoadingSessions(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
+
+  const changePassword = async () => {
+    setPwdMsg(null)
+    if (newPwd !== confirmPwd) {
+      setPwdMsg({ ok: false, text: 'Las contraseñas nuevas no coinciden' })
+      return
+    }
+    setPwdBusy(true)
+    try {
+      const res = await fetch('/api/v1/account/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: curPwd, newPassword: newPwd }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPwdMsg({ ok: false, text: json?.error || 'No se pudo cambiar la contraseña' })
+      } else {
+        setPwdMsg({
+          ok: true,
+          text: `Contraseña actualizada · ${json.data?.otherSessionsRevoked || 0} sesión(es) en otros dispositivos fueron cerradas`,
+        })
+        setCurPwd(''); setNewPwd(''); setConfirmPwd('')
+        fetchSessions()
+      }
+    } catch {
+      setPwdMsg({ ok: false, text: 'Error de red al cambiar la contraseña' })
+    } finally {
+      setPwdBusy(false)
+    }
+  }
+
+  const revoke = async (id: string) => {
+    setRevokingId(id)
+    try {
+      const res = await fetch(`/api/v1/sessions/${id}/revoke`, { method: 'POST' })
+      if (res.ok) {
+        setSessionMsg('Dispositivo revocado: la sesión fue cerrada al instante')
+        fetchSessions()
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setSessionMsg('⚠️ ' + (json?.error || 'No se pudo revocar'))
+      }
+    } finally {
+      setRevokingId(null)
+    }
+  }
+
+  const revokeAll = async () => {
+    if (!window.confirm('¿Cerrar la sesión en TODOS los demás dispositivos? Esta sesión permanecerá activa.')) return
+    setRevokingAll(true)
+    try {
+      const res = await fetch('/api/v1/sessions/revoke-all', { method: 'POST' })
+      if (res.ok) {
+        const json = await res.json()
+        setSessionMsg(`Se cerraron ${json.data?.revokedCount || 0} sesión(es) en otros dispositivos`)
+        fetchSessions()
+      }
+    } finally {
+      setRevokingAll(false)
+    }
+  }
+
+  const policyHint = (s: string) => {
+    const checks = [
+      { ok: s.length >= 8, label: '8+ caracteres' },
+      { ok: /[A-Z]/.test(s), label: 'mayúscula' },
+      { ok: /[0-9]/.test(s), label: 'número' },
+    ]
+    return checks
+  }
+  const pwdChecks = policyHint(newPwd)
+
+  return (
+    <div className="space-y-6">
+      <Section title="Cambiar contraseña" description="Actualiza tu contraseña. Como medida de seguridad se cerrarán todas las demás sesiones">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="form-label text-xs font-bold">Contraseña actual</label>
+            <input
+              type="password"
+              value={curPwd}
+              onChange={(e) => setCurPwd(e.target.value)}
+              placeholder="••••••••"
+              className="input-field text-xs"
+            />
+          </div>
+          <div>
+            <label className="form-label text-xs font-bold">Nueva contraseña</label>
+            <input
+              type="password"
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+              placeholder="Mín. 8 caracteres"
+              className="input-field text-xs"
+            />
+            <div className="flex gap-2 mt-1.5">
+              {pwdChecks.map((c) => (
+                <span key={c.label} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${c.ok ? 'bg-emerald-500/15 text-emerald-500' : 'bg-gray-500/10 text-gray-400'}`}>
+                  {c.ok ? '✓ ' : '• '}{c.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="form-label text-xs font-bold">Confirmar nueva</label>
+            <input
+              type="password"
+              value={confirmPwd}
+              onChange={(e) => setConfirmPwd(e.target.value)}
+              placeholder="Repite la contraseña"
+              className="input-field text-xs"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button onClick={changePassword} loading={pwdBusy} icon={!pwdBusy ? <KeyRound size={14} /> : undefined}>
+            Cambiar contraseña
+          </Button>
+          {pwdMsg && (
+            <span className={`text-xs font-bold flex items-center gap-1 ${pwdMsg.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {pwdMsg.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+              {pwdMsg.text}
+            </span>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Sesiones activas por dispositivo" description="Dispositivos con sesión iniciada en tu cuenta. Puedes cerrar cualquiera de forma remota e inmediata">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-semibold text-[var(--color-text-tertiary)]">
+            {loadingSessions ? 'Consultando…' : `${sessions.length} dispositivo(s) activo(s)`}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchSessions}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border hover:bg-[var(--color-bg-hover)] transition-all"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <RefreshCw size={12} /> Actualizar
+            </button>
+            <button
+              onClick={revokeAll}
+              disabled={revokingAll || sessions.length <= 1}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-extrabold rounded-lg transition-all disabled:opacity-40 hover:opacity-90"
+              style={{ background: 'rgba(239,68,68,.12)', color: '#ef4444' }}
+            >
+              {revokingAll ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+              Cerrar otras sesiones
+            </button>
+          </div>
+        </div>
+
+        {loadingSessions ? (
+          <div className="flex items-center justify-center p-6"><Loader2 size={20} className="animate-spin text-[var(--color-accent)]" /></div>
+        ) : sessions.length === 0 ? (
+          <div className="text-center p-6 border border-dashed rounded-xl text-xs text-[var(--color-text-tertiary)]">
+            Sin sesiones registradas — las sesiones se rastrean desde tu próximo inicio de sesión.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sessions.map((s) => (
+              <div key={s.id} className="p-3 rounded-xl border flex items-center gap-3" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-base)' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: s.isCurrent ? 'rgba(16,185,129,.15)' : 'rgba(99,102,241,.12)', color: s.isCurrent ? '#10b981' : '#818cf8' }}>
+                  {s.isCurrent ? <Monitor size={15} /> : <Smartphone size={15} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-extrabold truncate flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                    {s.deviceLabel || 'Dispositivo'}
+                    {s.isCurrent && (
+                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">Este dispositivo</span>
+                    )}
+                    {s.isNewDevice && !s.isCurrent && (
+                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500">Nuevo</span>
+                    )}
+                  </p>
+                  <p className="text-[10px] mt-0.5 text-[var(--color-text-tertiary)]">
+                    IP: {s.ipAddress || '—'} · última actividad: {new Date(s.lastActiveAt).toLocaleString('es-PE')}
+                  </p>
+                </div>
+                {!s.isCurrent && (
+                  <button
+                    onClick={() => revoke(s.id)}
+                    disabled={revokingId !== null}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold transition-all disabled:opacity-50 hover:opacity-90 shrink-0"
+                    style={{ background: 'rgba(239,68,68,.12)', color: '#ef4444' }}
+                  >
+                    {revokingId === s.id ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
+                    Revocar
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {sessionMsg && <p className="text-[11px] font-bold mt-2 text-[var(--color-text-secondary)]">{sessionMsg}</p>}
+        <p className="text-[10px] text-[var(--color-text-tertiary)] mt-2">
+          Revocar un dispositivo expulsa la sesión al instante (las APIs responden 401 y el panel redirige a /login). Si ves un dispositivo que no reconoces, revócalo y cambia tu contraseña.
+        </p>
+      </Section>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wms-v2';
+const CACHE_NAME = 'wms-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -12,6 +12,39 @@ self.addEventListener('activate', (event) => {
         ...cacheNames.map((cacheName) => caches.delete(cacheName)),
       ]);
     })
+  );
+});
+
+// ── Notifications (impersonation expiry alert) ──────────────────────────────
+// The ImpersonationBanner shows a Web Notification when a support session is
+// about to expire. Clicking it (or its actions) lands here; we focus the
+// dashboard tab and forward the chosen action so the page can renew or close
+// the session. `renew`/`close` only run in a controlled tab — the server-side
+// record is the source of truth and self-expires anyway.
+self.addEventListener('notificationclick', (event) => {
+  const action = event.action || 'default';
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clientList) {
+        try {
+          if ('focus' in client) {
+            await client.focus();
+            break;
+          }
+        } catch (e) {
+          // Ignore — the tab may have been closed.
+        }
+      }
+      for (const client of clientList) {
+        try {
+          client.postMessage({ type: 'imp-action', action });
+        } catch (e) {
+          // Ignore — no client available.
+        }
+      }
+    })()
   );
 });
 

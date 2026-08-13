@@ -20,6 +20,10 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 export async function requireAuth(request?: NextRequest) {
   const session = await auth();
   if (!session?.user) return { error: apiError('Unauthorized', 401) };
+  // Sesión revocada desde Configuración → Seguridad: la expulsamos de las APIs.
+  if ((session.user as any).sessionRevoked) {
+    return { error: apiError('Tu sesión fue cerrada desde otro dispositivo — inicia sesión de nuevo', 401) };
+  }
   return { session, user: session.user };
 }
 

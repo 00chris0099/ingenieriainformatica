@@ -15,6 +15,7 @@ import { StatCardSkeleton } from '@/components/ui/Skeleton'
 import { useSession } from 'next-auth/react'
 import ClientOnboardingModal from '@/components/onboarding/ClientOnboardingModal'
 import AIAgentStatusCard from '@/components/dashboard/AIAgentStatusCard'
+import ActiveImpersonationsPanel from '@/components/dashboard/ActiveImpersonationsPanel'
 
 interface DashboardStats {
   totalProducts: number
@@ -235,6 +236,9 @@ export default function DashboardPage() {
 
         {/* ═══════════════ AI ENGINE STATUS ═══════════════ */}
         <AIAgentStatusCard />
+
+        {/* ═══════════════ ACTIVE IMPERSONATIONS ═══════════════ */}
+        <ActiveImpersonationsPanel />
 
         {/* ═══════════════ CHARTS SECTION ═══════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

@@ -44,11 +44,21 @@ const READ_ONLY_PUBLIC_ROUTES = [
 
 // Routes reserved exclusively for Super Admin / Agency Admin
 const SUPER_ADMIN_ONLY_PAGES = [
+  // Agencia & diseño
   '/builder',
   '/pages',
+  // Gestión de clientes / finanzas (solo agencia)
+  '/clientes',
+  '/finanzas',
+  '/usuarios',
+  '/roles',
+  // Control super admin
   '/configuracion',
   '/auditoria',
   '/admin',
+  '/cupones',
+  '/reportes',
+  '/analytics-avanzado',
 ];
 
 const ADMIN_ONLY_API_ROUTES = [
@@ -90,7 +100,15 @@ export default auth((req) => {
   const isFullyPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
   const isReadOnlyPublic = READ_ONLY_PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
 
-  if (isFullyPublic) {
+  // Cron de recuperación de carritos abandonados: POST /api/v1/carts/* con el
+  // secret de entorno (cron-job.org / EasyPanel) pasa sin sesión.
+  const isCartCron =
+    req.method === 'POST' &&
+    pathname.startsWith('/api/v1/carts') &&
+    !!process.env.CART_CRON_SECRET &&
+    req.headers.get('x-cron-secret') === process.env.CART_CRON_SECRET;
+
+  if (isFullyPublic || isCartCron) {
     if (session && ['/login', '/register', '/forgot-password', '/reset-password'].includes(pathname)) {
       return NextResponse.redirect(new URL('/', req.url));
     }
@@ -115,6 +133,13 @@ export default auth((req) => {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Sesión revocada (Configuración → Seguridad): expulsar del panel.
+  if ((session.user as any)?.sessionRevoked && !pathname.startsWith('/login')) {
+    const expiredUrl = new URL('/login', req.url);
+    expiredUrl.searchParams.set('expired', '1');
+    return NextResponse.redirect(expiredUrl);
   }
 
   // RBAC Roles Check

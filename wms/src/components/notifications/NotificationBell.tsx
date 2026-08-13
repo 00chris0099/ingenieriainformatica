@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Bell, Check, ShoppingCart, Package, AlertTriangle, Info, X } from 'lucide-react';
+import { Bell, Check, ShoppingCart, Package, AlertTriangle, Info, X, Eye, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Notification {
@@ -17,6 +17,8 @@ const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   order: { icon: ShoppingCart, color: 'text-blue-400', bg: 'bg-blue-500/20' },
   status: { icon: Package, color: 'text-purple-400', bg: 'bg-purple-500/20' },
   stock: { icon: AlertTriangle, color: 'text-orange-400', bg: 'bg-orange-500/20' },
+  impersonation: { icon: Eye, color: 'text-amber-400', bg: 'bg-amber-500/20' },
+  security: { icon: ShieldAlert, color: 'text-rose-400', bg: 'bg-rose-500/20' },
   info: { icon: Info, color: 'text-gray-400', bg: 'bg-gray-500/20' },
 };
 
