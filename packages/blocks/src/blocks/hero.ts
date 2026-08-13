@@ -21,6 +21,8 @@ export const heroBlock: BlockConfig = {
   defaultContent: {
     title: 'Your Headline Here',
     subtitle: 'A compelling subheading that explains your value proposition.',
+    badge: '',
+    heroImage: '',
     buttonText: 'Get Started',
     buttonLink: '#',
     buttonVariant: 'primary',
@@ -61,6 +63,8 @@ export const heroBlock: BlockConfig = {
     ]},
     { key: 'title', label: 'Title', type: 'text', group: 'content' },
     { key: 'subtitle', label: 'Subtitle', type: 'textarea', group: 'content' },
+    { key: 'badge', label: 'Badge / Etiqueta superior', type: 'text', group: 'content' },
+    { key: 'heroImage', label: 'Imagen del Hero', type: 'image', group: 'content' },
     { key: 'buttonText', label: 'Button Text', type: 'text', group: 'content' },
     { key: 'buttonLink', label: 'Button Link', type: 'link', group: 'content' },
     { key: 'secondaryButtonText', label: 'Secondary Button Text', type: 'text', group: 'content' },

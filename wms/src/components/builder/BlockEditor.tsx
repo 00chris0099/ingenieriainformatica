@@ -1,8 +1,8 @@
 'use client'
 
 import { Block, BlockConfig, blockRegistry } from '@repo/blocks'
-import { X, Copy, Trash2, Loader2, Plus, Sliders, Type, Palette, Image as ImageIcon, ArrowUp, ArrowDown, Sparkles, ChevronDown, GripVertical } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { X, Copy, Trash2, Loader2, Plus, Sliders, Type, Palette, Image as ImageIcon, ArrowUp, ArrowDown, Sparkles, ChevronDown, GripVertical, Smartphone, Monitor, Maximize2, MoveVertical, PaintBucket, Square, Droplets } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ImageUploadField from '@/components/builder/ImageUploadField'
 import { setDragPayload, readDragPayload } from '@/lib/block-dnd'
 import { moveNestedBetweenColumns } from '@/lib/block-order'
@@ -21,6 +21,8 @@ interface BlockEditorProps {
   onPromoteNestedBlock?: (parentId: string, nestedId: string, targetTopId?: string) => void
   /** Pull a top-level block down into a column of this `columns` block. */
   onDemoteBlock?: (blockId: string, parentId: string, colIdx: number, beforeNbId?: string) => void
+  /** Canvas deep-select: field key like `logoUrl`, `buttonText` or `products:2:name`. Opens the editor scrolled to that field. */
+  focusField?: string | null
 }
 
 const WINDOW_LABELS: Record<string, string> = {
@@ -85,6 +87,40 @@ function field(label: string, input: React.ReactNode, hint?: string) {
       <label className="form-label text-[11px] font-bold">{label}</label>
       {input}
       {hint && <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{hint}</p>}
+    </div>
+  )
+}
+
+/** Presets de degradados de un clic para el fondo de sección. */
+const GRADIENT_PRESETS = [
+  { name: 'Amanecer', from: '#f97316', to: '#f43f5e', dir: 'to bottom right' },
+  { name: 'Océano', from: '#06b6d4', to: '#2563eb', dir: 'to right' },
+  { name: 'Neón', from: '#a855f7', to: '#ec4899', dir: 'to right' },
+  { name: 'Crepúsculo', from: '#6366f1', to: '#a855f7', dir: 'to bottom' },
+  { name: 'Esmeralda', from: '#34d399', to: '#059669', dir: 'to right' },
+  { name: 'Atardecer', from: '#f59e0b', to: '#ef4444', dir: 'to bottom' },
+  { name: 'Medianoche', from: '#334155', to: '#0f172a', dir: 'to bottom' },
+  { name: 'Aurora', from: '#22d3ee', to: '#8b5cf6', dir: '135deg' },
+] as const
+
+/** Slider compacto para el panel de espaciado fino (padding del wrapper del bloque). */
+function SpacingSlider({ label, value, max, onChange }: { label: string; value: number | undefined; max: number; onChange: (v: number) => void }) {
+  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return (
+    <div className="flex-1 min-w-[80px]">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+        <span className="text-[10px] font-mono" style={{ color: 'var(--color-text-tertiary)' }}>{v}px</span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={4}
+        value={v}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-[var(--color-accent)]"
+      />
     </div>
   )
 }
@@ -159,7 +195,7 @@ export function LinkField({ label, value, onChange, windows, hint }: {
   )
 }
 
-export default function BlockEditor({ block, blockConfig, windows, onChange, onWindowChange, onDuplicate, onDelete, onMove, onGenerateAI, onPromoteNestedBlock, onDemoteBlock }: BlockEditorProps) {
+export default function BlockEditor({ block, blockConfig, windows, onChange, onWindowChange, onDuplicate, onDelete, onMove, onGenerateAI, onPromoteNestedBlock, onDemoteBlock, focusField }: BlockEditorProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'style'>(() => loadEditorState(block.id)?.tab || 'content')
   const [collapsed, setCollapsed] = useState<string[]>(() => loadEditorState(block.id)?.collapsed || [])
   const [collapsedItems, setCollapsedItems] = useState<string[]>(() => loadEditorState(block.id)?.collapsedItems || [])
@@ -211,6 +247,142 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       el.scrollTop = typeof cached === 'number' ? cached : 0
     }
   }, [block.id])
+
+  // ── Canvas deep-select: focus a specific field (logo, button, image, item…) ──
+  // The canvas tags inner elements with `data-edit-field` (e.g. `logoUrl`, `buttonText`,
+  // `products:2:name`). Here we map that key to the inspector's field label, expand the
+  // section/item it lives in and scroll + pulse + focus it — like Shopify's inspector.
+  const FIELD_LABELS: Record<string, { labels: string[]; tab?: 'content' | 'style' }> = {
+    logoUrl: { labels: ['Logo de la marca'] },
+    brandName: { labels: ['Nombre de la Marca'] },
+    announcement: { labels: ['Anuncio superior'] },
+    badge: { labels: ['Etiqueta / Badge', 'Etiqueta superior', 'Etiqueta'] },
+    title: { labels: ['Título Principal', 'Título del Catálogo', 'Título de la sección', 'Título'] },
+    headline: { labels: ['Titular'] },
+    subtitle: { labels: ['Subtítulo / Bajada', 'Subtítulo'] },
+    text: { labels: ['Contenido'] },
+    description: { labels: ['Descripción'] },
+    buttonText: { labels: ['Botón Principal', 'Texto Botón Principal', 'Texto del botón', 'Texto botón'] },
+    secondaryButtonText: { labels: ['Botón Secundario', 'Texto Botón Secundario'] },
+    heroImage: { labels: ['Imagen de fondo / Hero'] },
+    src: { labels: ['Imagen'] },
+    caption: { labels: ['Pie de foto'] },
+    imageUrl: { labels: ['Imagen del producto'] },
+    thumbnailUrl: { labels: ['Imagen de portada'] },
+    ctaText: { labels: ['Texto del botón'] },
+    address: { labels: ['Dirección'] },
+    phone: { labels: ['Teléfono / WhatsApp'] },
+    email: { labels: ['Correo'] },
+    companyName: { labels: ['Nombre de la marca'] },
+    tagline: { labels: ['Frase (tagline)'] },
+    name: { labels: ['Nombre'] },
+    price: { labels: ['Precio'] },
+    role: { labels: ['Rol', 'Cargo'] },
+    question: { labels: ['Pregunta'] },
+    videoUrl: { labels: ['URL del video'] },
+    hours: { labels: ['Horarios disponibles'] },
+  }
+
+  interface ParsedFocus { base: string; listKey?: string; itemIndex?: number }
+  const parseFocusKey = (field: string): ParsedFocus => {
+    const parts = String(field || '').split(':')
+    if (parts.length === 3) {
+      const idx = parseInt(parts[1]!, 10)
+      if (!isNaN(idx)) return { base: parts[2]!, listKey: parts[0]!, itemIndex: idx }
+    }
+    if (parts.length === 2) {
+      const idx = parseInt(parts[1]!, 10)
+      if (!isNaN(idx)) return { base: parts[0]!, listKey: parts[0]!, itemIndex: idx }
+    }
+    return { base: parts[0] || field || '' }
+  }
+
+  /** Header text of the item cards ("Producto 1", "Beneficio 2", "Plan 3"…). */
+  const CARD_HEADER_RE = /(producto|beneficio|testimonio|miembro|plan|art[ií]culo|pregunta|enlace)\s*(\d+)/i
+
+  /** Locates the DOM node (field wrapper, input or section header) matching the focused field. */
+  const locateFocusField = (root: HTMLElement, parsed: ParsedFocus): HTMLElement | null => {
+    const listKey = parsed.listKey
+    const itemIndex = parsed.itemIndex
+    const meta = FIELD_LABELS[parsed.base]
+    // Raw list fields without per-item labels: gallery images, social-proof messages
+    if (!meta) {
+      if (listKey && (listKey === 'images' || listKey === 'messages')) {
+        const sectionLabel = listKey === 'images' ? 'Imágenes' : 'Mensajes'
+        const header = Array.from(root.querySelectorAll('button')).find((b) =>
+          (b.textContent || '').trim().startsWith(sectionLabel)
+        )
+        if (!header) return null
+        // Sección: botón → fila del encabezado → contenedor (space-y-2 pt-1) con los inputs
+        const section = header.parentElement?.parentElement
+        if (section && itemIndex !== undefined) {
+          const inputs = Array.from(section.querySelectorAll('input'))
+          const target = inputs[itemIndex]
+          if (target) return target
+        }
+        return section || header
+      }
+      return null
+    }
+    const labels = meta.labels
+    for (const lab of Array.from(root.querySelectorAll('label.form-label'))) {
+      const text = (lab.textContent || '').trim()
+      if (!labels.some((l) => text === l || text.startsWith(l))) continue
+      const wrapper = lab.parentElement
+      if (!wrapper) continue
+      // For item fields, make sure this label belongs to the requested card index
+      if (listKey && itemIndex !== undefined) {
+        let node: HTMLElement | null = wrapper
+        let inCard = false
+        while (node && node !== root) {
+          const head = node.textContent || ''
+          const m = head.match(CARD_HEADER_RE)
+          if (m) {
+            inCard = true
+            if (parseInt(m[2]!, 10) - 1 === itemIndex) return wrapper
+            break
+          }
+          node = node.parentElement
+        }
+        if (inCard) continue // this label belongs to a different card
+        continue // section-level label — not the item target
+      }
+      return wrapper
+    }
+    return null
+  }
+
+  // Expand the required section/item first, then scroll + highlight + focus the field.
+  // When the state settles (section opened), the effect re-runs and performs the locate.
+  useLayoutEffect(() => {
+    if (!focusField) return
+    const parsed = parseFocusKey(focusField)
+    const meta = FIELD_LABELS[parsed.base]
+    let changed = false
+    const listKey = parsed.listKey
+    if (meta?.tab && activeTab !== meta.tab) { setActiveTab(meta.tab); changed = true }
+    if (listKey) {
+      if (collapsed.includes(listKey)) { setCollapsed((prev) => prev.filter((k) => k !== listKey)); changed = true }
+      if (parsed.itemIndex !== undefined) {
+        const itemKey = `${listKey}:${parsed.itemIndex}`
+        if (collapsedItems.includes(itemKey)) { setCollapsedItems((prev) => prev.filter((k) => k !== itemKey)); changed = true }
+      }
+    }
+    if (changed) return
+    const root = scrollRef.current
+    if (!root) return
+    const target = locateFocusField(root, parsed)
+    if (!target) return
+    const top = target.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop - 14
+    try { root.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } catch { /* jsdom */ }
+    target.classList.add('editor-field-focus')
+    window.setTimeout(() => target.classList.remove('editor-field-focus'), 2600)
+    const tag = target.tagName
+    const focusable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      ? (target as HTMLElement)
+      : target.querySelector('input, textarea, select') as HTMLElement | null
+    if (focusable) { try { focusable.focus({ preventScroll: true }) } catch { /* jsdom */ } }
+  }, [focusField, activeTab, collapsed, collapsedItems, block.id])
 
   if (!blockConfig) {
     return (
@@ -836,6 +1008,7 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
             {items.map((col: any, colIdx: number) => (
               <div
                 key={colIdx}
+                aria-label={`Columna ${colIdx + 1}`}
                 className={`p-2.5 rounded-xl border space-y-2 transition-all ${columnDropTarget?.colIdx === colIdx && columnDropTarget?.nbIdx === undefined ? 'border-sky-500 ring-2 ring-sky-500/50 shadow-sm' : 'border-[var(--color-border)] bg-[var(--color-bg-base)]'}`}
               >
                 <div className="flex items-center justify-between sticky top-0 z-10 bg-[var(--color-bg-base)]">
@@ -867,9 +1040,9 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
                     <span className="text-[10px] font-bold capitalize truncate flex-1" style={{ color: 'var(--color-text-secondary)' }}>
                       {nb.type.replace('-', ' ')}
                     </span>
-                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, -1)} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Subir"><ArrowUp size={11} /></button>
-                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, 1)} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Bajar"><ArrowDown size={11} /></button>
-                    <button onClick={() => removeNestedBlock(colIdx, nbIdx)} className="p-0.5 text-[var(--color-error)] hover:opacity-80" title="Quitar"><Trash2 size={11} /></button>
+                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, -1)} aria-label={`Subir ${nb.type.replace('-', ' ')}`} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Subir"><ArrowUp size={11} /></button>
+                    <button onClick={() => moveNestedBlock(colIdx, nbIdx, 1)} aria-label={`Bajar ${nb.type.replace('-', ' ')}`} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Bajar"><ArrowDown size={11} /></button>
+                    <button onClick={() => removeNestedBlock(colIdx, nbIdx)} aria-label={`Quitar ${nb.type.replace('-', ' ')}`} className="p-0.5 text-[var(--color-error)] hover:opacity-80" title="Quitar"><Trash2 size={11} /></button>
                   </div>
                 ))}
                 <select
@@ -882,6 +1055,7 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
                   }}
                   className="select-field text-[10px] w-full"
                   title="Añadir bloque a esta columna"
+                  aria-label={`Añadir bloque a la columna ${colIdx + 1}`}
                 >
                   <option value="">+ Añadir bloque a esta columna…</option>
                   {nestedTypes.map(c => (
@@ -1258,6 +1432,10 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
 
   return (
     <div className="w-80 xl:w-88 border-l border-[var(--color-border)] bg-[var(--color-bg-surface)] flex flex-col h-full overflow-hidden text-xs">
+      <style>{`
+        @keyframes editorFieldPulse { 0% { box-shadow: 0 0 0 0 rgba(168,85,247,0.5); } 100% { box-shadow: 0 0 0 7px rgba(168,85,247,0); } }
+        .editor-field-focus { animation: editorFieldPulse 1.1s ease-out 2; border-radius: 10px; outline: 2px solid rgba(168,85,247,0.6); outline-offset: 2px; transition: outline-color .2s; }
+      `}</style>
       {/* Header */}
       <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between shrink-0" style={{ background: 'var(--color-bg-base)' }}>
         <div>
@@ -1336,6 +1514,218 @@ export default function BlockEditor({ block, blockConfig, windows, onChange, onW
       <div ref={scrollRef} onScroll={handleEditorScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {activeTab === 'content' ? renderContentEditors() : (
           <div className="space-y-4">
+            {/* Universal design & responsive panel — available for every block */}
+            <div className="p-3 rounded-xl border border-[var(--color-border)] space-y-3" style={{ background: 'var(--color-bg-base)' }}>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)] flex items-center gap-1.5">
+                <Maximize2 size={11} /> Diseño &amp; Responsive
+              </p>
+
+              {field('Ancho del bloque', (
+                <select value={settings.blockWidth || 'full'} onChange={(e) => handleSettingChange('blockWidth', e.target.value)} className="select-field text-xs w-full">
+                  <option value="full">Ancho completo</option>
+                  <option value="wide">Contenido ancho (máx. 1024px)</option>
+                  <option value="medium">Contenido medio (máx. 768px)</option>
+                  <option value="narrow">Contenido estrecho (máx. 576px)</option>
+                </select>
+              ), 'Limita el ancho de esta sección y la centra. Pruébalo en los distintos dispositivos del lienzo.')}
+
+              <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                <span className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                  <Smartphone size={12} /> Ocultar en móvil
+                </span>
+                <input type="checkbox" checked={settings.hideMobile === true} onChange={(e) => handleSettingChange('hideMobile', e.target.checked)} className="w-4 h-4" />
+              </label>
+              <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                <span className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                  <Monitor size={12} /> Solo escritorio
+                </span>
+                <input type="checkbox" checked={settings.hideTablet === true} onChange={(e) => handleSettingChange('hideTablet', e.target.checked)} className="w-4 h-4" />
+              </label>
+              <p className="text-[10px] text-[var(--color-text-tertiary)]">
+                «Ocultar en móvil» esconde la sección en pantallas &lt; 768px; «Solo escritorio» la muestra únicamente en &ge; 1024px. Se aplica igual en el editor y en la web pública.
+              </p>
+
+              <div className="pt-2 border-t border-[var(--color-border)]">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)] mb-2 flex items-center gap-1.5">
+                  <MoveVertical size={11} /> Espaciado fino
+                </p>
+                <div className="flex gap-2">
+                  <SpacingSlider label="Arriba" value={typeof settings.paddingTop === 'number' ? settings.paddingTop : undefined} max={160} onChange={(v) => handleSettingChange('paddingTop', v)} />
+                  <SpacingSlider label="Abajo" value={typeof settings.paddingBottom === 'number' ? settings.paddingBottom : undefined} max={160} onChange={(v) => handleSettingChange('paddingBottom', v)} />
+                  <SpacingSlider label="Horizontal" value={typeof settings.paddingX === 'number' ? settings.paddingX : undefined} max={120} onChange={(v) => handleSettingChange('paddingX', v)} />
+                </div>
+                {field('Radio de esquinas', (
+                  <select value={settings.borderRadius || '0px'} onChange={(e) => handleSettingChange('borderRadius', e.target.value)} className="select-field text-xs w-full mt-2">
+                    <option value="0px">Sin redondeo</option>
+                    <option value="8px">Suave (8px)</option>
+                    <option value="12px">Medio (12px)</option>
+                    <option value="16px">Grande (16px)</option>
+                    <option value="24px">Muy grande (24px)</option>
+                    <option value="9999px">Completamente redondeado</option>
+                  </select>
+                ), 'Redondea las esquinas de toda la sección (visible si tiene fondo o borde).')}
+                {(settings.paddingTop !== undefined || settings.paddingBottom !== undefined || settings.paddingX !== undefined || settings.borderRadius !== undefined) && (
+                  <button
+                    onClick={() => {
+                      handleSettingChange('paddingTop', undefined)
+                      handleSettingChange('paddingBottom', undefined)
+                      handleSettingChange('paddingX', undefined)
+                      handleSettingChange('borderRadius', undefined)
+                    }}
+                    className="w-full mt-2 py-1.5 text-[10px] font-bold rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)]"
+                  >
+                    Restablecer espaciado y radio
+                  </button>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-[var(--color-border)] space-y-3">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)] flex items-center gap-1.5">
+                  <PaintBucket size={11} /> Superficie &amp; Borde
+                </p>
+                <div>
+                  <label className="form-label text-[11px] font-bold">Color de fondo</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={settings.bgColor || '#f1f5f9'}
+                      onChange={(e) => handleSettingChange('bgColor', e.target.value)}
+                      className="w-8 h-8 rounded-lg border border-[var(--color-border)] cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={settings.bgColor || ''}
+                      onChange={(e) => handleSettingChange('bgColor', e.target.value)}
+                      placeholder="#f1f5f9"
+                      className="input-field text-xs font-mono flex-1"
+                    />
+                  </div>
+                </div>
+                <label className="flex items-center justify-between gap-2 p-2 rounded-lg border border-[var(--color-border)]">
+                  <span className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                    <Droplets size={12} /> Usar degradado
+                  </span>
+                  <input type="checkbox" checked={settings.bgGradient === true} onChange={(e) => handleSettingChange('bgGradient', e.target.checked)} className="w-4 h-4" />
+                </label>
+                <div>
+                  <label className="form-label text-[11px] font-bold">Presets</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {GRADIENT_PRESETS.map(p => {
+                      const isActive = settings.bgGradient === true && settings.bgGradientFrom === p.from && settings.bgGradientTo === p.to && settings.bgGradientDirection === p.dir
+                      return (
+                        <button
+                          key={p.name}
+                          type="button"
+                          title={p.name}
+                          onClick={() => {
+                            handleSettingChange('bgGradient', true)
+                            handleSettingChange('bgGradientFrom', p.from)
+                            handleSettingChange('bgGradientTo', p.to)
+                            handleSettingChange('bgGradientDirection', p.dir)
+                          }}
+                          className={`relative h-9 min-w-0 rounded-lg border overflow-hidden group transition-all ${isActive ? 'ring-2 ring-[var(--color-accent)]' : 'border-[var(--color-border)] hover:scale-105'}`}
+                          style={{ backgroundImage: `linear-gradient(${p.dir}, ${p.from}, ${p.to})` }}
+                        >
+                          <span className="absolute inset-x-0 bottom-0 py-0.5 text-center text-[8px] font-bold text-white bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity truncate">
+                            {p.name}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {settings.bgGradient === true && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="form-label text-[11px] font-bold">Desde</label>
+                        <input
+                          type="color"
+                          value={settings.bgGradientFrom || '#f1f5f9'}
+                          onChange={(e) => handleSettingChange('bgGradientFrom', e.target.value)}
+                          className="w-full h-8 rounded-lg border border-[var(--color-border)] cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="form-label text-[11px] font-bold">Hasta</label>
+                        <input
+                          type="color"
+                          value={settings.bgGradientTo || '#e2e8f0'}
+                          onChange={(e) => handleSettingChange('bgGradientTo', e.target.value)}
+                          className="w-full h-8 rounded-lg border border-[var(--color-border)] cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    {field('Dirección', (
+                      <select value={settings.bgGradientDirection || 'to bottom'} onChange={(e) => handleSettingChange('bgGradientDirection', e.target.value)} className="select-field text-xs w-full">
+                        <option value="to bottom">Hacia abajo</option>
+                        <option value="to top">Hacia arriba</option>
+                        <option value="to right">Hacia la derecha</option>
+                        <option value="to left">Hacia la izquierda</option>
+                        <option value="to bottom right">Diagonal ↘</option>
+                        <option value="to bottom left">Diagonal ↙</option>
+                        <option value="to top right">Diagonal ↗</option>
+                        <option value="to top left">Diagonal ↖</option>
+                        <option value="135deg">Ángulo 135°</option>
+                      </select>
+                    ))}
+                  </div>
+                )}
+                <SpacingSlider label="Opacidad del fondo" value={typeof settings.bgOpacity === 'number' ? settings.bgOpacity : undefined} max={100} onChange={(v) => handleSettingChange('bgOpacity', v)} />
+                <div className="pt-2 border-t border-[var(--color-border)]">
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <SpacingSlider label="Grosor del borde" value={typeof settings.borderWidth === 'number' ? settings.borderWidth : undefined} max={16} onChange={(v) => handleSettingChange('borderWidth', v)} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="form-label text-[11px] font-bold">Estilo</label>
+                      <select value={settings.borderStyle || 'solid'} onChange={(e) => handleSettingChange('borderStyle', e.target.value)} className="select-field text-xs w-full">
+                        <option value="solid">Sólido</option>
+                        <option value="dashed">Discontinuo</option>
+                        <option value="dotted">Punteado</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="form-label text-[11px] font-bold">Color del borde</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={settings.borderColor || '#e2e8f0'}
+                        onChange={(e) => handleSettingChange('borderColor', e.target.value)}
+                        className="w-8 h-8 rounded-lg border border-[var(--color-border)] cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={settings.borderColor || ''}
+                        onChange={(e) => handleSettingChange('borderColor', e.target.value)}
+                        placeholder="#e2e8f0"
+                        className="input-field text-xs font-mono flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {(settings.bgColor !== undefined || settings.bgOpacity !== undefined || settings.bgGradient !== undefined || settings.bgGradientFrom !== undefined || settings.bgGradientTo !== undefined || settings.bgGradientDirection !== undefined || settings.borderColor !== undefined || settings.borderWidth !== undefined || settings.borderStyle !== undefined) && (
+                  <button
+                    onClick={() => {
+                      handleSettingChange('bgColor', undefined)
+                      handleSettingChange('bgOpacity', undefined)
+                      handleSettingChange('bgGradient', undefined)
+                      handleSettingChange('bgGradientFrom', undefined)
+                      handleSettingChange('bgGradientTo', undefined)
+                      handleSettingChange('bgGradientDirection', undefined)
+                      handleSettingChange('borderColor', undefined)
+                      handleSettingChange('borderWidth', undefined)
+                      handleSettingChange('borderStyle', undefined)
+                    }}
+                    className="w-full py-1.5 text-[10px] font-bold rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] flex items-center justify-center gap-1.5"
+                  >
+                    <Square size={11} /> Restablecer fondo y borde
+                  </button>
+                )}
+              </div>
+            </div>
+
             {(type === 'columns' || type === 'image' || type === 'text' || type === 'calendar' || type === 'vsl' || type === 'articles' || type === 'footer') && (
               <div className="p-3 rounded-xl border border-[var(--color-border)] space-y-3" style={{ background: 'var(--color-bg-base)' }}>
                 <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-tertiary)]">Configuración específica del bloque</p>

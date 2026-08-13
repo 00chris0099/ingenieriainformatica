@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { CORPORATE_TEMPLATES } from '@/lib/templates/corporate-templates'
 import { LANDING_TEMPLATES } from '@/lib/templates/landing-templates'
+import { ULTRA_TEMPLATES } from '@/lib/templates/ultra-templates'
+
+/** Hero visible en la ventana home de una plantilla (navbar/footer son globales). */
+function homeHeroTitle(tpl: any): string {
+  const hero = (tpl.blocks || []).find((b: any) => b.type === 'hero' && (!b.windowId || b.windowId === 'home'))
+  return hero?.content?.title || tpl.blocks?.[1]?.content?.title || ''
+}
 
 // jsdom lacks IntersectionObserver used by the Reveal wrapper
 class MockIntersectionObserver {
@@ -170,6 +177,103 @@ describe('Paridad editor vs público en todas las plantillas', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Plantillas ULTRA — paridad editor ↔ público en las 6 nuevas
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Paridad editor vs público en las plantillas ULTRA', () => {
+  beforeAll(() => {
+    ;(global as any).IntersectionObserver = MockIntersectionObserver
+  })
+
+  afterEach(() => {
+    cleanup()
+    window.location.hash = ''
+    vi.restoreAllMocks()
+  })
+
+  it.each(ULTRA_TEMPLATES.map((t) => [t.id, t.name] as const))(
+    '%s: el hero de home se ve idéntico en público y en editor',
+    (id, name) => {
+      const tpl = ULTRA_TEMPLATES.find((t) => t.id === id)!
+      const title = homeHeroTitle(tpl)
+      expect(title).toBeTruthy()
+
+      renderTemplate(tpl, { hash: '#/' })
+      expect(screen.getByText(title)).toBeInTheDocument()
+      const heroPublic = screen.getByText(title)
+      cleanup()
+
+      renderTemplate(tpl, { editorMode: true, controlledWindow: 'home' })
+      const heroEditor = screen.getByText(title)
+      expect(heroEditor).toBeInTheDocument()
+      expect(heroEditor.textContent).toBe(heroPublic.textContent)
+    }
+  )
+
+  it('tiendas ultra: el catálogo con pestañas renderiza en ambos modos', () => {
+    const stores = ULTRA_TEMPLATES.filter((t) => t.type === 'store')
+    expect(stores.length).toBeGreaterThanOrEqual(2)
+    for (const tpl of stores) {
+      const grid = (tpl.blocks || []).find((b: any) => b.type === 'product-grid')
+      expect(grid).toBeDefined()
+      const catTitle = (grid as any)?.content?.title || 'Catálogo'
+
+      renderTemplate(tpl, { hash: '#/catalogo' })
+      expect(screen.getByText(catTitle)).toBeInTheDocument()
+      expect(screen.getByText('Todos')).toBeInTheDocument()
+      cleanup()
+
+      renderTemplate(tpl, { editorMode: true, controlledWindow: 'catalogo' })
+      expect(screen.getByText(catTitle)).toBeInTheDocument()
+      const firstProduct = (grid as any)?.content?.products?.[0]?.name
+      if (firstProduct) expect(screen.getByText(firstProduct)).toBeInTheDocument()
+      cleanup()
+    }
+  })
+
+  it('landings ultra: la sección de prueba social o servicios aparece en ambos modos', () => {
+    const landings = ULTRA_TEMPLATES.filter((t) => t.type === 'landing')
+    for (const tpl of landings) {
+      const section = (tpl.blocks || []).find((b: any) => b.type === 'features' || b.type === 'social-proof')
+      const sectionTitle = (section as any)?.content?.title || (section as any)?.content?.headline
+      if (!sectionTitle) continue
+      renderTemplate(tpl, { hash: '#/' })
+      expect(screen.getByText(sectionTitle)).toBeInTheDocument()
+      cleanup()
+      renderTemplate(tpl, { editorMode: true, controlledWindow: 'home' })
+      expect(screen.getByText(sectionTitle)).toBeInTheDocument()
+      cleanup()
+    }
+  })
+
+  it('corporativas ultra: las ventanas de equipo y blog navegan igual en ambos modos', () => {
+    const corporate = ULTRA_TEMPLATES.filter((t) => t.type === 'corporate')
+    for (const tpl of corporate) {
+      const team = (tpl.blocks || []).find((b: any) => b.type === 'team')
+      const articles = (tpl.blocks || []).find((b: any) => b.type === 'articles')
+      const teamTitle = team?.content?.title
+      if (teamTitle) {
+        renderTemplate(tpl, { hash: '#/ventana/equipo' })
+        expect(screen.getByText(teamTitle)).toBeInTheDocument()
+        cleanup()
+        renderTemplate(tpl, { editorMode: true, controlledWindow: 'equipo' })
+        expect(screen.getByText(teamTitle)).toBeInTheDocument()
+        cleanup()
+      }
+      const blogTitle = articles?.content?.title
+      if (blogTitle) {
+        renderTemplate(tpl, { hash: '#/ventana/blog' })
+        expect(screen.getByText(blogTitle)).toBeInTheDocument()
+        cleanup()
+        renderTemplate(tpl, { editorMode: true, controlledWindow: 'blog' })
+        expect(screen.getByText(blogTitle)).toBeInTheDocument()
+        cleanup()
+      }
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Bloques por tipo: calendar, vsl, articles + footer configurable + destinos
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -239,10 +343,9 @@ describe('Bloques por tipo: calendar, vsl, articles, footer y destinos', () => {
     // Sin nombre y teléfono, el botón está deshabilitado
     const btnBefore = screen.getByText('Confirmar reserva').closest('button')
     expect(btnBefore).toBeDisabled()
-    // Rellena nombre y teléfono → se habilita
-    const inputs = screen.getAllByPlaceholderText(/Nombre completo|Teléfono/)
-    fireEvent.change(inputs[0] as Element, { target: { value: 'Ana Pérez' } })
-    fireEvent.change(inputs[1] as Element, { target: { value: '51999999999' } })
+    // Rellena nombre y teléfono → se habilita (placeholders exactos, sin índices)
+    fireEvent.change(screen.getByPlaceholderText('Nombre completo *'), { target: { value: 'Ana Pérez' } })
+    fireEvent.change(screen.getByPlaceholderText('Teléfono / WhatsApp *'), { target: { value: '51999999999' } })
     const btn = screen.getByText('Confirmar reserva').closest('button')
     expect(btn).not.toBeDisabled()
   })
@@ -275,7 +378,37 @@ describe('Bloques por tipo: calendar, vsl, articles, footer y destinos', () => {
     expect(social?.getAttribute('href')).toBe('https://instagram.com/miempresa')
   })
 
-  it('hero con primaryLink tipo ventana navega por onNavigateWindow en el editor', () => {
+  it('hero con primaryLink: un clic selecciona + enfoca el campo; doble clic edita inline', () => {
+    const onNavigateWindow = vi.fn()
+    const onSelectElement = vi.fn()
+    const onStartInlineEdit = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={typeBlocks.heroLinks ?? []}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onSelectElement={onSelectElement}
+        onStartInlineEdit={onStartInlineEdit}
+        onNavigateWindow={onNavigateWindow}
+      />
+    )
+    const btnText = screen.getByText('Ir a Ofertas')
+    // Single click: deep-select the button field, no navigation (no bucle)
+    fireEvent.click(btnText)
+    expect(onNavigateWindow).not.toHaveBeenCalled()
+    expect(onSelectElement).toHaveBeenCalledWith('hero-l', 'buttonText')
+    // Double click on the button text: starts inline editing (no navigation)
+    fireEvent.dblClick(btnText)
+    expect(onNavigateWindow).not.toHaveBeenCalled()
+    expect(onStartInlineEdit).toHaveBeenCalledWith('hero-l', 'buttonText', 'Ir a Ofertas')
+  })
+
+  it('inline edit: doble clic en el título del hero inicia la edición del campo', () => {
+    const onStartInlineEdit = vi.fn()
     const onNavigateWindow = vi.fn()
     render(
       <PublicStoreClient
@@ -286,17 +419,547 @@ describe('Bloques por tipo: calendar, vsl, articles, footer y destinos', () => {
         controlledWindow="home"
         selectedBlockId={null}
         onSelectBlock={vi.fn()}
+        onStartInlineEdit={onStartInlineEdit}
         onNavigateWindow={onNavigateWindow}
       />
     )
+    fireEvent.dblClick(screen.getByText('Hero Links'))
+    expect(onStartInlineEdit).toHaveBeenCalledWith('hero-l', 'title', 'Hero Links')
+    expect(onNavigateWindow).not.toHaveBeenCalled()
+  })
+
+  it('inline edit: la marca del navbar se edita al hacer doble clic (sin navegar)', () => {
+    const onStartInlineEdit = vi.fn()
+    const onNavigateWindow = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'nav-test',
+          type: 'navbar',
+          windowId: 'home',
+          settings: {},
+          content: { brandName: 'Mi Marca', announcement: 'Envío gratis' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onStartInlineEdit={onStartInlineEdit}
+        onNavigateWindow={onNavigateWindow}
+      />
+    )
+    fireEvent.dblClick(screen.getByText('Mi Marca'))
+    expect(onStartInlineEdit).toHaveBeenCalledWith('nav-test', 'brandName', 'Mi Marca')
+    expect(onNavigateWindow).not.toHaveBeenCalled()
+    // El anuncio superior también es editable en el canvas
+    fireEvent.dblClick(screen.getByText('Envío gratis'))
+    expect(onStartInlineEdit).toHaveBeenCalledWith('nav-test', 'announcement', 'Envío gratis')
+  })
+
+  it('inline edit: con inlineEdit activo el título se convierte en input y guarda en vivo (Enter)', () => {
+    const onChange = vi.fn()
+    const onCommit = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={typeBlocks.heroLinks ?? []}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        inlineEdit={{ blockId: 'hero-l', field: 'title' }}
+        onInlineEditChange={onChange}
+        onInlineEditCommit={onCommit}
+        onInlineEditCancel={vi.fn()}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const input = document.querySelector('.canvas-inline-input') as HTMLInputElement
+    expect(input).not.toBeNull()
+    expect(input.value).toBe('Hero Links')
+    // Escribir actualiza el contenido en vivo
+    fireEvent.change(input, { target: { value: 'Nuevo Título' } })
+    expect(onChange).toHaveBeenCalledWith('hero-l', 'title', 'Nuevo Título')
+    // Enter confirma y guarda
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledWith('hero-l', 'title', 'Nuevo Título')
+  })
+
+  it('inline edit: Escape cancela la edición y revierte el valor', () => {
+    const onCancel = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={typeBlocks.heroLinks ?? []}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        inlineEdit={{ blockId: 'hero-l', field: 'title' }}
+        onInlineEditChange={vi.fn()}
+        onInlineEditCommit={vi.fn()}
+        onInlineEditCancel={onCancel}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const input = document.querySelector('.canvas-inline-input') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'Cambio temporal' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledWith('hero-l', 'title')
+  })
+
+  it('deep-select: clic en el logo del navbar abre el inspector enfocado en logoUrl', () => {
+    const onSelectElement = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'nav-test',
+          type: 'navbar',
+          windowId: 'home',
+          settings: {},
+          content: { brandName: 'Mi Marca', logoUrl: 'https://example.com/logo.png' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onSelectElement={onSelectElement}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const logo = screen.getByAltText('Mi Marca')
+    fireEvent.click(logo)
+    expect(onSelectElement).toHaveBeenCalledWith('nav-test', 'logoUrl')
+    // El clic en el logo no navega (solo selecciona)
+    cleanup()
+    const nav = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'nav2',
+          type: 'navbar',
+          windowId: 'home',
+          settings: {},
+          content: { brandName: 'Mi Marca' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onSelectElement={vi.fn()}
+        onNavigateWindow={nav}
+      />
+    )
+    fireEvent.click(screen.getByText('Mi Marca'))
+    expect(nav).not.toHaveBeenCalled()
+  })
+
+  it('deep-select: clic derecho en un botón del hero abre el menú contextual con su campo', () => {
+    const onContextMenu = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={typeBlocks.heroLinks ?? []}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onBlockContextMenu={onContextMenu}
+        onNavigateWindow={vi.fn()}
+      />
+    )
     const btn = screen.getByText('Ir a Ofertas').closest('a')
-    fireEvent.click(btn as Element)
-    expect(onNavigateWindow).toHaveBeenCalledWith('ofertas')
+    fireEvent.contextMenu(btn as Element, { clientX: 320, clientY: 180 })
+    expect(onContextMenu).toHaveBeenCalledWith('hero-l', 'buttonText', 320, 180, null)
+    // El menú del navegador no debe aparecer (default prevented)
+    expect(btn?.getAttribute('href')).toBeDefined()
+  })
+
+  it('deep-select: clic derecho en el área vacía del hero apunta al campo heroImage', () => {
+    const onContextMenu = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'hero-bg',
+          type: 'hero',
+          windowId: 'home',
+          settings: { backgroundColor: '#0f172a' },
+          content: { title: 'T', heroImage: 'https://example.com/bg.jpg' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onBlockContextMenu={onContextMenu}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    // Clic derecho sobre el <section> (fondo del hero), no sobre un elemento etiquetado
+    const section = screen.getByText('T').closest('section')
+    fireEvent.contextMenu(section as Element)
+    expect(onContextMenu).toHaveBeenCalledWith('hero-bg', 'heroImage', expect.any(Number), expect.any(Number), 'https://example.com/bg.jpg')
+  })
+
+  it('deep-select: clic derecho en el logo pasa la URL para las acciones rápidas de imagen', () => {
+    const onContextMenu = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'nav-logo',
+          type: 'navbar',
+          windowId: 'home',
+          settings: {},
+          content: { brandName: 'Mi Marca', logoUrl: 'https://example.com/logo.png' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onBlockContextMenu={onContextMenu}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const logo = document.querySelector('[data-inline-image="logoUrl"]') as HTMLImageElement
+    expect(logo).not.toBeNull()
+    fireEvent.contextMenu(logo as Element, { clientX: 90, clientY: 40 })
+    expect(onContextMenu).toHaveBeenCalledWith('nav-logo', 'logoUrl', 90, 40, 'https://example.com/logo.png')
+  })
+
+  it('deep-select: clic derecho en la imagen de un producto pasa su URL exacta', () => {
+    const onContextMenu = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'grid-cm',
+          type: 'product-grid',
+          windowId: 'catalogo',
+          settings: {},
+          content: {
+            title: 'Catálogo',
+            products: [
+              { id: 'p1', name: 'Producto Uno', price: 'S/ 59.90', imageUrl: 'https://example.com/p1.jpg' },
+              { id: 'p2', name: 'Producto Dos', price: 'S/ 89.90', imageUrl: 'https://example.com/p2.jpg' },
+            ],
+          },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="catalogo"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onBlockContextMenu={onContextMenu}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const second = document.querySelector('[data-inline-image="products:1:imageUrl"]') as HTMLElement
+    expect(second).not.toBeNull()
+    fireEvent.contextMenu(second as Element, { clientX: 250, clientY: 120 })
+    expect(onContextMenu).toHaveBeenCalledWith('grid-cm', 'products:1:imageUrl', 250, 120, 'https://example.com/p2.jpg')
   })
 
   it('hero con secondaryLink tipo ancla mantiene el hash de ancla', () => {
     renderTemplate({ name: 'Test', blocks: typeBlocks.heroLinks, settings: {}, seo: {} }, { hash: '#/' })
     const secondary = screen.getByText('Ver más').closest('a')
     expect(secondary?.getAttribute('href')).toBe('#productos')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Edición inline de IMÁGENES en el canvas (dbl-click → selector del dispositivo)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Edición inline de imágenes en el canvas', () => {
+  beforeAll(() => {
+    ;(global as any).IntersectionObserver = MockIntersectionObserver
+  })
+
+  afterEach(() => {
+    cleanup()
+    window.location.hash = ''
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  const navbarBlock = {
+    id: 'nav-img',
+    type: 'navbar',
+    windowId: 'home',
+    settings: {},
+    content: { brandName: 'Mi Marca', logoUrl: 'https://example.com/logo.png' },
+  }
+
+  it('doble clic en el logo del navbar abre el selector de archivos del dispositivo', () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[navbarBlock]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const logo = document.querySelector('[data-inline-image="logoUrl"]') as HTMLImageElement
+    expect(logo).not.toBeNull()
+    fireEvent.doubleClick(logo)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('doble clic en el fondo del hero abre el selector (heroImage) sin romper el texto', () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'hero-img',
+          type: 'hero',
+          windowId: 'home',
+          settings: { backgroundColor: '#0f172a' },
+          content: { title: 'Hero Imagen', heroImage: 'https://example.com/bg.jpg' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const hero = document.querySelector('[data-inline-image="heroImage"]') as HTMLElement
+    expect(hero).not.toBeNull()
+    // Doble clic en el fondo (el propio <section>): abre el selector
+    fireEvent.doubleClick(hero)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    // El título del hero sigue siendo texto editable (el texto manda sobre la imagen de fondo)
+    const onStartInlineEdit = vi.fn()
+    cleanup()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'hero-img',
+          type: 'hero',
+          windowId: 'home',
+          settings: { backgroundColor: '#0f172a' },
+          content: { title: 'Hero Imagen', heroImage: 'https://example.com/bg.jpg' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onStartInlineEdit={onStartInlineEdit}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    fireEvent.doubleClick(screen.getByText('Hero Imagen'))
+    expect(onStartInlineEdit).toHaveBeenCalledWith('hero-img', 'title', 'Hero Imagen')
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('doble clic en la imagen de un producto del catálogo abre el selector', () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'grid-img',
+          type: 'product-grid',
+          windowId: 'catalogo',
+          settings: {},
+          content: {
+            title: 'Catálogo',
+            products: [
+              { id: 'p1', name: 'Producto Uno', price: 'S/ 59.90', imageUrl: 'https://example.com/p1.jpg' },
+              { id: 'p2', name: 'Producto Dos', price: 'S/ 89.90', imageUrl: 'https://example.com/p2.jpg' },
+            ],
+          },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="catalogo"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const second = document.querySelector('[data-inline-image="products:1:imageUrl"]') as HTMLImageElement
+    expect(second).not.toBeNull()
+    fireEvent.doubleClick(second)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('sube la imagen elegida y llama onInlineImageUpload con la URL devuelta', async () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    const onUpload = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, url: 'https://imgbb.io/nuevo-logo.png' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[navbarBlock]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onInlineImageUpload={onUpload}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const logo = document.querySelector('[data-inline-image="logoUrl"]') as HTMLImageElement
+    fireEvent.doubleClick(logo)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    // Simula elegir un archivo en el input oculto (localizado por su aria-label)
+    const input = screen.getByLabelText('Subir imagen del dispositivo') as HTMLInputElement
+    expect(input).not.toBeNull()
+    const file = new File(['data'], 'logo.png', { type: 'image/png' })
+    Object.defineProperty(input, 'files', { value: [file] })
+    await act(async () => {
+      fireEvent.change(input)
+    })
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled()
+      expect(onUpload).toHaveBeenCalledWith('nav-img', 'logoUrl', 'https://imgbb.io/nuevo-logo.png')
+    })
+  })
+
+  it('arrastrar y soltar una imagen del escritorio sobre el logo la reemplaza en vivo', async () => {
+    const onUpload = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, url: 'https://imgbb.io/logo-drag.png' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[navbarBlock]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onInlineImageUpload={onUpload}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const logo = document.querySelector('[data-inline-image="logoUrl"]') as HTMLImageElement
+    const file = new File(['x'], 'logo.png', { type: 'image/png' })
+    await act(async () => {
+      fireEvent.drop(logo, { dataTransfer: { files: [file], types: ['Files'] } })
+    })
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled()
+      expect(onUpload).toHaveBeenCalledWith('nav-img', 'logoUrl', 'https://imgbb.io/logo-drag.png')
+    })
+  })
+
+  it('soltar una imagen sobre el fondo del hero reemplaza heroImage sin tocar el texto', async () => {
+    const onUpload = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, url: 'https://imgbb.io/hero-drag.jpg' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[{
+          id: 'hero-img',
+          type: 'hero',
+          windowId: 'home',
+          settings: { backgroundColor: '#0f172a' },
+          content: { title: 'Hero Imagen', heroImage: 'https://example.com/bg.jpg' },
+        }]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onInlineImageUpload={onUpload}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    const hero = document.querySelector('[data-inline-image="heroImage"]') as HTMLElement
+    const file = new File(['x'], 'fondo.jpg', { type: 'image/jpeg' })
+    await act(async () => {
+      fireEvent.drop(hero, { dataTransfer: { files: [file], types: ['Files'] } })
+    })
+    await vi.waitFor(() => {
+      expect(onUpload).toHaveBeenCalledWith('hero-img', 'heroImage', 'https://imgbb.io/hero-drag.jpg')
+    })
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Insert '+' entre secciones del canvas
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Insertar sección desde el canvas', () => {
+  const heroBlock = {
+    id: 'hero-1',
+    type: 'hero',
+    windowId: 'home',
+    settings: { backgroundColor: '#0f172a' },
+    content: { title: 'Hero Uno', buttonText: 'CTA' },
+  }
+
+  it('muestra un handle "+" antes de cada sección y uno al final, y llama onInsertBetween', () => {
+    const onInsert = vi.fn()
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[heroBlock]}
+        settings={{}}
+        editorMode
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onNavigateWindow={vi.fn()}
+        onInsertBetween={onInsert}
+      />
+    )
+    // Un handle antes de la sección y otro al final, localizados por su aria-label único
+    expect(screen.getAllByRole('button', { name: /Insertar sección/ })).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Insertar sección antes de hero-1' }))
+    expect(onInsert).toHaveBeenCalledWith('hero-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Insertar sección al final' }))
+    expect(onInsert).toHaveBeenCalledWith(null)
+  })
+
+  it('no renderiza handles en modo público (sin editorMode)', () => {
+    render(
+      <PublicStoreClient
+        pageTitle="Test"
+        blocks={[heroBlock]}
+        settings={{}}
+        controlledWindow="home"
+        selectedBlockId={null}
+        onSelectBlock={vi.fn()}
+        onNavigateWindow={vi.fn()}
+      />
+    )
+    expect(document.querySelectorAll('.editor-insert-handle').length).toBe(0)
   })
 })

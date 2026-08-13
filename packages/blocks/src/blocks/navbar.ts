@@ -15,6 +15,7 @@ export const navbarBlock: BlockConfig = {
   defaultContent: {
     announcement: '¡ENVÍO GRATIS EN COMPRAS MAYORES A S/ 120!',
     brandName: 'TIENDA VIRTUAL',
+    logoUrl: '',
     links: [
       { label: 'Inicio', windowId: 'home', iconName: 'Home' },
       { label: 'Catálogo', windowId: 'productos', iconName: 'ShoppingBag' },
@@ -27,5 +28,6 @@ export const navbarBlock: BlockConfig = {
     { key: 'sticky', label: 'Fijo al Scroll', type: 'toggle' },
     { key: 'announcement', label: 'Barra de Anuncios', type: 'textarea', group: 'content' },
     { key: 'brandName', label: 'Nombre de Marca', type: 'text', group: 'content' },
+    { key: 'logoUrl', label: 'Logo (URL o subida)', type: 'image', group: 'content' },
   ],
 }

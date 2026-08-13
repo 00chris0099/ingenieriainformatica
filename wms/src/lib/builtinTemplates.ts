@@ -1,5 +1,6 @@
 import { LANDING_TEMPLATES } from '@/lib/templates/landing-templates'
 import { CORPORATE_TEMPLATES } from '@/lib/templates/corporate-templates'
+import { ULTRA_TEMPLATES } from '@/lib/templates/ultra-templates'
 
 export const BUILTIN_TEMPLATES = [
   {
@@ -15,6 +16,7 @@ export const BUILTIN_TEMPLATES = [
       description: 'Prendas exclusivas en algodón 100% antialérgico para niños, niñas y bebés.',
     },
     settings: {
+      fontFamily: 'poppins',
       primaryColor: '#f43f5e',
       secondaryColor: '#fff1f2',
       accentColor: '#ec4899',
@@ -256,6 +258,7 @@ export const BUILTIN_TEMPLATES = [
       description: 'Audífonos inalámbricos, smartwatches y accesorios tech con 12 meses de garantía.',
     },
     settings: {
+      fontFamily: 'space-grotesk',
       primaryColor: '#3b82f6',
       secondaryColor: '#0f172a',
       accentColor: '#8b5cf6',
@@ -433,6 +436,7 @@ export const BUILTIN_TEMPLATES = [
       description: 'Vinos de gran reserva, quesos madurados y hampers de regalo corporativo.',
     },
     settings: {
+      fontFamily: 'playfair',
       primaryColor: '#78350f',
       secondaryColor: '#fef3c7',
       accentColor: '#d97706',
@@ -597,4 +601,5 @@ export const BUILTIN_TEMPLATES = [
   },
   ...LANDING_TEMPLATES,
   ...CORPORATE_TEMPLATES,
+  ...ULTRA_TEMPLATES,
 ]

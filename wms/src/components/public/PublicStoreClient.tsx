@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { fontStack } from '@/lib/fonts'
 import { IconRenderer } from '@/components/ui/IconRenderer'
 import { X, ShoppingBag, Check, Plus, Minus, MessageSquare, Star, Trash2, ArrowLeft, ExternalLink, Facebook, Instagram, Youtube, Linkedin, Loader2, CreditCard, Lock, CheckCircle2, Send } from 'lucide-react'
 import { setDragPayload, readDragPayload, type BlockDragPayload } from '@/lib/block-dnd'
@@ -22,9 +23,24 @@ interface PublicStoreClientProps {
   controlledWindow?: string
   selectedBlockId?: string | null
   onSelectBlock?: (blockId: string) => void
+  /** Editor deep-select: a specific inner element was clicked (logo, button, image…). Field keys like `logoUrl`, `buttonText`, `products:2:name`. */
+  onSelectElement?: (blockId: string, field: string) => void
+  /** Editor context menu: right-click on any canvas element (or its field) opens the block menu at (x, y).
+   *  When the element is an image, `imageUrl` carries its current URL for quick actions (undo, copy). */
+  onBlockContextMenu?: (blockId: string, field: string | null, x: number, y: number, imageUrl?: string | null) => void
+  /** Editor inline text editing: dbl-click a text element on the canvas edits it in place. */
+  inlineEdit?: { blockId: string; field: string } | null
+  onStartInlineEdit?: (blockId: string, field: string, value: string) => void
+  onInlineEditChange?: (blockId: string, field: string, value: string) => void
+  onInlineEditCommit?: (blockId: string, field: string, value: string) => void
+  onInlineEditCancel?: (blockId: string, field: string) => void
+  /** Editor inline image editing: dbl-click an image on the canvas (logo, producto, fondo…) uploads a replacement from the device. */
+  onInlineImageUpload?: (blockId: string, field: string, url: string) => void
   onNavigateWindow?: (windowId: string) => void
   /** Editor DnD: a block was dropped on a `columns` block (container or a nested block inside it). */
   onCanvasBlockDrop?: (parentId: string, colIdx: number, beforeNbId: string | undefined, payload: BlockDragPayload) => void
+  /** Editor: the user clicked a '+' insert handle between sections — insert a new block before `beforeBlockId` (null = al final). */
+  onInsertBetween?: (beforeBlockId: string | null) => void
 }
 
 interface CartItem {
@@ -42,8 +58,218 @@ const DEFAULT_WHATSAPP = '51999888777'
 const FONT_STACK = "'Sora', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"
 
 /** Parse 'S/ 59.90' -> 59.9 (tolerates commas/dots, US/EU thousands) */
+/** Convierte un color hex a rgba con alfa 0–100. Si no es parseable, devuelve el valor original. */
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim())
+  if (!m || !m[1] || !m[2] || !m[3]) return hex
+  const r = parseInt(m[1], 16)
+  const g = parseInt(m[2], 16)
+  const b = parseInt(m[3], 16)
+  const a = Math.max(0, Math.min(100, alpha)) / 100
+  return `rgba(${r}, ${g}, ${b}, ${a})`
+}
+
 function parsePrice(label: any): number {
   return libParsePrice(label)
+}
+
+/** clientId estable del visitante (localStorage) — GA4 Measurement Protocol + carrito abandonado. */
+function getStableClientId(): string {
+  try {
+    let id = window.localStorage.getItem('wms_ga4_client_id') || ''
+    if (!id) {
+      id = `wms-${Date.now()}.${Math.floor(Math.random() * 1e9)}`
+      window.localStorage.setItem('wms_ga4_client_id', id)
+    }
+    return id
+  } catch {
+    return `wms-${Date.now()}.${Math.floor(Math.random() * 1e9)}`
+  }
+}
+
+/** Reads a (possibly nested, `products:2:name`) field value from a block's content. */
+function readFieldValue(b: any, field: string): any {
+  const parts = field.split(':')
+  let obj: any = b?.content
+  for (const p of parts) {
+    if (obj == null) return undefined
+    obj = obj[p]
+  }
+  return obj
+}
+
+/** Live inline-editing state shared by every canvas element (EditableText, LinkButton…). */
+type InlineEditCtx = {
+  editing: { blockId: string; field: string } | null
+  change: (blockId: string, field: string, value: string) => void
+  commit: (blockId: string, field: string, value: string) => void
+  cancel: (blockId: string, field: string) => void
+}
+const InlineEditContext = React.createContext<InlineEditCtx | null>(null)
+
+/** Inline input rendered directly on the canvas while the user edits a text element in place. */
+function CanvasInlineInput({ value, multiline, className, style, onLiveChange, onCommit, onCancel }: {
+  value: string
+  multiline?: boolean
+  className?: string
+  style?: React.CSSProperties
+  onLiveChange?: (v: string) => void
+  onCommit: (v: string) => void
+  onCancel: () => void
+}) {
+  const [val, setVal] = useState(value)
+  const doneRef = useRef(false)
+  useEffect(() => { setVal(value) }, [value])
+
+  const commit = () => {
+    if (doneRef.current) return
+    doneRef.current = true
+    onCommit(val)
+  }
+  const cancel = () => {
+    if (doneRef.current) return
+    doneRef.current = true
+    onCancel()
+  }
+
+  const common = {
+    className: `canvas-inline-input ${className || ''}`,
+    value: val,
+    style,
+    autoFocus: true,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setVal(e.target.value)
+      onLiveChange?.(e.target.value)
+    },
+    onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => { try { e.target.select() } catch { /* jsdom lacks select() */ } },
+    onBlur: commit,
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !multiline) {
+        e.preventDefault()
+        e.stopPropagation()
+        commit()
+      } else if (e.key === 'Enter' && multiline && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        e.stopPropagation()
+        commit()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        cancel()
+      }
+    },
+  }
+  if (multiline) return <textarea rows={3} {...common} />
+  return <input {...common} />
+}
+
+/** Editable text element: renders exactly like the public site, plus `data-inline-edit` tagging.
+ *  While the builder edits its field, it swaps itself for an inline input in the exact same spot. */
+function EditableText({ b, field, as: Tag = 'span', children, className, style, ...rest }: any) {
+  const ctx = React.useContext(InlineEditContext)
+  const editing = !!ctx?.editing && ctx.editing.blockId === b.id && ctx.editing.field === field
+  if (editing) {
+    const stored = readFieldValue(b, field)
+    const val = stored == null ? '' : String(stored)
+    return (
+      <CanvasInlineInput
+        key={`${b.id}:${field}`}
+        value={val}
+        multiline={val.length > 120 || val.includes('\n')}
+        className={className}
+        style={style}
+        onLiveChange={(v) => ctx!.change(b.id, field, v)}
+        onCommit={(v) => ctx!.commit(b.id, field, v)}
+        onCancel={() => ctx!.cancel(b.id, field)}
+      />
+    )
+  }
+  return (
+    <Tag data-edit-field={field} data-inline-edit={field} className={className} style={style} {...rest}>
+      {children}
+    </Tag>
+  )
+}
+
+/** Insert handle: subtle '+' pill between sections on the canvas. Click → open the block picker in insert mode. */
+function InsertHandle({ beforeBlockId, onInsert }: { beforeBlockId: string | null; onInsert: (beforeBlockId: string | null) => void }) {
+  const label = beforeBlockId ? `Insertar sección antes de ${beforeBlockId}` : 'Insertar sección al final'
+  return (
+    <div
+      className="editor-insert-handle"
+      role="button"
+      tabIndex={0}
+      title={label}
+      aria-label={label}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onInsert(beforeBlockId)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          e.stopPropagation()
+          onInsert(beforeBlockId)
+        }
+      }}
+    >
+      <span className="editor-insert-plus">+</span>
+    </div>
+  )
+}
+
+/** Editable image: renders exactly like the public site, plus `data-inline-image` tagging.
+ *  Double-click on the canvas opens the device picker and replaces the image in place. */
+function InlineImage({ b, field, src, alt, className, style, loading, onPick }: {
+  b: any
+  field: string
+  src?: string
+  alt?: string
+  className?: string
+  style?: React.CSSProperties
+  loading?: 'lazy' | 'eager'
+  onPick: (blockId: string, field: string) => void
+}) {
+  return (
+    <img
+      src={src}
+      alt={alt || ''}
+      className={className}
+      style={style}
+      loading={loading}
+      data-edit-field={field}
+      data-inline-image={field}
+      data-block-id={b.id}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onPick(b.id, field)
+      }}
+    />
+  )
+}
+
+/** Editable rich-text element (dangerouslySetInnerHTML content, e.g. the `text` block). */
+function EditableHtml({ b, field, as: Tag = 'div', html, className, style }: any) {
+  const ctx = React.useContext(InlineEditContext)
+  const editing = !!ctx?.editing && ctx.editing.blockId === b.id && ctx.editing.field === field
+  if (editing) {
+    const stored = readFieldValue(b, field)
+    return (
+      <CanvasInlineInput
+        key={`${b.id}:${field}`}
+        value={stored == null ? '' : String(stored)}
+        multiline
+        className={className}
+        style={style}
+        onLiveChange={(v) => ctx!.change(b.id, field, v)}
+        onCommit={(v) => ctx!.commit(b.id, field, v)}
+        onCancel={() => ctx!.cancel(b.id, field)}
+      />
+    )
+  }
+  return <Tag data-edit-field={field} data-inline-edit={field} className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />
 }
 
 function isDarkBg(hex: string): boolean {
@@ -57,6 +283,18 @@ function isDarkBg(hex: string): boolean {
 
 function softBg(hex: string, alphaHex = '14'): string {
   return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alphaHex}` : hex
+}
+
+/** Contenedor desplazable más cercano (lienzo del editor) para PageUp/PageDown. */
+function findScrollableAncestor(el: HTMLElement | null): HTMLElement | null {
+  let node: HTMLElement | null = el && el.parentElement
+  while (node) {
+    const style = getComputedStyle(node)
+    const overflowY = style.overflowY || ''
+    if (/(auto|scroll|overlay)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1) return node
+    node = node.parentElement
+  }
+  return null
 }
 
 /** Lightweight scroll-reveal (IntersectionObserver, no dependencies) */
@@ -105,8 +343,17 @@ export default function PublicStoreClient({
   controlledWindow,
   selectedBlockId,
   onSelectBlock,
+  onSelectElement,
+  onBlockContextMenu,
+  inlineEdit,
+  onStartInlineEdit,
+  onInlineEditChange,
+  onInlineEditCommit,
+  onInlineEditCancel,
+  onInlineImageUpload,
   onNavigateWindow,
   onCanvasBlockDrop,
+  onInsertBetween,
 }: PublicStoreClientProps) {
   const whatsappNumber = settings?.whatsappNumber || DEFAULT_WHATSAPP
   const rootAccent = settings?.accentColor || settings?.primaryColor || '#f43f5e'
@@ -149,17 +396,7 @@ export default function PublicStoreClient({
     try {
       if (window.sessionStorage.getItem(`viewed:${pageId}`)) return
       window.sessionStorage.setItem(`viewed:${pageId}`, '1')
-      // clientId estable para GA4 Measurement Protocol (persiste entre sesiones)
-      let clientId = ''
-      try {
-        clientId = window.localStorage.getItem('wms_ga4_client_id') || ''
-        if (!clientId) {
-          clientId = `wms-${Date.now()}.${Math.floor(Math.random() * 1e9)}`
-          window.localStorage.setItem('wms_ga4_client_id', clientId)
-        }
-      } catch {
-        clientId = ''
-      }
+      const clientId = getStableClientId()
       const params = new URLSearchParams(window.location.search)
       fetch('/api/v1/store/analytics/view', {
         method: 'POST',
@@ -186,6 +423,83 @@ export default function PublicStoreClient({
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'processing' | 'success'>('form')
   const [checkoutForm, setCheckoutForm] = useState({ fullName: '', email: '', phone: '', address: '', notes: '' })
+  const checkoutFormRef = useRef(checkoutForm)
+  useEffect(() => {
+    checkoutFormRef.current = checkoutForm
+  }, [checkoutForm])
+
+  // ── Carrito abandonado: sincroniza la sesión con el servidor (debounced) ─
+  useEffect(() => {
+    if (editorMode || !pageId || !businessSlug) return
+    if (cart.length === 0) return
+    const t = window.setTimeout(() => {
+      try {
+        const contact = checkoutFormRef.current
+        fetch('/api/v1/store/cart-sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pageId,
+            clientId: getStableClientId(),
+            items: cart.map((it) => ({
+              id: it.id,
+              name: it.name,
+              price: it.price,
+              qty: it.qty,
+              size: it.size || undefined,
+              image: it.image || undefined,
+            })),
+            contact: {
+              name: contact.fullName || undefined,
+              email: contact.email || undefined,
+              phone: contact.phone || undefined,
+            },
+          }),
+        }).catch(() => {})
+      } catch {
+        /* ignore */
+      }
+    }, 2000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, pageId, editorMode, businessSlug])
+
+  // ── Restaurar carrito desde enlace de recompra (?restore=<clientId>) ───
+  const restoreAttempted = useRef(false)
+  useEffect(() => {
+    if (editorMode || !pageId || !businessSlug || restoreAttempted.current) return
+    restoreAttempted.current = true
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const restoreId = params.get('restore')
+      if (!restoreId) return
+      fetch(`/api/v1/store/cart-sessions/${encodeURIComponent(restoreId)}?business=${encodeURIComponent(businessSlug)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          const items = json?.data?.cart?.items
+          if (!Array.isArray(items) || items.length === 0) return
+          setCart((prev) => {
+            if (prev.length > 0) return prev // nunca pisar un carrito existente
+            return items.map((it: any) => ({
+              key: `${it.id}-${it.size || 'std'}`,
+              id: it.id,
+              name: it.name,
+              price: Number(it.price) || 0,
+              priceLabel: String(it.price || '0'),
+              size: it.size || '',
+              qty: Math.max(1, Number(it.qty) || 1),
+              image: it.image,
+            }))
+          })
+          notify('🛒 Te restauramos tu carrito — ¡completa tu compra!')
+          setCartOpen(true)
+        })
+        .catch(() => {})
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, businessSlug, editorMode])
   const [paymentMethod, setPaymentMethod] = useState<'mercadopago' | 'whatsapp'>('whatsapp')
   const [orderResult, setOrderResult] = useState<any>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -195,6 +509,12 @@ export default function PublicStoreClient({
   // Editor DnD visuals: which block is being dragged / which target is highlighted
   const [canvasDragId, setCanvasDragId] = useState<string | null>(null)
   const [canvasDropTarget, setCanvasDropTarget] = useState<{ parentId: string; nbId?: string } | null>(null)
+
+  // ── Editor inline image editing (dbl-click una imagen del canvas → selector del dispositivo → reemplazo en vivo) ──
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingImageRef = useRef<{ blockId: string; field: string } | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imageUploadError, setImageUploadError] = useState('')
 
   // ── Multi-window engine ────────────────────────────────────────────────
   // Windows are real views, not scroll anchors: 'home', 'catalogo' (with
@@ -297,8 +617,59 @@ export default function PublicStoreClient({
    * so they can be dropped onto the left panel list (promote/reorder) and onto
    * columns blocks in the canvas (nest/insert).
    */
+  /** Design/responsive classes read from block settings — identical in editor and public renders. */
+  const blockDesignClasses = (b: any): string => {
+    const s = b.settings || {}
+    const cls: string[] = []
+    if (s.hideMobile) cls.push('max-md:hidden')
+    if (s.hideTablet) cls.push('max-lg:hidden')
+    const w = s.blockWidth
+    if (w === 'narrow') cls.push('max-w-xl mx-auto')
+    else if (w === 'medium') cls.push('max-w-3xl mx-auto')
+    else if (w === 'wide') cls.push('max-w-5xl mx-auto')
+    return cls.join(' ')
+  }
+
+  /** Fine spacing/border styles from block settings — identical in editor and public renders.
+   *  Only applied when the user explicitly set a value, so default blocks keep pixel-identical DOM. */
+  const blockDesignStyle = (b: any): React.CSSProperties | undefined => {
+    const s = b.settings || {}
+    const st: React.CSSProperties = {}
+    if (typeof s.paddingTop === 'number' && Number.isFinite(s.paddingTop)) st.paddingTop = `${s.paddingTop}px`
+    if (typeof s.paddingBottom === 'number' && Number.isFinite(s.paddingBottom)) st.paddingBottom = `${s.paddingBottom}px`
+    if (typeof s.paddingX === 'number' && Number.isFinite(s.paddingX)) {
+      st.paddingLeft = `${s.paddingX}px`
+      st.paddingRight = `${s.paddingX}px`
+    }
+    if (typeof s.borderRadius === 'string' && s.borderRadius) st.borderRadius = s.borderRadius
+    // Superficie: degradado (prioridad) o color sólido, ambos con opacidad aplicada a la parada (el contenido queda opaco)
+    const op = typeof s.bgOpacity === 'number' && Number.isFinite(s.bgOpacity) ? s.bgOpacity : 100
+    if (s.bgGradient === true && (typeof s.bgGradientFrom === 'string' || typeof s.bgGradientTo === 'string')) {
+      const from = typeof s.bgGradientFrom === 'string' && s.bgGradientFrom ? s.bgGradientFrom : '#f1f5f9'
+      const to = typeof s.bgGradientTo === 'string' && s.bgGradientTo ? s.bgGradientTo : '#e2e8f0'
+      const dir = typeof s.bgGradientDirection === 'string' && s.bgGradientDirection ? s.bgGradientDirection : 'to bottom'
+      st.backgroundImage = `linear-gradient(${dir}, ${hexToRgba(from, op)}, ${hexToRgba(to, op)})`
+    } else if (typeof s.bgColor === 'string' && s.bgColor) {
+      st.backgroundColor = hexToRgba(s.bgColor, op)
+    }
+    // Borde universal
+    if (typeof s.borderWidth === 'number' && Number.isFinite(s.borderWidth) && s.borderWidth > 0) {
+      st.borderWidth = `${s.borderWidth}px`
+      st.borderStyle = typeof s.borderStyle === 'string' && s.borderStyle ? s.borderStyle : 'solid'
+      if (typeof s.borderColor === 'string' && s.borderColor) st.borderColor = s.borderColor
+    }
+    return Object.keys(st).length ? st : undefined
+  }
+
   const withSelection = (b: any, node: React.ReactNode, dragMeta?: { parentId: string; colIdx: number; nbIdx: number }) => {
-    if (!editorMode) return node
+    if (!editorMode) {
+      // Public render: only wrap when the block opts into design/responsive
+      // settings, so default pages keep pixel-identical DOM (100% parity).
+      const dc = blockDesignClasses(b)
+      const ds = blockDesignStyle(b)
+      if (dc || ds) return <div key={b.id} className={dc} style={ds}>{node}</div>
+      return node
+    }
     const isColumnsContainer = b.type === 'columns' && !dragMeta
     const isNested = !!dragMeta
     const dt = canvasDropTarget
@@ -352,9 +723,123 @@ export default function PublicStoreClient({
         }}
         onClick={(e) => {
           e.stopPropagation()
-          onSelectBlock?.(b.id)
+          // Deep-select: clicking a tagged inner element (logo, button, image, title…)
+          // opens the inspector focused on that exact field instead of just selecting the block.
+          // preventDefault: en el editor un clic nunca debe navegar (galería, enlaces…).
+          const target = e.target as HTMLElement
+          const tagged = target.closest('[data-edit-field]') as HTMLElement | null
+          if (tagged?.dataset.editField) {
+            e.preventDefault()
+            onSelectElement?.(b.id, tagged.dataset.editField)
+          } else {
+            onSelectBlock?.(b.id)
+          }
         }}
-        className={`editor-block ${selectedBlockId === b.id ? 'editor-block-selected' : ''} ${dragging ? 'editor-block-dragging' : ''} ${dropTargetHere ? 'editor-block-drop-target' : ''}`}
+        onDoubleClick={(e) => {
+          // Inline image editing: double-click an image (logo, producto, fondo del hero…)
+          // opens the device picker and replaces the image in place (upload + live swap).
+          e.stopPropagation()
+          const target = e.target as HTMLElement
+          // Text takes priority: dbl-click on a title/badge/button (nested inside an image
+          // section like the hero bg) must edit the text, never pick a new background.
+          const tagged = target.closest('[data-inline-edit]') as HTMLElement | null
+          if (tagged?.dataset.inlineEdit) {
+            const value = readFieldValue(b, tagged.dataset.inlineEdit)
+            onStartInlineEdit?.(b.id, tagged.dataset.inlineEdit, typeof value === 'string' ? value : '')
+            return
+          }
+          const imgTagged = target.closest('[data-inline-image]') as HTMLElement | null
+          if (imgTagged?.dataset.inlineImage) {
+            e.preventDefault()
+            pickImage(b.id, imgTagged.dataset.inlineImage)
+          }
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const target = e.target as HTMLElement
+          const tagged = target.closest('[data-edit-field]') as HTMLElement | null
+          const field = tagged?.dataset.editField ?? null
+          // Images carry their current URL so the context menu can offer quick
+          // actions (deshacer reemplazo, copiar URL) without extra lookups.
+          const imageUrl = field && tagged?.dataset.inlineImage ? readFieldValue(b, field) : null
+          onBlockContextMenu?.(b.id, field, e.clientX, e.clientY, typeof imageUrl === 'string' ? imageUrl : null)
+        }}
+        role="button"
+        tabIndex={0}
+        aria-current={selectedBlockId === b.id ? 'true' : undefined}
+        aria-label={`Sección de ${b.type.replace('-', ' ')}${selectedBlockId === b.id ? ' (seleccionada)' : ''}`}
+        onKeyDown={(e) => {
+          // Solo cuando el foco está en el propio wrapper (no en un hijo interactivo
+          // como un botón o el input inline): no secuestrar teclas de los hijos.
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            onSelectBlock?.(b.id)
+            return
+          }
+          // Shift+F10 o tecla Menú: abre el menú contextual en el centro del bloque
+          if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+            e.preventDefault()
+            e.stopPropagation()
+            const rect = e.currentTarget.getBoundingClientRect()
+            onBlockContextMenu?.(b.id, null, rect.left + rect.width / 2, rect.top + rect.height / 2, null)
+            return
+          }
+          // Flechas ↑/↓: mueve el foco de sección en sección (con envoltura), lo
+          // mantiene visible en el lienzo y sincroniza la selección del editor.
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault()
+            e.stopPropagation()
+            const els = Array.from(document.querySelectorAll<HTMLElement>('[data-block-id].editor-block'))
+            const idx = els.indexOf(e.currentTarget as HTMLElement)
+            if (idx === -1 || els.length === 0) return
+            const next = els[(idx + (e.key === 'ArrowDown' ? 1 : -1) + els.length) % els.length]! // índice siempre válido (els.length > 0)
+            next.focus()
+            if (typeof next.scrollIntoView === 'function') next.scrollIntoView({ block: 'nearest' })
+            const nextId = next.dataset.blockId
+            if (nextId) onSelectBlock?.(nextId)
+            return
+          }
+          // F2: edición inline del primer campo editable de la sección
+          // (título, texto, botón…) usando las etiquetas data-inline-edit del canvas.
+          if (e.key === 'F2') {
+            e.preventDefault()
+            e.stopPropagation()
+            const first = e.currentTarget.querySelector<HTMLElement>('[data-inline-edit]')
+            const field = first?.dataset.inlineEdit
+            if (field) {
+              const value = readFieldValue(b, field)
+              onStartInlineEdit?.(b.id, field, typeof value === 'string' ? value : '')
+            }
+            return
+          }
+          // Home / End: salta a la primera / última sección del lienzo
+          if (e.key === 'Home' || e.key === 'End') {
+            e.preventDefault()
+            e.stopPropagation()
+            const els = Array.from(document.querySelectorAll<HTMLElement>('[data-block-id].editor-block'))
+            if (els.length === 0) return
+            const target = e.key === 'Home' ? els[0]! : els[els.length - 1]!
+            target.focus()
+            if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'nearest' })
+            const targetId = target.dataset.blockId
+            if (targetId) onSelectBlock?.(targetId)
+            return
+          }
+          // PageUp / PageDown: desplaza el lienzo una página sin cambiar de sección
+          if (e.key === 'PageUp' || e.key === 'PageDown') {
+            e.preventDefault()
+            e.stopPropagation()
+            const scroller = findScrollableAncestor(e.currentTarget)
+            if (!scroller) return
+            const delta = Math.max(120, scroller.clientHeight * 0.9)
+            scroller.scrollTop += e.key === 'PageDown' ? delta : -delta
+          }
+        }}
+        className={`editor-block ${selectedBlockId === b.id ? 'editor-block-selected' : ''} ${dragging ? 'editor-block-dragging' : ''} ${dropTargetHere ? 'editor-block-drop-target' : ''} ${blockDesignClasses(b)}`}
+        style={blockDesignStyle(b)}
       >
         {node}
       </div>
@@ -416,6 +901,104 @@ export default function PublicStoreClient({
     setTimeout(() => setShowNotification(false), 2600)
   }
 
+  /** Sube la imagen elegida del dispositivo y reemplaza el campo en vivo (onInlineImageUpload). */
+  const handleImageFile = async (file: File) => {
+    const target = pendingImageRef.current
+    pendingImageRef.current = null
+    if (!target) return
+    if (!file.type.startsWith('image/')) { setImageUploadError('Solo se permiten archivos de imagen'); return }
+    if (file.size > 5 * 1024 * 1024) { setImageUploadError('La imagen supera los 5 MB'); return }
+    setImageUploadError('')
+    setImageUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res = await fetch('/api/v1/upload', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.success && data.url) {
+        onInlineImageUpload?.(target.blockId, target.field, data.url)
+      } else {
+        setImageUploadError(data?.error || 'No se pudo subir la imagen. Revisa la configuración de subida.')
+      }
+    } catch {
+      setImageUploadError('Error de conexión al subir la imagen')
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  /** Abre el selector de archivos del dispositivo para el campo indicado. */
+  const pickImage = (blockId: string, field: string) => {
+    pendingImageRef.current = { blockId, field }
+    fileInputRef.current?.click()
+  }
+
+  /** Editor: localiza en qué bloque product-grid vive un producto para editar su imagen en vivo. */
+  const productSource = (p: any): { b: any; field: string } | null => {
+    for (const b of blocks) {
+      const products = Array.isArray(b?.content?.products) ? b.content.products : []
+      const idx = products.findIndex((x: any) => String(x.id) === String(p?.id))
+      if (idx >= 0) return { b, field: `products:${idx}:imageUrl` }
+    }
+    return null
+  }
+
+  // Auto-oculta el error de subida tras unos segundos
+  useEffect(() => {
+    if (!imageUploadError) return
+    const t = window.setTimeout(() => setImageUploadError(''), 5000)
+    return () => window.clearTimeout(t)
+  }, [imageUploadError])
+
+  // ── Drag & drop de imagen desde el escritorio (reemplazo sin abrir el selector) ──
+  const [fileDragging, setFileDragging] = useState(false)
+  const fileDragTimer = useRef<number | null>(null)
+
+  const dragHasFiles = (e: React.DragEvent): boolean => {
+    const types = Array.from(e.dataTransfer?.types || [])
+    return types.includes('Files')
+  }
+
+  /** Elemento imagen bajo el cursor (data-inline-image) + bloque al que pertenece (data-block-id). */
+  const dropImageTarget = (e: React.DragEvent): { blockId: string; field: string } | null => {
+    const el = (e.target as HTMLElement).closest('[data-inline-image]') as HTMLElement | null
+    if (!el?.dataset.inlineImage) return null
+    const blockEl = el.closest('[data-block-id]') as HTMLElement | null
+    if (!blockEl?.dataset.blockId) return null
+    return { blockId: blockEl.dataset.blockId, field: el.dataset.inlineImage }
+  }
+
+  const handleFileDragOver = (e: React.DragEvent) => {
+    if (!editorMode || !dragHasFiles(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    if (!fileDragging) setFileDragging(true)
+    if (fileDragTimer.current) window.clearTimeout(fileDragTimer.current)
+    fileDragTimer.current = window.setTimeout(() => setFileDragging(false), 400)
+  }
+
+  const handleFileDragLeave = (e: React.DragEvent) => {
+    if (!editorMode) return
+    const related = e.relatedTarget as Node | null
+    if (related && e.currentTarget.contains(related)) return
+    setFileDragging(false)
+  }
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    if (!editorMode) return
+    setFileDragging(false)
+    if (fileDragTimer.current) { window.clearTimeout(fileDragTimer.current); fileDragTimer.current = null }
+    if (!dragHasFiles(e)) return
+    // Nunca dejar que el navegador navegue a un archivo soltado sobre el canvas.
+    e.preventDefault()
+    e.stopPropagation()
+    const target = dropImageTarget(e)
+    const file = e.dataTransfer?.files?.[0]
+    if (!target || !file) return
+    pendingImageRef.current = target
+    handleImageFile(file)
+  }
+
   const handleOpenProduct = (p: any) => {
     setSelectedProduct(p)
     setSelectedSize(Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes[0] : '')
@@ -448,9 +1031,9 @@ export default function PublicStoreClient({
         className="sticky top-0 z-40 border-b shadow-sm"
       >
         {c.announcement && (
-          <div style={{ backgroundColor: accent }} className="text-center py-2 px-4 text-xs font-extrabold text-white uppercase tracking-wider">
+          <EditableText b={b} field="announcement" as="div" style={{ backgroundColor: accent }} className="text-center py-2 px-4 text-xs font-extrabold text-white uppercase tracking-wider">
             {c.announcement}
-          </div>
+          </EditableText>
         )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <a
@@ -458,19 +1041,28 @@ export default function PublicStoreClient({
             onClick={(e) => {
               if (editorMode) {
                 e.preventDefault()
+                // Single click on a tagged inner element (logo/brand) = select + focus field.
+                if ((e.target as HTMLElement).closest('[data-edit-field]')) return
                 onNavigateWindow?.('home')
               }
               closeNav()
+            }}
+            onDoubleClick={(e) => {
+              if (!editorMode) return
+              e.preventDefault()
+              // Double-click on the editable brand/logo starts inline editing (no navigation).
+              if ((e.target as HTMLElement).closest('[data-inline-edit], [data-inline-image], .canvas-inline-input')) return
+              onNavigateWindow?.('home')
             }}
             className="flex items-center gap-2 font-black text-lg sm:text-xl tracking-tight hover:opacity-80 transition-opacity min-w-0"
             style={{ color: navText }}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[150px] object-contain shrink-0" />
+              <InlineImage b={b} field="logoUrl" src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[150px] object-contain shrink-0" onPick={pickImage} />
             ) : (
               <span className="w-3 h-3 rounded-full inline-block animate-pulse shrink-0" style={{ backgroundColor: accent }} />
             )}
-            <span className="truncate">{brandName}</span>
+            <EditableText b={b} field="brandName" as="span" className="truncate">{brandName}</EditableText>
           </a>
 
           {/* Desktop nav */}
@@ -558,11 +1150,11 @@ export default function PublicStoreClient({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   {logoUrl ? (
-                    <img src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[120px] object-contain shrink-0" />
+                    <InlineImage b={b} field="logoUrl" src={logoUrl} alt={brandName} className="h-8 w-auto max-w-[120px] object-contain shrink-0" onPick={pickImage} />
                   ) : (
                     <span className="w-3 h-3 rounded-full inline-block shrink-0" style={{ backgroundColor: accent }} />
                   )}
-                  <span className="text-sm font-black truncate" style={{ color: navText }}>{brandName}</span>
+                  <EditableText b={b} field="brandName" as="span" className="text-sm font-black truncate" style={{ color: navText }}>{brandName}</EditableText>
                 </div>
                 <button
                   onClick={closeNav}
@@ -717,16 +1309,16 @@ export default function PublicStoreClient({
       <footer key={b.id} style={{ backgroundColor: bg, color: fg }} className="px-6 py-12 border-t border-white/10">
         {variant === 'minimal' ? (
           <div className="max-w-5xl mx-auto text-center space-y-3">
-            {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />}
-            <h3 className="text-xl font-black tracking-wider">{brand}</h3>
+            {logoUrl && s.showLogo !== false && <InlineImage b={b} field="logoUrl" src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" onPick={pickImage} />}
+            <EditableText b={b} field="companyName" as="h3" className="text-xl font-black tracking-wider">{brand}</EditableText>
             <p className="text-xs opacity-60">{c.copyright || '© 2026 Todos los derechos reservados.'}</p>
           </div>
         ) : variant === 'centered' ? (
           <div className="max-w-5xl mx-auto text-center space-y-6">
             <div className="space-y-3">
-              {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" />}
-              <h3 className="text-xl font-black tracking-wider">{brand}</h3>
-              {c.tagline && <p className="text-xs opacity-60 max-w-md mx-auto">{c.tagline}</p>}
+              {logoUrl && s.showLogo !== false && <InlineImage b={b} field="logoUrl" src={logoUrl} alt="Logo" className="h-10 w-auto max-w-[180px] object-contain mx-auto" onPick={pickImage} />}
+              <EditableText b={b} field="companyName" as="h3" className="text-xl font-black tracking-wider">{brand}</EditableText>
+              {c.tagline && <EditableText b={b} field="tagline" as="p" className="text-xs opacity-60 max-w-md mx-auto">{c.tagline}</EditableText>}
             </div>
             <div className="flex items-center justify-center">{renderSocial()}</div>
             <p className="text-[11px] opacity-50">{c.copyright || '© 2026 Todos los derechos reservados.'}</p>
@@ -736,9 +1328,9 @@ export default function PublicStoreClient({
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
               <div className="md:col-span-1 space-y-3">
-                {logoUrl && s.showLogo !== false && <img src={logoUrl} alt="Logo" className="h-9 w-auto max-w-[160px] object-contain" />}
-                <h3 className="text-sm font-black tracking-wider">{brand}</h3>
-                {c.tagline && <p className="text-[11px] opacity-60 leading-relaxed">{c.tagline}</p>}
+                {logoUrl && s.showLogo !== false && <InlineImage b={b} field="logoUrl" src={logoUrl} alt="Logo" className="h-9 w-auto max-w-[160px] object-contain" onPick={pickImage} />}
+                <EditableText b={b} field="companyName" as="h3" className="text-sm font-black tracking-wider">{brand}</EditableText>
+                {c.tagline && <EditableText b={b} field="tagline" as="p" className="text-[11px] opacity-60 leading-relaxed">{c.tagline}</EditableText>}
               </div>
               <div className="md:col-span-4">{renderColumns()}</div>
             </div>
@@ -825,6 +1417,7 @@ export default function PublicStoreClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pageId,
+          clientId: getStableClientId(),
           items: cart.map((it) => ({ id: it.id, size: it.size, qty: it.qty })),
           customer: {
             fullName: checkoutForm.fullName,
@@ -878,27 +1471,32 @@ export default function PublicStoreClient({
                   backgroundPosition: 'center',
                   '--accent': accent,
                 } as React.CSSProperties}
+                data-edit-field="heroImage"
+                data-inline-image="heroImage"
                 className="px-6 text-center relative overflow-hidden"
               >
                 {c.heroImage && <div className="absolute inset-0 bg-black/55" />}
                 <div className="max-w-4xl mx-auto space-y-6 relative z-10">
                   <Reveal>
                     {c.badge && (
-                      <span
+                      <EditableText
+                        b={b}
+                        field="badge"
+                        as="span"
                         className="inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest border"
                         style={{ backgroundColor: softBg(accent, '18'), color: accent, borderColor: `${accent}55` }}
                       >
                         {c.badge}
-                      </span>
+                      </EditableText>
                     )}
                   </Reveal>
                   <Reveal delay={80}>
-                    <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">{c.title || 'Moda & Tendencias'}</h1>
+                    <EditableText b={b} field="title" as="h1" className="text-4xl md:text-6xl font-black tracking-tight leading-tight">{c.title || 'Moda & Tendencias'}</EditableText>
                   </Reveal>
                   <Reveal delay={160}>
-                    <p className="text-lg md:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed">
+                    <EditableText b={b} field="subtitle" as="p" className="text-lg md:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed">
                       {c.subtitle || 'Descubre prendas únicas diseñadas para destacar.'}
-                    </p>
+                    </EditableText>
                   </Reveal>
                   <Reveal delay={240}>
                     <div className="flex items-center justify-center gap-4 flex-wrap pt-4">
@@ -906,6 +1504,7 @@ export default function PublicStoreClient({
                         link={c.primaryLink}
                         fallback={{ type: 'window', value: hasCatalogoWindow || allProducts.length > 0 ? 'catalogo' : 'ofertas' }}
                         editorMode={editorMode}
+                        editField="buttonText"
                         onNavigateWindow={onNavigateWindow}
                         style={{ backgroundColor: accent, boxShadow: `0 16px 40px -14px ${accent}` }}
                         className="px-8 py-4 rounded-xl text-white font-extrabold text-base hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2"
@@ -918,6 +1517,7 @@ export default function PublicStoreClient({
                           link={c.secondaryLink}
                           fallback={hasOfertasWindow ? { type: 'window', value: 'ofertas' } : { type: 'anchor', value: '#ofertas' }}
                           editorMode={editorMode}
+                          editField="secondaryButtonText"
                           onNavigateWindow={onNavigateWindow}
                           className="px-7 py-4 rounded-xl text-white font-bold text-base bg-white/10 border border-white/20 hover:bg-white/20 transition-all inline-flex items-center gap-2"
                         >
@@ -954,8 +1554,8 @@ export default function PublicStoreClient({
                 <div className="max-w-7xl mx-auto space-y-8">
                   <Reveal>
                     <div className="text-center space-y-2">
-                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Catálogo de Productos'}</h2>
-                      {c.subtitle && <p className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</p>}
+                      <EditableText b={b} field="title" as="h2" className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Catálogo de Productos'}</EditableText>
+                      {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</EditableText>}
                     </div>
                   </Reveal>
 
@@ -983,7 +1583,7 @@ export default function PublicStoreClient({
                     {filteredProducts.map((p: any, idx: number) => (
                       <Reveal key={p.id || idx} delay={(idx % 3) * 90}>
                         <div
-                          onClick={() => handleOpenProduct(p)}
+                          onClick={() => { if (editorMode) return; handleOpenProduct(p) }}
                           className="p-6 rounded-3xl border border-black/10 bg-white text-slate-900 shadow-sm hover:shadow-2xl transition-all duration-300 flex flex-col justify-between relative group cursor-pointer"
                         >
                           {p.discountBadge && (
@@ -995,9 +1595,9 @@ export default function PublicStoreClient({
                             </span>
                           )}
                           <div>
-                            <div className="h-52 mb-5 rounded-2xl bg-slate-50 border border-black/5 overflow-hidden flex items-center justify-center group-hover:scale-[1.02] transition-transform text-rose-500 relative">
+                            <div data-edit-field={`products:${idx}:imageUrl`} data-inline-image={`products:${idx}:imageUrl`} className="h-52 mb-5 rounded-2xl bg-slate-50 border border-black/5 overflow-hidden flex items-center justify-center group-hover:scale-[1.02] transition-transform text-rose-500 relative">
                               {p.imageUrl ? (
-                                <img src={p.imageUrl} alt={p.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                <InlineImage b={b} field={`products:${idx}:imageUrl`} src={p.imageUrl} alt={p.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onPick={pickImage} />
                               ) : (
                                 <IconRenderer name={p.iconName || 'Shirt'} size={56} />
                               )}
@@ -1005,7 +1605,7 @@ export default function PublicStoreClient({
                                 <span className="bg-white/90 backdrop-blur text-slate-900 text-xs font-bold px-4 py-2 rounded-xl shadow-lg">Vista Rápida</span>
                               </div>
                             </div>
-                            <h3 className="font-extrabold text-base mb-1.5 text-slate-900 leading-snug">{p.name}</h3>
+                            <EditableText b={b} field={`products:${idx}:name`} as="h3" className="font-extrabold text-base mb-1.5 text-slate-900 leading-snug">{p.name}</EditableText>
                             {p.description && <p className="text-xs text-slate-500 mb-3 leading-relaxed line-clamp-2">{p.description}</p>}
 
                             {Array.isArray(p.sizes) && (
@@ -1019,9 +1619,9 @@ export default function PublicStoreClient({
                             )}
 
                             <div className="flex items-baseline gap-2 mb-5">
-                              <span className="text-2xl font-black" style={{ color: accent }}>
+                              <EditableText b={b} field={`products:${idx}:price`} as="span" className="text-2xl font-black" style={{ color: accent }}>
                                 {p.price}
-                              </span>
+                              </EditableText>
                               {p.originalPrice && <span className="text-xs text-slate-400 line-through">{p.originalPrice}</span>}
                             </div>
                           </div>
@@ -1029,6 +1629,7 @@ export default function PublicStoreClient({
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              if (editorMode) return
                               handleOpenProduct(p)
                             }}
                             style={{ backgroundColor: accent, boxShadow: `0 10px 26px -12px ${accent}` }}
@@ -1062,20 +1663,21 @@ export default function PublicStoreClient({
               >
                 <div className="max-w-6xl mx-auto space-y-10">
                   <Reveal>
-                    <h2 className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Beneficios Exclusivos'}</h2>
+                    <EditableText b={b} field="title" as="h2" className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Beneficios Exclusivos'}</EditableText>
                   </Reveal>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {items.map((item: any, idx: number) => (
                       <Reveal key={idx} delay={(idx % 4) * 80}>
                         <div className="p-6 rounded-2xl bg-white border border-black/10 shadow-sm space-y-3 h-full">
                           <div
+                            data-edit-field={`items:${idx}:iconName`}
                             className="w-12 h-12 rounded-xl flex items-center justify-center"
                             style={{ backgroundColor: softBg(accent, '14'), color: accent }}
                           >
                             <IconRenderer name={item.iconName || 'ShieldCheck'} size={24} />
                           </div>
-                          <h3 className="font-extrabold text-base">{item.title || 'Beneficio'}</h3>
-                          <p className="text-xs opacity-60 leading-relaxed">{item.description || ''}</p>
+                          <EditableText b={b} field={`items:${idx}:title`} as="h3" className="font-extrabold text-base">{item.title || 'Beneficio'}</EditableText>
+                          <EditableText b={b} field={`items:${idx}:description`} as="p" className="text-xs opacity-60 leading-relaxed">{item.description || ''}</EditableText>
                         </div>
                       </Reveal>
                     ))}
@@ -1102,8 +1704,8 @@ export default function PublicStoreClient({
                 <div className="max-w-6xl mx-auto space-y-8">
                   <Reveal>
                     <div className="text-center space-y-2">
-                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Planes y Precios'}</h2>
-                      {c.subtitle && <p className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</p>}
+                      <EditableText b={b} field="title" as="h2" className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Planes y Precios'}</EditableText>
+                      {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</EditableText>}
                     </div>
                   </Reveal>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
@@ -1122,10 +1724,10 @@ export default function PublicStoreClient({
                                 MÁS POPULAR
                               </span>
                             )}
-                            <h3 className="font-black text-lg mb-1">{plan.name}</h3>
-                            <div className="text-3xl font-black mb-5">
+                            <EditableText b={b} field={`plans:${idx}:name`} as="h3" className="font-black text-lg mb-1">{plan.name}</EditableText>
+                            <EditableText b={b} field={`plans:${idx}:price`} as="div" className="text-3xl font-black mb-5">
                               {plan.price}
-                            </div>
+                            </EditableText>
                             <ul className="space-y-2.5 mb-7 flex-1">
                               {Array.isArray(plan.features) && plan.features.map((f: string, fi: number) => (
                                 <li key={fi} className="text-xs flex items-start gap-2">
@@ -1173,17 +1775,17 @@ export default function PublicStoreClient({
                 <div className="max-w-6xl mx-auto space-y-8">
                   <Reveal>
                     <div className="text-center space-y-2">
-                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Nuestro Equipo'}</h2>
-                      {c.subtitle && <p className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</p>}
+                      <EditableText b={b} field="title" as="h2" className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Nuestro Equipo'}</EditableText>
+                      {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-sm max-w-md mx-auto opacity-60">{c.subtitle}</EditableText>}
                     </div>
                   </Reveal>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     {members.map((m: any, idx: number) => (
                       <Reveal key={idx} delay={(idx % 4) * 80}>
                         <div className="text-center space-y-3">
-                          <div className="w-28 h-28 mx-auto rounded-full overflow-hidden bg-slate-100 border-4 border-white shadow-lg">
+                          <div data-edit-field={`items:${idx}:photo`} data-inline-image={`items:${idx}:photo`} className="w-28 h-28 mx-auto rounded-full overflow-hidden bg-slate-100 border-4 border-white shadow-lg">
                             {m.photo ? (
-                              <img src={m.photo} alt={m.name} loading="lazy" className="w-full h-full object-cover" />
+                              <InlineImage b={b} field={`items:${idx}:photo`} src={m.photo} alt={m.name} loading="lazy" className="w-full h-full object-cover" onPick={pickImage} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center" style={{ color: accent }}>
                                 <IconRenderer name="User" size={40} />
@@ -1191,8 +1793,8 @@ export default function PublicStoreClient({
                             )}
                           </div>
                           <div>
-                            <p className="font-extrabold text-sm">{m.name}</p>
-                            <p className="text-[11px] opacity-60 mt-0.5">{m.role}</p>
+                            <EditableText b={b} field={`items:${idx}:name`} as="p" className="font-extrabold text-sm">{m.name}</EditableText>
+                            <EditableText b={b} field={`items:${idx}:role`} as="p" className="text-[11px] opacity-60 mt-0.5">{m.role}</EditableText>
                           </div>
                         </div>
                       </Reveal>
@@ -1218,7 +1820,7 @@ export default function PublicStoreClient({
               >
                 <div className="max-w-5xl mx-auto space-y-8">
                   <Reveal>
-                    <h2 className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Opiniones de nuestros Clientes'}</h2>
+                    <EditableText b={b} field="title" as="h2" className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Opiniones de nuestros Clientes'}</EditableText>
                   </Reveal>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {items.map((t: any, idx: number) => (
@@ -1229,10 +1831,10 @@ export default function PublicStoreClient({
                               <Star key={i} size={14} className="fill-amber-400" />
                             ))}
                           </div>
-                          <p className="text-xs italic opacity-70 leading-relaxed">"{t.text || t.comment || ''}"</p>
+                          <EditableText b={b} field={`items:${idx}:text`} as="p" className="text-xs italic opacity-70 leading-relaxed">"{t.text || t.comment || ''}"</EditableText>
                           <div>
-                            <div className="font-bold text-xs">{t.name || 'Cliente'}</div>
-                            <div className="text-[10px] opacity-50">{t.role || 'Comprador verificado'}</div>
+                            <EditableText b={b} field={`items:${idx}:name`} as="div" className="font-bold text-xs">{t.name || 'Cliente'}</EditableText>
+                            <EditableText b={b} field={`items:${idx}:role`} as="div" className="text-[10px] opacity-50">{t.role || 'Comprador verificado'}</EditableText>
                           </div>
                         </div>
                       </Reveal>
@@ -1248,12 +1850,13 @@ export default function PublicStoreClient({
               <section key={b.id} id="ofertas" style={{ backgroundColor: accent }} className="px-6 py-20 text-center text-white">
                 <div className="max-w-3xl mx-auto space-y-6">
                   <Reveal>
-                    <h2 className="text-3xl md:text-5xl font-black">{c.title || '¡Promoción Especial!'}</h2>
-                    <p className="text-base opacity-90 leading-relaxed max-w-xl mx-auto">{c.description || ''}</p>
+                    <EditableText b={b} field="title" as="h2" className="text-3xl md:text-5xl font-black">{c.title || '¡Promoción Especial!'}</EditableText>
+                    <EditableText b={b} field="subtitle" as="p" className="text-base opacity-90 leading-relaxed max-w-xl mx-auto">{c.description || ''}</EditableText>
                     <LinkButton
                       link={c.buttonLink}
                       fallback={{ type: 'whatsapp', value: whatsappNumber }}
                       editorMode={editorMode}
+                      editField="buttonText"
                       onNavigateWindow={onNavigateWindow}
                       className="inline-flex items-center gap-2 bg-white px-9 py-4 rounded-2xl font-black text-base shadow-2xl hover:scale-105 transition-all"
                       style={{ color: accent }}
@@ -1269,7 +1872,7 @@ export default function PublicStoreClient({
 
           if (b.type === 'countdown') {
             return (
-              <CountdownBlock key={b.id} content={c} settings={s} accent={accent} />
+              <CountdownBlock key={b.id} block={b} content={c} settings={s} accent={accent} />
             )
           }
 
@@ -1288,8 +1891,8 @@ export default function PublicStoreClient({
               >
                 <div className="max-w-3xl mx-auto space-y-6">
                   <Reveal>
-                    <h2 className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Preguntas Frecuentes'}</h2>
-                    {c.subtitle && <p className="text-xs text-center opacity-60 mt-1">{c.subtitle}</p>}
+                    <EditableText b={b} field="title" as="h2" className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Preguntas Frecuentes'}</EditableText>
+                    {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-xs text-center opacity-60 mt-1">{c.subtitle}</EditableText>}
                   </Reveal>
                   <div className="space-y-3">
                     {items.map((item: any, idx: number) => (
@@ -1303,7 +1906,7 @@ export default function PublicStoreClient({
 
           if (b.type === 'newsletter') {
             return (
-              <NewsletterBlock key={b.id} content={c} settings={s} accent={accent} />
+              <NewsletterBlock key={b.id} block={b} content={c} settings={s} accent={accent} />
             )
           }
 
@@ -1322,13 +1925,13 @@ export default function PublicStoreClient({
               >
                 <div className="max-w-6xl mx-auto space-y-8">
                   <Reveal>
-                    <h2 className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Galería'}</h2>
-                    {c.subtitle && <p className="text-xs text-center opacity-60 mt-1">{c.subtitle}</p>}
+                    <EditableText b={b} field="title" as="h2" className="text-2xl md:text-3xl font-extrabold text-center">{c.title || 'Galería'}</EditableText>
+                    {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-xs text-center opacity-60 mt-1">{c.subtitle}</EditableText>}
                   </Reveal>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {images.map((src: string, idx: number) => (
                       <Reveal key={idx} delay={(idx % 3) * 80}>
-                        <a href={src} target="_blank" rel="noreferrer" className="block rounded-2xl overflow-hidden aspect-square bg-slate-100 group">
+                        <a href={src} target="_blank" rel="noreferrer" data-edit-field={`images:${idx}`} data-inline-image={`images:${idx}`} className="block rounded-2xl overflow-hidden aspect-square bg-slate-100 group">
                           <img src={src} alt={`${c.title || 'Galería'} ${idx + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         </a>
                       </Reveal>
@@ -1348,7 +1951,7 @@ export default function PublicStoreClient({
 
           if (b.type === 'contact') {
             return (
-              <ContactBlock key={b.id} content={c} settings={s} accent={accent} whatsappNumber={whatsappNumber} pageId={pageId} />
+              <ContactBlock key={b.id} block={b} content={c} settings={s} accent={accent} whatsappNumber={whatsappNumber} pageId={pageId} />
             )
           }
 
@@ -1403,7 +2006,9 @@ export default function PublicStoreClient({
             const imgLink = c.link || ''
             const imgWidth = s.width || '100%'
             const img = imgSrc ? (
-              <img
+              <InlineImage
+                b={b}
+                field="src"
                 src={imgSrc}
                 alt={imgAlt}
                 loading="lazy"
@@ -1414,6 +2019,7 @@ export default function PublicStoreClient({
                   borderRadius: s.borderRadius || '0px',
                 }}
                 className="h-auto"
+                onPick={pickImage}
               />
             ) : (
               <div
@@ -1443,7 +2049,7 @@ export default function PublicStoreClient({
                     img
                   )}
                   {s.variant === 'caption' && c.caption && (
-                    <p className="text-xs opacity-60 mt-3" style={{ color: s.textColor || '#94a3b8' }}>{c.caption}</p>
+                    <EditableText b={b} field="caption" as="p" className="text-xs opacity-60 mt-3" style={{ color: s.textColor || '#94a3b8' }}>{c.caption}</EditableText>
                   )}
                 </div>
               </section>
@@ -1477,19 +2083,20 @@ export default function PublicStoreClient({
                   className={align === 'center' ? 'mx-auto' : ''}
                 >
                   {variant === 'heading-text' && c.title && (
-                    <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-4" style={{ color: s.headingColor || (bg ? '#0f172a' : '#ffffff') }}>
+                    <EditableText b={b} field="title" as="h2" className="text-2xl md:text-3xl font-black tracking-tight mb-4" style={{ color: s.headingColor || (bg ? '#0f172a' : '#ffffff') }}>
                       {c.title}
-                    </h2>
+                    </EditableText>
                   )}
                   {variant === 'quote' ? (
-                    <blockquote className="border-l-4 pl-5 text-lg italic opacity-90 leading-relaxed" style={{ borderColor: accent, color: textColor }}>
-                      <span dangerouslySetInnerHTML={{ __html: renderInline(c.text) }} />
-                    </blockquote>
+                    <EditableHtml b={b} field="text" as="blockquote" html={renderInline(c.text)} className="border-l-4 pl-5 text-lg italic opacity-90 leading-relaxed" style={{ borderColor: accent, color: textColor }} />
                   ) : (
-                    <div
+                    <EditableHtml
+                      b={b}
+                      field="text"
+                      as="div"
+                      html={renderInline(c.text)}
                       className="text-base leading-relaxed"
                       style={{ color: textColor }}
-                      dangerouslySetInnerHTML={{ __html: renderInline(c.text) }}
                     />
                   )}
                 </div>
@@ -1513,8 +2120,8 @@ export default function PublicStoreClient({
                 <div className="max-w-3xl mx-auto">
                   <Reveal>
                     <div className="text-center space-y-3 mb-8">
-                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Agenda tu sesión'}</h2>
-                      {c.subtitle && <p className="text-sm md:text-base opacity-70 max-w-xl mx-auto leading-relaxed">{c.subtitle}</p>}
+                      <EditableText b={b} field="title" as="h2" className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Agenda tu sesión'}</EditableText>
+                      {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-sm md:text-base opacity-70 max-w-xl mx-auto leading-relaxed">{c.subtitle}</EditableText>}
                     </div>
                   </Reveal>
                   <CalendarSection content={c} settings={s} accent={accent} businessSlug={businessSlug} pageId={pageId} editorMode={editorMode} />
@@ -1540,14 +2147,17 @@ export default function PublicStoreClient({
                   <Reveal>
                     <div className="text-center space-y-3">
                       {c.badge && (
-                        <span
+                        <EditableText
+                          b={b}
+                          field="badge"
+                          as="span"
                           className="inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest border"
                           style={{ backgroundColor: softBg(accent, '18'), color: accent, borderColor: `${accent}55` }}
                         >
                           {c.badge}
-                        </span>
+                        </EditableText>
                       )}
-                      {c.headline && <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-tight">{c.headline}</h2>}
+                      {c.headline && <EditableText b={b} field="headline" as="h2" className="text-3xl md:text-4xl font-black tracking-tight leading-tight">{c.headline}</EditableText>}
                     </div>
                   </Reveal>
                   <Reveal delay={100}>
@@ -1558,10 +2168,11 @@ export default function PublicStoreClient({
                       <div className="text-center">
                         <a
                           href={c.ctaUrl || '#cta'}
+                          data-edit-field="ctaText"
                           className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-extrabold text-base hover:scale-105 active:scale-95 transition-all"
                           style={{ backgroundColor: accent, boxShadow: `0 16px 40px -14px ${accent}` }}
                         >
-                          {c.ctaText}
+                          <EditableText b={b} field="ctaText" as="span" className="inline-flex items-center gap-2">{c.ctaText}</EditableText>
                         </a>
                       </div>
                     </Reveal>
@@ -1587,8 +2198,8 @@ export default function PublicStoreClient({
                 <div className="max-w-7xl mx-auto space-y-10">
                   <Reveal>
                     <div className="text-center space-y-2">
-                      <h2 className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Últimas publicaciones'}</h2>
-                      {c.subtitle && <p className="text-sm max-w-xl mx-auto opacity-60">{c.subtitle}</p>}
+                      <EditableText b={b} field="title" as="h2" className="text-3xl md:text-4xl font-black tracking-tight">{c.title || 'Últimas publicaciones'}</EditableText>
+                      {c.subtitle && <EditableText b={b} field="subtitle" as="p" className="text-sm max-w-xl mx-auto opacity-60">{c.subtitle}</EditableText>}
                     </div>
                   </Reveal>
                   <ArticlesSection content={c} settings={s} accent={accent} businessSlug={businessSlug} />
@@ -1602,10 +2213,22 @@ export default function PublicStoreClient({
           return null
   }
 
+  const inlineEditCtx: InlineEditCtx = {
+    editing: inlineEdit ?? null,
+    change: (blockId, field, value) => onInlineEditChange?.(blockId, field, value),
+    commit: (blockId, field, value) => onInlineEditCommit?.(blockId, field, value),
+    cancel: (blockId, field) => onInlineEditCancel?.(blockId, field),
+  }
+
   return (
+    <InlineEditContext.Provider value={inlineEditCtx}>
     <div
       className="min-h-screen font-sans text-slate-100 relative"
-      style={{ fontFamily: FONT_STACK, backgroundColor: '#0b0f1a' }}
+      style={{ fontFamily: fontStack(settings), backgroundColor: '#0b0f1a' }}
+      data-dragging-file={fileDragging ? 'true' : undefined}
+      onDragOver={handleFileDragOver}
+      onDrop={handleFileDrop}
+      onDragLeave={handleFileDragLeave}
     >
       {/* Toast Notification */}
       {showNotification && (
@@ -1633,7 +2256,14 @@ export default function PublicStoreClient({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
                 <div className="h-72 md:h-[420px] rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center relative">
                   {activeProduct.imageUrl ? (
-                    <img src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" />
+                    (() => {
+                      const ps = productSource(activeProduct)
+                      return ps ? (
+                        <InlineImage b={ps.b} field={ps.field} src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" onPick={pickImage} />
+                      ) : (
+                        <img src={activeProduct.imageUrl} alt={activeProduct.name} className="w-full h-full object-cover" />
+                      )
+                    })()
                   ) : (
                     <IconRenderer name={activeProduct.iconName || 'Shirt'} size={96} style={{ color: rootAccent }} />
                   )}
@@ -1753,7 +2383,14 @@ export default function PublicStoreClient({
                       >
                         <div className="h-20 bg-slate-50 overflow-hidden">
                           {rp.imageUrl ? (
-                            <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            (() => {
+                              const ps = productSource(rp)
+                              return ps ? (
+                                <InlineImage b={ps.b} field={ps.field} src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onPick={pickImage} />
+                              ) : (
+                                <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              )
+                            })()
                           ) : (
                             <div className="w-full h-full flex items-center justify-center" style={{ color: rootAccent }}>
                               <IconRenderer name={rp.iconName || 'Shirt'} size={22} />
@@ -1772,11 +2409,19 @@ export default function PublicStoreClient({
             </div>
           </section>
         ) : (
-        windowBlocks.map((b, bIdx) => {
-          const node = renderBlockNode(b, bIdx)
-          if (!node) return null
-          return withSelection(b, node)
-        })
+        <Fragment>
+          {windowBlocks.map((b, bIdx) => {
+            const node = renderBlockNode(b, bIdx)
+            if (!node) return null
+            return (
+              <Fragment key={b.id}>
+                {editorMode && <InsertHandle beforeBlockId={b.id} onInsert={onInsertBetween || (() => {})} />}
+                {withSelection(b, node)}
+              </Fragment>
+            )
+          })}
+          {editorMode && <InsertHandle beforeBlockId={null} onInsert={onInsertBetween || (() => {})} />}
+        </Fragment>
         )}
 
         {/* ═══ GLOBAL FOOTER — visible on every window ═══ */}
@@ -1797,7 +2442,14 @@ export default function PublicStoreClient({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="h-64 md:h-full min-h-[220px] rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center">
                 {selectedProduct.imageUrl ? (
-                  <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                  (() => {
+                    const ps = productSource(selectedProduct)
+                    return ps ? (
+                      <InlineImage b={ps.b} field={ps.field} src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover" onPick={pickImage} />
+                    ) : (
+                      <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                    )
+                  })()
                 ) : (
                   <IconRenderer name={selectedProduct.iconName || 'Shirt'} size={72} style={{ color: rootAccent }} />
                 )}
@@ -2305,12 +2957,50 @@ export default function PublicStoreClient({
         </button>
       </div>
     </div>
+
+      {/* Editor: aviso mientras se arrastra una imagen desde el escritorio */}
+      {editorMode && fileDragging && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[95] px-4 py-2 rounded-full bg-purple-600/95 text-white text-xs font-bold shadow-2xl border border-white/20 pointer-events-none">
+          Suelta la imagen sobre un logo, producto o fondo para reemplazarlo
+        </div>
+      )}
+
+      {/* Editor: selector de imagen del dispositivo — dbl-click sobre una imagen del canvas */}
+      {editorMode && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          aria-label="Subir imagen del dispositivo"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) handleImageFile(f)
+            e.target.value = ''
+          }}
+        />
+      )}
+      {editorMode && imageUploading && (
+        <div className="fixed bottom-20 right-6 z-[95] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-2xl bg-slate-900/95 border border-white/15 text-white text-xs font-bold">
+          <Loader2 size={14} className="animate-spin text-fuchsia-400" />
+          Subiendo imagen…
+        </div>
+      )}
+      {editorMode && imageUploadError && (
+        <button
+          onClick={() => setImageUploadError('')}
+          className="fixed bottom-20 right-6 z-[95] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-2xl bg-red-600/95 border border-red-400/30 text-white text-xs font-bold"
+        >
+          <X size={14} /> {imageUploadError}
+        </button>
+      )}
+    </InlineEditContext.Provider>
   )
 }
 
 /* ═══════════════ ENTERPRISE EXTRA BLOCKS ═══════════════ */
 
-function CountdownBlock({ content, settings, accent }: { content: any; settings: any; accent: string }) {
+function CountdownBlock({ block, content, settings, accent }: { block: any; content: any; settings: any; accent: string }) {
   const end = content.endDate
   const [left, setLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null)
 
@@ -2341,11 +3031,11 @@ function CountdownBlock({ content, settings, accent }: { content: any; settings:
       <div className="absolute -top-24 -right-24 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
       <div className="max-w-3xl mx-auto space-y-6 relative">
         <Reveal>
-          <span className="inline-block px-4 py-1.5 rounded-full bg-white/15 text-xs font-extrabold uppercase tracking-widest">
+          <EditableText b={block} field="badge" as="span" className="inline-block px-4 py-1.5 rounded-full bg-white/15 text-xs font-extrabold uppercase tracking-widest">
             ⏳ {content.badge || 'Oferta por tiempo limitado'}
-          </span>
-          <h2 className="text-3xl md:text-5xl font-black mt-4">{content.title || '¡No te quedes sin la tuya!'}</h2>
-          {content.subtitle && <p className="text-sm md:text-base opacity-90 max-w-xl mx-auto">{content.subtitle}</p>}
+          </EditableText>
+          <EditableText b={block} field="title" as="h2" className="text-3xl md:text-5xl font-black mt-4">{content.title || '¡No te quedes sin la tuya!'}</EditableText>
+          {content.subtitle && <EditableText b={block} field="subtitle" as="p" className="text-sm md:text-base opacity-90 max-w-xl mx-auto">{content.subtitle}</EditableText>}
         </Reveal>
 
         {left && (
@@ -2367,11 +3057,12 @@ function CountdownBlock({ content, settings, accent }: { content: any; settings:
         {content.buttonText && (
           <a
             href={`#${content.buttonHref || 'productos'}`}
+            data-edit-field="buttonText"
             className="inline-flex items-center gap-2 bg-white px-8 py-4 rounded-2xl font-black text-base shadow-2xl hover:scale-105 transition-all"
             style={{ color: accent }}
           >
             <ShoppingBag size={18} />
-            {content.buttonText}
+            <EditableText b={block} field="buttonText" as="span" className="inline-flex items-center gap-2">{content.buttonText}</EditableText>
           </a>
         )}
       </div>
@@ -2402,7 +3093,7 @@ function FaqItem({ question, answer, accent }: { question: string; answer: strin
   )
 }
 
-function NewsletterBlock({ content, settings, accent }: { content: any; settings: any; accent: string }) {
+function NewsletterBlock({ block, content, settings, accent }: { block: any; content: any; settings: any; accent: string }) {
   const [email, setEmail] = useState('')
   const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -2413,8 +3104,8 @@ function NewsletterBlock({ content, settings, accent }: { content: any; settings
     <section style={{ backgroundColor: bg, color: fg }} className="px-6 py-16 border-t border-white/10">
       <div className="max-w-2xl mx-auto text-center space-y-5">
         <Reveal>
-          <h2 className="text-2xl md:text-3xl font-black">{content.title || 'Únete a nuestro Club VIP'}</h2>
-          <p className="text-xs md:text-sm opacity-70">{content.subtitle || 'Recibe ofertas exclusivas y cupones de descuento directo a tu correo.'}</p>
+          <EditableText b={block} field="title" as="h2" className="text-2xl md:text-3xl font-black">{content.title || 'Únete a nuestro Club VIP'}</EditableText>
+          <EditableText b={block} field="subtitle" as="p" className="text-xs md:text-sm opacity-70">{content.subtitle || 'Recibe ofertas exclusivas y cupones de descuento directo a tu correo.'}</EditableText>
         </Reveal>
         {done ? (
           <div className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-extrabold" style={{ backgroundColor: softBg(accent, '18'), color: accent }}>
@@ -2448,6 +3139,7 @@ function NewsletterBlock({ content, settings, accent }: { content: any; settings
             <button
               type="submit"
               disabled={busy}
+              data-edit-field="buttonText"
               className="px-6 py-3.5 rounded-xl text-sm font-extrabold text-white hover:opacity-90 transition-all disabled:opacity-60"
               style={{ backgroundColor: accent }}
             >
@@ -2495,7 +3187,7 @@ function SocialProofBlock({ content, settings, accent, messages }: { content: an
   )
 }
 
-function ContactBlock({ content, settings, accent, whatsappNumber, pageId }: { content: any; settings: any; accent: string; whatsappNumber: string; pageId?: string }) {
+function ContactBlock({ block, content, settings, accent, whatsappNumber, pageId }: { block: any; content: any; settings: any; accent: string; whatsappNumber: string; pageId?: string }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -2554,8 +3246,8 @@ function ContactBlock({ content, settings, accent, whatsappNumber, pageId }: { c
     >
       <div className="max-w-2xl mx-auto space-y-8">
         <Reveal>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-center">{content.title || 'Contáctanos'}</h2>
-          {content.subtitle && <p className="text-xs text-center opacity-60 mt-1">{content.subtitle}</p>}
+          <EditableText b={block} field="title" as="h2" className="text-2xl md:text-3xl font-extrabold text-center">{content.title || 'Contáctanos'}</EditableText>
+          {content.subtitle && <EditableText b={block} field="subtitle" as="p" className="text-xs text-center opacity-60 mt-1">{content.subtitle}</EditableText>}
         </Reveal>
         <Reveal>
           {submitted ? (
@@ -3035,7 +3727,7 @@ function ArticlesSection({ content, settings, accent, businessSlug }: { content:
 
   return (
     <div className={`grid ${cols} gap-5`}>
-      {articles.map((a: any) => (
+      {articles.map((a: any, idx: number) => (
         <a
           key={a.id || a.title}
           href={a.link || '#'}
@@ -3044,7 +3736,7 @@ function ArticlesSection({ content, settings, accent, businessSlug }: { content:
         >
           {a.imageUrl && (
             <div className="aspect-video overflow-hidden">
-              <img src={a.imageUrl} alt={a.title || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+              <img src={a.imageUrl} alt={a.title || ''} data-inline-image={source === 'static' ? `articles:${idx}:imageUrl` : undefined} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
             </div>
           )}
           <div className="p-4 space-y-2">
@@ -3090,30 +3782,49 @@ function resolveLinkHref(link: any, fallback: any = { type: 'external', value: '
   return { href: val || '#', isWindow: false, value: val }
 }
 
-function LinkButton({ link, fallback, children, className, style, editorMode, onNavigateWindow }: {
+function LinkButton({ link, fallback, children, className, style, editorMode, editField, onNavigateWindow }: {
   link: any
   fallback?: any
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
   editorMode?: boolean
+  /** Editor deep-select: the button is tagged so a single click selects the block + focuses this field. */
+  editField?: string
   onNavigateWindow?: (w: string) => void
 }) {
   const { href, isWindow, value } = resolveLinkHref(link, fallback)
+  const inner = editField ? (
+    <span data-edit-field={editField} data-inline-edit={editField} className="inline-flex items-center gap-2">{children}</span>
+  ) : children
   return (
     <a
       href={href}
+      data-edit-field={editField}
       onClick={(e) => {
         if (!isWindow) return
         e.preventDefault()
         const win = value.replace('#/ventana/', '')
-        if (editorMode) onNavigateWindow?.(win)
-        else window.location.hash = `#/ventana/${win}`
+        if (editorMode) {
+          // Single click on a tagged button = select + focus the field (the wrapper handles it).
+          if ((e.target as HTMLElement).closest('[data-edit-field]')) return
+          onNavigateWindow?.(win)
+        } else {
+          window.location.hash = `#/ventana/${win}`
+        }
+      }}
+      onDoubleClick={(e) => {
+        // Double click on the button text = inline edit (no navigation);
+        // double click elsewhere still navigates inside the editor (preview-like).
+        if (!editorMode || !isWindow) return
+        if ((e.target as HTMLElement).closest('[data-inline-edit], .canvas-inline-input')) return
+        e.preventDefault()
+        onNavigateWindow?.(value.replace('#/ventana/', ''))
       }}
       className={className}
       style={style}
     >
-      {children}
+      {inner}
     </a>
   )
 }

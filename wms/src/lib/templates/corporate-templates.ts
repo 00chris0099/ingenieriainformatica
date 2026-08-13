@@ -16,6 +16,7 @@ export const CORPORATE_TEMPLATES = [
       description: 'Acompañamos a empresas medianas a crecer con estrategia, procesos y tecnología. +15 años de experiencia y 200+ proyectos exitosos.',
     },
     settings: {
+      fontFamily: 'inter',
       primaryColor: '#1d4ed8',
       secondaryColor: '#0f172a',
       accentColor: '#2563eb',
@@ -221,6 +222,7 @@ export const CORPORATE_TEMPLATES = [
       description: 'Transporte, almacenamiento y distribución a nivel nacional. +2,500 entregas diarias con trazabilidad en tiempo real y 99.2% de puntualidad.',
     },
     settings: {
+      fontFamily: 'space-grotesk',
       primaryColor: '#ea580c',
       secondaryColor: '#1c1917',
       accentColor: '#f97316',
@@ -371,6 +373,7 @@ export const CORPORATE_TEMPLATES = [
       description: 'Estrategia, branding, marketing digital y desarrollo web. +500 marcas impulsadas. El partner creativo que tu negocio necesita.',
     },
     settings: {
+      fontFamily: 'poppins',
       primaryColor: '#7c3aed',
       secondaryColor: '#18181b',
       accentColor: '#8b5cf6',

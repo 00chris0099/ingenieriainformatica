@@ -4,6 +4,7 @@ import { prisma } from '@repo/prisma'
 import { Block } from '@repo/blocks'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { resolveAnalyticsConfig, isMPConfigured } from '@/lib/analytics'
+import { googleFontsHref } from '@/lib/fonts'
 
 /** Only published pages are ever served publicly. Drafts/synthetic pages → 404. */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -180,13 +181,10 @@ export default async function PublicPageRenderer({ params }: { params: Promise<{
 
   return (
     <>
-      {/* Enterprise typography (Sora display + Inter body) */}
+      {/* Enterprise typography — fuente configurable en Ajustes del Sitio (default: Sora) */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap"
-      />
+      <link rel="stylesheet" href={googleFontsHref(storeSettings)} />
       <link rel="canonical" href={pageUrl} />
 
       {/* Analytics externo: GA4 (gtag) y/o Plausible — scripts reales de medición */}

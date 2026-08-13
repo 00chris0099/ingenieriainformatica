@@ -1,19 +1,22 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef, use } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
-  Save, Eye, ArrowLeft, Undo, Redo, Plus, Monitor, Tablet, Smartphone,
+  Save, Eye, ArrowLeft, ArrowUp, ArrowDown, Undo, Redo, Plus, Monitor, Tablet, Smartphone,
   Wand2, Check, Sparkles, X, Send, Bot, Layers, Sliders, Maximize2, Minimize2, ExternalLink,
-  Settings2, LayoutGrid, Trash2, Home, FilePlus2, Pencil, Copy, AlertTriangle, GripVertical, Search, ChevronDown, ChevronsDown, ChevronsUp, ZoomIn, ZoomOut, RotateCw, Frame, Rocket, Loader2, ShoppingBag, MoveRight
+  Settings2, LayoutGrid, Trash2, Home, FilePlus2, Pencil, Copy, AlertTriangle, GripVertical, Search, ChevronDown, ChevronsDown, ChevronsUp, ZoomIn, ZoomOut, RotateCw, Frame, Rocket, Loader2, ShoppingBag, MoveRight, Edit3, CornerUpLeft, Undo2, Focus, Link2, Image as ImageIcon, FileText, Users, Scissors, ClipboardPaste, Command, Keyboard
 } from 'lucide-react'
 import { Block, blockRegistry } from '@repo/blocks'
 import BlockEditor from '@/components/builder/BlockEditor'
 import ImageUploadField from '@/components/builder/ImageUploadField'
 import PublicStoreClient from '@/components/public/PublicStoreClient'
 import { Button } from '@/components/ui/Button'
+import { neighborBlockEl } from '@/lib/block-list-nav'
 import { reorderLinksByStoredOrder, windowIdsFromLinks } from '@/lib/window-order'
 import { moveBlockTo, promoteNestedBlock, demoteBlock, moveBlockToWindow, promoteNestedBlockToWindow, blockHasProductContent, moveNestedBetweenColumns } from '@/lib/block-order'
+import { FONT_OPTIONS, googleFontsHref } from '@/lib/fonts'
 import { setDragPayload, readDragPayload, type BlockDragPayload } from '@/lib/block-dnd'
 
 interface PageData {
@@ -61,12 +64,46 @@ const windowCollapseKey = (pageId: string) => `builder:window-collapse:${pageId}
 const deviceKey = 'builder:device'
 const zoomKey = 'builder:zoom'
 const aiChatOpenKey = 'builder:ai-chat-open'
+const clipboardKey = 'builder:clipboard'
 
 function readStored(key: string): string | null {
   try { return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null } catch { return null }
 }
 function writeStored(key: string, value: string) {
   try { if (typeof window !== 'undefined') window.localStorage.setItem(key, value) } catch { /* ignore */ }
+}
+
+/** Sets a (possibly nested, `products:2:name`) content field on a block, handling blocks nested inside columns. */
+function applyInlineEdit(blocksList: Block[], blockId: string, field: string, value: string): Block[] {
+  const parts = field.split(':')
+  const setField = (block: Block): Block => {
+    const content = JSON.parse(JSON.stringify(block.content || {}))
+    let obj: any = content
+    for (let i = 0; i < parts.length - 1; i++) {
+      const key = parts[i]!
+      if (typeof obj[key] !== 'object' || obj[key] === null) {
+        obj[key] = /^\d+$/.test(parts[i + 1] || '') ? [] : {}
+      }
+      obj = obj[key]
+    }
+    obj[parts[parts.length - 1]!] = value
+    return { ...block, content }
+  }
+  return blocksList.map(b => {
+    if (b.id === blockId) return setField(b)
+    if (b.type === 'columns') {
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      let changed = false
+      const next = items.map(col => {
+        const colBlocks = Array.isArray(col?.blocks) ? col.blocks : []
+        if (!colBlocks.some((x: any) => x.id === blockId)) return col
+        changed = true
+        return { ...col, blocks: colBlocks.map((x: any) => (x.id === blockId ? setField(x) : x)) }
+      })
+      return changed ? { ...b, content: { ...b.content, items: next } } : b
+    }
+    return b
+  })
 }
 
 export default function BuilderPage({ params }: { params: Promise<{ pageId: string }> }) {
@@ -76,6 +113,16 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   const [page, setPage] = useState<PageData | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  /** Canvas deep-select: exact field inside the selected block (logoUrl, buttonText, products:2:name…). */
+  const [selectedField, setSelectedField] = useState<string | null>(null)
+  /** Canvas inline text editing: which block/field is being edited directly on the canvas. */
+  const [inlineEdit, setInlineEdit] = useState<{ blockId: string; field: string } | null>(null)
+  const inlineEditRef = useRef<{ blockId: string; field: string; startValue: string } | null>(null)
+  /** Context menu opened with right-click on a canvas element. */
+  const [contextMenu, setContextMenu] = useState<{ blockId: string; field: string | null; x: number; y: number; imageUrl?: string | null } | null>(null)
+  /** Última sustitución de imagen en el canvas (para 'Deshacer reemplazo' del menú contextual). */
+  const lastImageReplacementRef = useRef<{ blockId: string; field: string; previousUrl: string } | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState(false)
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const [zoom, setZoom] = useState(100)
   const [fullScreen, setFullScreen] = useState(false)
@@ -89,6 +136,11 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
 
   // Sidebars
   const [showBlockPicker, setShowBlockPicker] = useState(false)
+  /** Modo insertar del picker: bloque ante el cual insertar (null = al final). */
+  const [insertTarget, setInsertTarget] = useState<{ beforeBlockId: string | null } | null>(null)
+  const [pickerSearch, setPickerSearch] = useState('')
+  const [pickerCategory, setPickerCategory] = useState('')
+  const pickerAllBlocks = useMemo(() => blockRegistry.getAll(), [])
   const [showAIChat, setShowAIChat] = useState(false)
   const [blockFilter, setBlockFilter] = useState('')
   const [blockSearch, setBlockSearch] = useState('')
@@ -97,6 +149,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   // Multi-window canvas + site settings
   const [previewWindow, setPreviewWindow] = useState<string>('home')
   const [showSiteSettings, setShowSiteSettings] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [addingWindow, setAddingWindow] = useState(false)
   const [newWindowName, setNewWindowName] = useState('')
   const [renamingWindow, setRenamingWindow] = useState<string | null>(null)
@@ -147,6 +200,16 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   const [inputPrompt, setInputPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
 
+  // ── Clipboard (copy/cut/paste sections) ─────────────────────────────────
+  const [clipboardBlock, setClipboardBlock] = useState<Block | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Command palette (Ctrl+K) ───────────────────────────────────────────
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteQuery, setPaletteQuery] = useState('')
+  const [paletteIdx, setPaletteIdx] = useState(0)
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.data && e.data.type === 'SELECT_BLOCK' && e.data.blockId) {
@@ -155,6 +218,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
           scrollRetryRef.current = 0
           scrollToSelectedRef.current = true
           setSelectedBlockId(e.data.blockId)
+          setSelectedField(null)
         }
       }
       if (e.data && e.data.type === 'NAVIGATE_WINDOW' && e.data.windowId) {
@@ -173,6 +237,17 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
   useEffect(() => {
     setWindowSearch(readStored(searchStorageKey(pageId)) || '')
   }, [pageId])
+
+  // Restore the persisted clipboard (sections survive reloads, even across pages)
+  useEffect(() => {
+    const raw = readStored(clipboardKey)
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') setClipboardBlock(parsed)
+      } catch { /* ignore */ }
+    }
+  }, [])
 
   // Restore the persisted block-type filter, text search and collapsed window groups across reloads
   useEffect(() => {
@@ -212,6 +287,23 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
 
   // Persist the selected block in the inspector (per page)
   useEffect(() => { writeStored(selectedBlockKey(pageId), selectedBlockId ?? '') }, [selectedBlockId, pageId])
+
+  // Close the canvas context menu on outside interaction (click, scroll, resize, Escape)
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('wheel', close, { passive: true })
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('wheel', close)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', close)
+    }
+  }, [contextMenu])
 
   // ── Canvas scroll persistence (per window) ──────────────────────────────
   /** Reads the current canvas scroll (outer container) */
@@ -436,10 +528,35 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
       settings: config?.defaultSettings || {},
       content: config?.defaultContent || {},
     }
-    const updated = [...blocks, newBlock]
+    // Insert mode: coloca el bloque justo antes del objetivo (o al final).
+    const target = insertTarget
+    setInsertTarget(null)
+    let updated: Block[]
+    if (target?.beforeBlockId) {
+      const idx = blocks.findIndex(b => b.id === target.beforeBlockId)
+      if (idx >= 0) {
+        updated = [...blocks.slice(0, idx), newBlock, ...blocks.slice(idx)]
+      } else {
+        updated = [...blocks, newBlock]
+      }
+    } else {
+      updated = [...blocks, newBlock]
+    }
     updateBlocks(updated)
     setSelectedBlockId(newBlock.id)
     setShowBlockPicker(false)
+  }
+
+  /** Abre el picker en modo insertar (desde el handle '+' del canvas). */
+  const handleInsertBetween = (beforeBlockId: string | null) => {
+    setInsertTarget({ beforeBlockId })
+    setShowBlockPicker(true)
+  }
+
+  /** Abre el picker en modo añadir (al final de la ventana activa). */
+  const openAddBlockPicker = () => {
+    setInsertTarget(null)
+    setShowBlockPicker(true)
   }
 
   const handleUpdateBlock = (id: string, settings: Record<string, any>, content: Record<string, any>) => {
@@ -465,6 +582,51 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     const updated = blocks.filter(b => b.id !== id)
     updateBlocks(updated)
     if (selectedBlockId === id) setSelectedBlockId(null)
+  }
+
+  // ── Clipboard: copy / cut / paste sections (Ctrl+C, Ctrl+X, Ctrl+V) ────
+  const showToast = (msg: string) => {
+    setToast(msg)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 2600)
+  }
+
+  const blockTypeLabel = (type: string) =>
+    BLOCK_LABELS[type] || blockRegistry.get(type as any)?.name || type.replace('-', ' ')
+
+  const handleCopyBlock = (id: string | null) => {
+    if (!id) { showToast('Selecciona una sección primero (clic en el lienzo o en la lista)'); return }
+    const b = blocks.find(x => x.id === id)
+    if (!b) return
+    const clone = JSON.parse(JSON.stringify(b))
+    setClipboardBlock(clone)
+    writeStored(clipboardKey, JSON.stringify(clone))
+    showToast(`Sección copiada: ${blockTypeLabel(b.type)}`)
+  }
+
+  const handleCutBlock = (id: string | null) => {
+    if (!id) { showToast('Selecciona una sección primero'); return }
+    handleCopyBlock(id)
+    handleDeleteBlock(id)
+    showToast('Sección cortada — pégala con Ctrl+V')
+  }
+
+  const handlePasteBlock = () => {
+    if (!clipboardBlock) { showToast('Portapapeles vacío — copia una sección con Ctrl+C'); return }
+    const fresh: Block = {
+      ...JSON.parse(JSON.stringify(clipboardBlock)),
+      id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      // Al pegar, la sección aterriza en la ventana activa del lienzo
+      windowId: previewWindow,
+    }
+    const selIdx = selectedBlockId ? blocks.findIndex(b => b.id === selectedBlockId) : -1
+    const updated = selIdx >= 0
+      ? [...blocks.slice(0, selIdx + 1), fresh, ...blocks.slice(selIdx + 1)]
+      : [...blocks, fresh]
+    updateBlocks(updated)
+    setSelectedBlockId(fresh.id)
+    setPreviewWindow(previewWindow)
+    showToast(`Sección pegada: ${blockTypeLabel(fresh.type)}`)
   }
 
   // ── Multi-window manager ───────────────────────────────────────────────
@@ -592,6 +754,207 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     updateBlocks(updated)
   }
 
+  /** Finds the `columns` parent of a nested block, if any. */
+  const findNestedParent = (blockId: string): string | null => {
+    for (const b of blocks) {
+      if (b.type !== 'columns') continue
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      for (const col of items) {
+        if ((Array.isArray(col?.blocks) ? col.blocks : []).some((x: any) => x.id === blockId)) return b.id
+      }
+    }
+    return null
+  }
+
+  /** Closes the canvas context menu (click anywhere, Escape, scroll, resize or selection change). */
+  const closeContextMenu = () => setContextMenu(null)
+
+  /** Opens the context menu for the right-clicked canvas element (imageUrl when the element is an image). */
+  const handleBlockContextMenu = (blockId: string, field: string | null, x: number, y: number, imageUrl?: string | null) => {
+    setContextMenu({ blockId, field, x, y, imageUrl: imageUrl || null })
+  }
+
+  /** Friendly label for a canvas field key (logoUrl → 'logo', products:2:name → 'nombre · elemento 3'). */
+  const fieldLabel = (f: string): string => {
+    const parts = f.split(':')
+    const base = parts[parts.length - 1] || ''
+    const names: Record<string, string> = {
+      logoUrl: 'logo', brandName: 'marca', announcement: 'anuncio', badge: 'etiqueta', title: 'título',
+      subtitle: 'subtítulo', text: 'texto', description: 'descripción', buttonText: 'botón principal',
+      secondaryButtonText: 'botón secundario', heroImage: 'imagen de fondo', src: 'imagen', caption: 'pie de foto',
+      imageUrl: 'imagen', thumbnailUrl: 'portada', ctaText: 'botón', address: 'dirección', phone: 'teléfono',
+      email: 'correo', companyName: 'nombre de la marca', tagline: 'frase', name: 'nombre', price: 'precio',
+      role: 'cargo', question: 'pregunta', videoUrl: 'video', hours: 'horarios', headline: 'titular',
+    }
+    const label = names[base] || base.replace(/([A-Z])/g, ' $1').toLowerCase()
+    if (parts.length === 3) return `${label} · elemento ${parseInt(parts[1]!, 10) + 1}`
+    return label
+  }
+
+  /** Canvas deep-select: an inner element (logo, button, image…) was clicked. Select its block
+   *  and tell the inspector which exact field to focus. Nested blocks map to their `columns` parent. */
+  const handleSelectElement = (blockId: string, field: string) => {
+    const top = blocks.find(b => b.id === blockId)
+    if (top) {
+      selectedBlockIdRef.current = blockId
+      scrollRetryRef.current = 0
+      scrollToSelectedRef.current = true
+      setSelectedBlockId(blockId)
+      setSelectedField(field)
+      return
+    }
+    for (const b of blocks) {
+      if (b.type !== 'columns') continue
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      for (const col of items) {
+        if ((Array.isArray(col?.blocks) ? col.blocks : []).some((x: any) => x.id === blockId)) {
+          selectedBlockIdRef.current = b.id
+          scrollRetryRef.current = 0
+          scrollToSelectedRef.current = true
+          setSelectedBlockId(b.id)
+          setSelectedField(null)
+          return
+        }
+      }
+    }
+  }
+
+  // ── Canvas inline text editing (dbl-click on canvas text) ──────────────
+  const handleStartInlineEdit = (blockId: string, field: string, value: string) => {
+    inlineEditRef.current = { blockId, field, startValue: value }
+    setInlineEdit({ blockId, field })
+    // Select the block (nested → its columns parent) WITHOUT letting the inspector steal focus
+    // from the canvas input, so the field is highlighted but editing happens in place.
+    const top = blocks.find(b => b.id === blockId)
+    if (top) {
+      selectedBlockIdRef.current = blockId
+      scrollRetryRef.current = 0
+      scrollToSelectedRef.current = true
+      setSelectedBlockId(blockId)
+      setSelectedField(null)
+      return
+    }
+    for (const b of blocks) {
+      if (b.type !== 'columns') continue
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      for (const col of items) {
+        if ((Array.isArray(col?.blocks) ? col.blocks : []).some((x: any) => x.id === blockId)) {
+          selectedBlockIdRef.current = b.id
+          setSelectedBlockId(b.id)
+          setSelectedField(null)
+          return
+        }
+      }
+    }
+  }
+
+  const handleInlineEditChange = (blockId: string, field: string, value: string) => {
+    const cur = inlineEditRef.current
+    if (!cur || cur.blockId !== blockId || cur.field !== field) return
+    setBlocks(prev => applyInlineEdit(prev, blockId, field, value))
+  }
+
+  const handleInlineEditCommit = (blockId: string, field: string, value: string) => {
+    const cur = inlineEditRef.current
+    if (!cur || cur.blockId !== blockId || cur.field !== field) return
+    inlineEditRef.current = null
+    setInlineEdit(null)
+    const updated = applyInlineEdit(blocks, blockId, field, value)
+    setBlocks(updated)
+    pushHistory(updated)
+    savePage()
+  }
+
+  const handleInlineEditCancel = (blockId: string, field: string) => {
+    const cur = inlineEditRef.current
+    if (!cur || cur.blockId !== blockId || cur.field !== field) return
+    inlineEditRef.current = null
+    setInlineEdit(null)
+    // Escape = revert the live typing to the value at edit start.
+    setBlocks(prev => applyInlineEdit(prev, blockId, field, cur.startValue))
+  }
+
+  /** Reads a (possibly nested) content field value from the current blocks state. */
+  const readFieldFromBlocks = (blocksList: Block[], blockId: string, field: string): unknown => {
+    const readBlock = (block: Block): unknown => {
+      const parts = field.split(':')
+      let obj: any = block.content || {}
+      for (const p of parts) {
+        if (obj == null) return undefined
+        obj = obj[p]
+      }
+      return obj
+    }
+    const top = blocksList.find(b => b.id === blockId)
+    if (top) return readBlock(top)
+    for (const b of blocksList) {
+      if (b.type !== 'columns') continue
+      const items = Array.isArray(b.content?.items) ? b.content.items as any[] : []
+      for (const col of items) {
+        const nb = (Array.isArray(col?.blocks) ? col.blocks : []).find((x: any) => x.id === blockId)
+        if (nb) return readBlock(nb)
+      }
+    }
+    return undefined
+  }
+
+  /** Canvas inline image editing: dbl-click una imagen → sube desde el dispositivo y la reemplaza en vivo.
+   *  Guarda la URL anterior para que el menú contextual pueda ofrecer 'Deshacer reemplazo'. */
+  const handleInlineImageUpload = (blockId: string, field: string, url: string) => {
+    inlineEditRef.current = null
+    setInlineEdit(null)
+    const prev = readFieldFromBlocks(blocks, blockId, field)
+    if (typeof prev === 'string' && prev !== url) {
+      lastImageReplacementRef.current = { blockId, field, previousUrl: prev }
+    }
+    const updated = applyInlineEdit(blocks, blockId, field, url)
+    setBlocks(updated)
+    pushHistory(updated)
+    savePage()
+    // Selecciona el bloque + campo para que el inspector lo muestre (anidado → su columns).
+    handleSelectElement(blockId, field)
+  }
+
+  /** Menú contextual → 'Deshacer reemplazo': vuelve a la URL anterior a la última sustitución de esta imagen. */
+  const handleUndoImageReplacement = (blockId: string, field: string) => {
+    const rep = lastImageReplacementRef.current
+    if (!rep || rep.blockId !== blockId || rep.field !== field) return
+    lastImageReplacementRef.current = null
+    const updated = applyInlineEdit(blocks, blockId, field, rep.previousUrl)
+    setBlocks(updated)
+    pushHistory(updated)
+    savePage()
+    handleSelectElement(blockId, field)
+    closeContextMenu()
+  }
+
+  /** Menú contextual → 'Copiar URL': copia la URL de la imagen al portapapeles (con fallback). */
+  const handleCopyImageUrl = async (url: string) => {
+    const fallback = () => {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch { /* ignore */ }
+      document.body.removeChild(ta)
+      setCopiedUrl(true)
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        setCopiedUrl(true)
+      } else {
+        fallback()
+      }
+    } catch {
+      fallback()
+    }
+    setTimeout(() => setCopiedUrl(false), 2200)
+    closeContextMenu()
+  }
+
   /** Finds a block by id, searching top-level blocks and nested column blocks. */
   const findBlockAnywhere = (id: string): Block | null => {
     const top = blocks.find(b => b.id === id)
@@ -674,7 +1037,11 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     duplicate: (id: string | null) => void
     move: (id: string | null, dir: -1 | 1) => void
     closeModals: () => void
-  }>({ undo: () => {}, redo: () => {}, deleteBlock: () => {}, duplicate: () => {}, move: () => {}, closeModals: () => {} })
+    copy: (id: string | null) => void
+    cut: (id: string | null) => void
+    paste: () => void
+    togglePalette: () => void
+  }>({ undo: () => {}, redo: () => {}, deleteBlock: () => {}, duplicate: () => {}, move: () => {}, closeModals: () => {}, copy: () => {}, cut: () => {}, paste: () => {}, togglePalette: () => {} })
   selectedBlockIdRef.current = selectedBlockId
   shortcutsRef.current = {
     undo: handleUndo,
@@ -682,7 +1049,11 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     deleteBlock: (id) => { if (id) handleDeleteBlock(id) },
     duplicate: (id) => { if (id) handleDuplicateBlock(id) },
     move: (id, dir) => { if (id) handleMoveBlock(id, dir) },
-    closeModals: () => { setShowBlockPicker(false); setShowSiteSettings(false) },
+    closeModals: () => { setShowBlockPicker(false); setShowSiteSettings(false); setPaletteOpen(false); setShowShortcuts(false) },
+    copy: handleCopyBlock,
+    cut: handleCutBlock,
+    paste: handlePasteBlock,
+    togglePalette: () => togglePaletteRef.current(),
   }
 
   useEffect(() => {
@@ -705,6 +1076,30 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
         if (typing) return
         e.preventDefault()
         shortcutsRef.current.duplicate(selectedBlockId)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'c') {
+        if (typing) return
+        e.preventDefault()
+        shortcutsRef.current.copy(selectedBlockId)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'x') {
+        if (typing) return
+        e.preventDefault()
+        shortcutsRef.current.cut(selectedBlockId)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'v') {
+        if (typing) return
+        e.preventDefault()
+        shortcutsRef.current.paste()
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'k') {
+        if (typing) return
+        e.preventDefault()
+        shortcutsRef.current.togglePalette()
         return
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1010,6 +1405,52 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
     return m
   }, [blocks])
 
+  // ── Command palette (Ctrl+K): jump to any window or block ──────────────
+  const paletteItems = useMemo(() => {
+    const q = paletteQuery.trim().toLowerCase()
+    const items: { kind: 'window' | 'block'; id: string; label: string; sub: string; windowId?: string }[] = []
+    orderedWindows.forEach(w => {
+      const label = windowLabel(w)
+      if (!q || label.toLowerCase().includes(q) || w.toLowerCase().includes(q)) {
+        items.push({ kind: 'window', id: w, label: `🪟 ${label}`, sub: `${blocks.filter(b => (b.windowId || 'home') === w).length} secciones` })
+      }
+    })
+    blocks.forEach(b => {
+      const label = blockTypeLabel(b.type)
+      const name = String((b.content as any)?.title || (b.content as any)?.brandName || '')
+      const w = b.windowId || 'home'
+      const hay = `${label} ${name} ${b.type}`.toLowerCase()
+      if (!q || hay.includes(q)) {
+        items.push({ kind: 'block', id: b.id, label, sub: name ? `${name} · ${windowLabel(w)}` : windowLabel(w), windowId: w })
+      }
+    })
+    return items
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paletteQuery, blocks, orderedWindows])
+
+  const openPalette = () => { setPaletteQuery(''); setPaletteIdx(0); setPaletteOpen(true) }
+  const togglePalette = () => { if (paletteOpen) setPaletteOpen(false); else openPalette() }
+  const togglePaletteRef = useRef<() => void>(() => {})
+  togglePaletteRef.current = togglePalette
+
+  const handlePaletteSelect = (item: { kind: 'window' | 'block'; id: string; label: string; windowId?: string }) => {
+    setPaletteOpen(false)
+    setPaletteQuery('')
+    if (item.kind === 'window') {
+      setPreviewWindow(item.id)
+      showToast(`Ventana activa: ${windowLabel(item.id)}`)
+    } else {
+      setPreviewWindow(item.windowId || 'home')
+      setSelectedBlockId(item.id)
+      selectedBlockIdRef.current = item.id
+      scrollRetryRef.current = 0
+      scrollToSelectedRef.current = true
+      setFlashBlockId(item.id)
+      setTimeout(() => setFlashBlockId(null), 1600)
+      showToast(`Sección: ${item.label}`)
+    }
+  }
+
   /** Visible blocks grouped by window, in menu order (respects type/search filters) */
   const groupedBlocks = useMemo(() => {
     const groups = new Map<string, Block[]>()
@@ -1102,7 +1543,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
         style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border)' }}>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/pages')} className="p-2 rounded-xl hover:bg-[var(--color-bg-hover)] transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
+          <button onClick={() => router.push('/pages')} aria-label="Volver a la lista de páginas" className="p-2 rounded-xl hover:bg-[var(--color-bg-hover)] transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
             <ArrowLeft size={18} />
           </button>
           <div>
@@ -1232,7 +1673,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
           <div className="w-64 border-r flex flex-col shrink-0" style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border)' }}>
             <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
               <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>Secciones & Bloques</span>
-              <button onClick={() => setShowBlockPicker(true)} className="p-1 text-xs font-bold rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:opacity-80 transition-all flex items-center gap-1">
+              <button onClick={openAddBlockPicker} className="p-1 text-xs font-bold rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:opacity-80 transition-all flex items-center gap-1">
                 <Plus size={13} /> Añadir
               </button>
             </div>
@@ -1271,6 +1712,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                   value={windowSearch}
                   onChange={(e) => { setWindowSearch(e.target.value); writeStored(searchStorageKey(pageId), e.target.value) }}
                   placeholder="Buscar ventana…"
+                  aria-label="Buscar ventana"
                   className="input-field text-xs pl-7 pr-7 w-full py-1"
                 />
                 {windowSearch && (
@@ -1412,6 +1854,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                   value={blockSearch}
                   onChange={(e) => { setBlockSearch(e.target.value); writeStored(blockSearchKey(pageId), e.target.value) }}
                   placeholder="Buscar por nombre o tipo…"
+                  aria-label="Buscar secciones por nombre o tipo"
                   className="input-field text-xs pl-7 pr-7 w-full py-1"
                 />
                 {blockSearch && (
@@ -1462,6 +1905,8 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                     >
                       <button
                         onClick={() => toggleWindowCollapse(w)}
+                        aria-expanded={!isCollapsed}
+                        aria-controls={`blocks-window-${w}`}
                         className={`flex-1 min-w-0 flex items-center justify-between px-1.5 py-1 rounded-lg transition-colors ${hasGroupSelection ? 'bg-[var(--color-accent-muted)]' : 'hover:bg-[var(--color-bg-hover)]'}`}
                         title={isCollapsed ? `Expandir ventana ${windowLabel(w)}` : `Colapsar ventana ${windowLabel(w)}`}
                       >
@@ -1483,8 +1928,32 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                     {!isCollapsed && groupBlocks.map((b) => (
                       <div
                         key={b.id}
-                        onClick={() => setSelectedBlockId(b.id)}
+                        onClick={() => { setSelectedBlockId(b.id); setSelectedField(null) }}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedBlockId(b.id)
+                            setSelectedField(null)
+                            return
+                          }
+                          // ↑/↓: mueve el foco entre las secciones listadas (con
+                          // envoltura) y sincroniza la selección del editor.
+                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            e.stopPropagation() // no reordenar la sección (handler global)
+                            const next = neighborBlockEl(blocksListRef.current, e.currentTarget, e.key === 'ArrowDown' ? 1 : -1)
+                            if (!next) return
+                            next.focus()
+                            const nextId = next.dataset.blockId
+                            if (nextId) { setSelectedBlockId(nextId); setSelectedField(null) }
+                          }
+                        }}
                         data-block-id={b.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-current={selectedBlockId === b.id ? 'true' : undefined}
+                        aria-label={`Seleccionar sección ${b.type.replace('-', ' ')} en ${windowLabel(w)}${selectedBlockId === b.id ? ' (seleccionada)' : ''}`}
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragPayload(e, { kind: 'top', blockId: b.id }); setDragBlockId(b.id) }}
                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverBlockId(b.id) }}
@@ -1506,7 +1975,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                             <span className="text-[9px] font-bold" style={{ color: 'var(--color-text-tertiary)' }}>{(b.windowId || 'home') === 'home' ? '🏠 Inicio' : (b.windowId || 'home')}</span>
                           </div>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBlock(b.id) }} className="p-1 hover:text-red-500 transition-all text-gray-400">
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBlock(b.id) }} aria-label={`Eliminar sección ${b.type.replace('-', ' ')}`} className="p-1 hover:text-red-500 transition-all text-gray-400">
                           <X size={12} />
                         </button>
                       </div>
@@ -1535,13 +2004,21 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
               {/* Same fonts as the public site so the canvas renders pixel-identical */}
               <link rel="preconnect" href="https://fonts.googleapis.com" />
               <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-              <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" />
+              <link rel="stylesheet" href={googleFontsHref(siteSettings)} />
               <style>{`
                 .editor-block { position: relative; cursor: pointer; }
                 .editor-block:hover { outline: 2px dashed rgba(236,72,153,0.55); outline-offset: -2px; }
                 .editor-block-selected { outline: 3px solid #a855f7 !important; outline-offset: -3px !important; box-shadow: 0 0 0 6px rgba(168,85,247,0.18) !important; }
                 .editor-block-dragging { opacity: 0.4; }
                 .editor-block-drop-target { outline: 2px solid #0ea5e9 !important; outline-offset: -2px !important; box-shadow: 0 0 0 5px rgba(14,165,233,0.22) !important; cursor: copy; }
+                .canvas-inline-input { font-family: 'Sora','Inter',system-ui,-apple-system,'Segoe UI',sans-serif !important; background: rgba(255,255,255,0.97) !important; color: #0f172a !important; border: 2px solid #a855f7 !important; border-radius: 6px !important; outline: none !important; box-shadow: 0 0 0 4px rgba(168,85,247,0.25) !important; padding: 1px 6px !important; max-width: 100% !important; min-width: 90px; cursor: text !important; margin: 0 !important; }
+                .canvas-inline-input:focus { box-shadow: 0 0 0 4px rgba(168,85,247,0.38) !important; }
+                [data-dragging-file] [data-inline-image] { outline: 2px dashed rgba(168,85,247,0.65); outline-offset: 3px; }
+                [data-dragging-file] [data-inline-image]:hover { outline: 3px solid #a855f7; box-shadow: 0 0 0 6px rgba(168,85,247,0.22); cursor: copy; }
+                .editor-insert-handle { height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; border-radius: 10px; margin: 1px 0; }
+                .editor-insert-handle:hover { background: rgba(168,85,247,0.12); }
+                .editor-insert-plus { width: 22px; height: 22px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #a855f7; background: rgba(168,85,247,0.14); border: 1px dashed rgba(168,85,247,0.6); opacity: 0; transition: opacity 0.15s, background 0.15s; line-height: 1; }
+                .editor-insert-handle:hover .editor-insert-plus { opacity: 1; background: rgba(168,85,247,0.22); }
               `}</style>
               <PublicStoreClient
                 pageTitle={page?.title || ''}
@@ -1554,14 +2031,30 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 selectedBlockId={selectedBlockId}
                 onSelectBlock={(blockId) => {
                   if (selectedBlockIdRef.current !== blockId) {
+                    inlineEditRef.current = null
+                    setInlineEdit(null)
                     selectedBlockIdRef.current = blockId
                     scrollRetryRef.current = 0
                     scrollToSelectedRef.current = true
                     setSelectedBlockId(blockId)
+                    setSelectedField(null)
                   }
                 }}
-                onNavigateWindow={(windowId) => setPreviewWindow(windowId)}
+                onSelectElement={handleSelectElement}
+                onBlockContextMenu={handleBlockContextMenu}
+                inlineEdit={inlineEdit}
+                onStartInlineEdit={handleStartInlineEdit}
+                onInlineEditChange={handleInlineEditChange}
+                onInlineEditCommit={handleInlineEditCommit}
+                onInlineEditCancel={handleInlineEditCancel}
+                onInlineImageUpload={handleInlineImageUpload}
+                onNavigateWindow={(windowId) => {
+                  inlineEditRef.current = null
+                  setInlineEdit(null)
+                  setPreviewWindow(windowId)
+                }}
                 onCanvasBlockDrop={(parentId, colIdx, beforeNbId, payload) => handleCanvasBlockDrop(parentId, colIdx, beforeNbId, payload)}
+                onInsertBetween={handleInsertBetween}
               />
               {blocks.length === 0 && (
                 <div className="py-24 text-center text-sm font-semibold" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -1643,6 +2136,95 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
 
             <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
 
+            {/* Clipboard: copy / cut / paste sections */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={() => handleCopyBlock(selectedBlockId)}
+                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+                title="Copiar sección seleccionada (Ctrl+C)"
+              >
+                <Copy size={12} />
+              </button>
+              <button
+                onClick={() => handleCutBlock(selectedBlockId)}
+                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+                title="Cortar sección seleccionada (Ctrl+X)"
+              >
+                <Scissors size={12} />
+              </button>
+              <button
+                onClick={handlePasteBlock}
+                className={`p-1 rounded transition-colors ${clipboardBlock ? 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]/40 cursor-not-allowed'}`}
+                title={`Pegar sección${clipboardBlock ? ` (${blockTypeLabel(clipboardBlock.type)})` : ''} (Ctrl+V)`}
+              >
+                <ClipboardPaste size={12} />
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
+            {/* Command palette (Ctrl+K) */}
+            <button
+              onClick={openPalette}
+              className="flex items-center gap-1.5 shrink-0 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:bg-[var(--color-bg-hover)]"
+              style={{ color: 'var(--color-text-secondary)' }}
+              title="Paleta de comandos — saltar a cualquier ventana o sección (Ctrl+K)"
+            >
+              <Search size={12} />
+              <span className="hidden lg:inline">Ir a…</span>
+              <kbd className="hidden xl:inline text-[9px] font-mono px-1 py-px rounded border" style={{ borderColor: 'var(--color-border)' }}>Ctrl K</kbd>
+            </button>
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
+            {/* Keyboard shortcuts hint */}
+            <button
+              onClick={() => setShowShortcuts(!showShortcuts)}
+              aria-expanded={showShortcuts}
+              aria-label="Atajos de teclado del lienzo"
+              className="flex items-center gap-1.5 shrink-0 px-1.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:bg-[var(--color-bg-hover)]"
+              style={{ color: 'var(--color-text-secondary)' }}
+              title="Atajos de teclado del lienzo: ↑↓ mover · Home/End · PgUp/PgDn · F2 editar · ⇧F10 menú"
+            >
+              <Keyboard size={12} />
+              <span className="hidden lg:inline">Atajos</span>
+            </button>
+            {showShortcuts && typeof document !== 'undefined' && createPortal(
+              <div
+                role="region"
+                aria-label="Atajos de teclado del lienzo"
+                className="fixed bottom-12 right-4 z-[90] w-80 rounded-xl border p-3 shadow-2xl surface-card animate-fade-in"
+              >
+                <p className="text-[11px] font-extrabold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                  <Keyboard size={13} aria-hidden="true" /> Atajos de teclado del lienzo
+                </p>
+                {/* Lista semántica: los lectores de pantalla anuncian la estructura y
+                    cada kbd lleva su forma hablada (p. ej. “↑ ↓” se lee como flechas). */}
+                <ul className="space-y-1.5 text-[10px] list-none m-0 p-0" style={{ color: 'var(--color-text-secondary)' }}>
+                  {[
+                    { keys: '↑ ↓', speech: 'Flecha arriba o flecha abajo', desc: 'Mover el foco entre secciones', title: 'Flechas: mover el foco de sección en sección' },
+                    { keys: 'Home / End', speech: 'Home o End', desc: 'Primera / última sección', title: 'Home/End: saltar a la primera o última sección' },
+                    { keys: 'PgUp / PgDn', speech: 'Re Pag o Av Pag', desc: 'Desplazar el lienzo una página', title: 'PageUp/PageDown: desplazar el lienzo sin cambiar de sección' },
+                    { keys: 'F2', speech: 'F2', desc: 'Editar el primer campo de la sección', title: 'F2: edición inline del primer campo editable' },
+                    { keys: '⇧ F10', speech: 'Mayúsculas más F10', desc: 'Menú contextual de la sección', title: 'Shift+F10: abrir el menú contextual' },
+                    { keys: 'Supr', speech: 'Suprimir', desc: 'Eliminar la sección seleccionada', title: 'Delete/Backspace: eliminar la sección seleccionada' },
+                    { keys: 'Ctrl Z / Y', speech: 'Control Z o Control Y', desc: 'Deshacer / Rehacer', title: 'Ctrl+Z deshace · Ctrl+Y (o Ctrl+Shift+Z) rehace' },
+                    { keys: 'Ctrl C · X · V', speech: 'Control C, X o V', desc: 'Copiar · Cortar · Pegar sección', title: 'Portapapeles de secciones: copiar, cortar, pegar' },
+                    { keys: 'Ctrl K', speech: 'Control K', desc: 'Paleta de comandos', title: 'Ctrl+K: saltar a cualquier ventana o sección' },
+                    { keys: 'Ctrl D', speech: 'Control D', desc: 'Duplicar la sección seleccionada', title: 'Ctrl+D: duplicar la sección' },
+                  ].map((s) => (
+                    <li key={s.keys} className="flex items-center justify-between gap-3" title={s.title}>
+                      <kbd aria-label={s.speech} className="text-[9px] font-mono px-1.5 py-px rounded border whitespace-nowrap" style={{ borderColor: 'var(--color-border)' }}>{s.keys}</kbd>
+                      <span className="text-right">{s.desc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>,
+              document.body
+            )}
+
+            <div className="w-px h-4 bg-[var(--color-border)] shrink-0" />
+
             {/* Block counts */}
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <Layers size={12} className="text-[var(--color-text-tertiary)] shrink-0" />
@@ -1703,6 +2285,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
             onDelete={() => handleDeleteBlock(selectedBlock.id)}
             onPromoteNestedBlock={(parentId, nestedId, targetTopId) => handlePromoteNestedBlock(parentId, nestedId, targetTopId)}
             onDemoteBlock={(blockId, parentId, colIdx, beforeNbId) => handleDemoteBlock(blockId, parentId, colIdx, beforeNbId)}
+            focusField={selectedField}
           />
         )}
 
@@ -1714,7 +2297,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                 <Bot size={18} />
                 <span className="font-extrabold text-xs">Copiloto IA de Diseño</span>
               </div>
-              <button onClick={() => setShowAIChat(false)} className="p-1 rounded hover:bg-white/10 text-white transition-colors">
+              <button onClick={() => setShowAIChat(false)} aria-label="Cerrar Copiloto IA" className="p-1 rounded hover:bg-white/10 text-white transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -1744,12 +2327,23 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                           return (
                             <div
                               key={b.id || i}
+                              role={exists ? 'button' : undefined}
+                              tabIndex={exists ? 0 : undefined}
                               onClick={() => {
                                 if (exists && b.id) {
                                   scrollToSelectedRef.current = true
                                   setSelectedBlockId(b.id)
                                 }
                               }}
+                              onKeyDown={(e) => {
+                                if (!exists || !b.id || e.target !== e.currentTarget) return
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  scrollToSelectedRef.current = true
+                                  setSelectedBlockId(b.id)
+                                }
+                              }}
+                              aria-label={exists ? `Ver sección ${label} en el editor` : undefined}
                               className={`flex items-center gap-2 p-1.5 rounded-lg bg-[var(--color-bg-hover)] border transition-colors ${exists ? 'cursor-pointer hover:border-purple-500/50' : 'border-[var(--color-border)]'}`}
                               title={exists ? 'Ver en el editor' : 'Aplica los cambios para poder editarla'}
                             >
@@ -1813,7 +2407,7 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                   placeholder="Ej: Agrega catálogo de ropa de invierno..."
                   className="input-field text-xs flex-1"
                 />
-                <button onClick={handleAISend} disabled={aiGenerating || !inputPrompt.trim()} className="p-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-all">
+                <button onClick={handleAISend} disabled={aiGenerating || !inputPrompt.trim()} aria-label="Enviar mensaje al Copiloto" className="p-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-all">
                   <Send size={14} />
                 </button>
               </div>
@@ -1900,6 +2494,26 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div>
+                <label className="form-label text-[11px] font-bold">Tipografía del sitio</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {FONT_OPTIONS.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setSiteSettings({ ...siteSettings, fontFamily: f.id })}
+                      className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${(siteSettings.fontFamily || 'sora') === f.id ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)] shadow-sm' : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'}`}
+                      style={{ fontFamily: f.stack, color: 'var(--color-text-primary)' }}
+                      title={f.label}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1 leading-relaxed">
+                  Se aplica en todo el sitio público y en el lienzo. Cada plantilla trae una tipografía sugerida.
+                </p>
               </div>
 
               <p className="text-[10px] text-[var(--color-text-tertiary)] leading-relaxed">
@@ -2006,32 +2620,281 @@ export default function BuilderPage({ params }: { params: Promise<{ pageId: stri
         )
       })()}
 
-      {/* Block Picker Modal */}
-      {showBlockPicker && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl border p-5 surface-card shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold">Añadir Nueva Sección</h3>
-              <button onClick={() => setShowBlockPicker(false)} className="p-1 text-gray-400 hover:text-gray-200">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { type: 'hero', name: 'Hero Banner', desc: 'Encabezado principal con título y CTA' },
-                { type: 'product-grid', name: 'Catálogo Productos', desc: 'Parrilla de productos con precios' },
-                { type: 'features', name: 'Beneficios', desc: 'Grid de características con íconos' },
-                { type: 'testimonials', name: 'Testimonios', desc: 'Opiniones de clientes' },
-                { type: 'cta', name: 'Llamado a Acción', desc: 'Banner de oferta y conversión' },
-                { type: 'footer', name: 'Pie de Página', desc: 'Copyright y enlaces' },
-              ].map(item => (
-                <div key={item.type} onClick={() => handleAddBlock(item.type)} className="p-3 rounded-xl border border-gray-700 hover:border-pink-500 hover:bg-pink-500/5 cursor-pointer transition-all">
-                  <h4 className="font-bold text-xs">{item.name}</h4>
-                  <p className="text-[10px] text-gray-400 mt-1">{item.desc}</p>
-                </div>
-              ))}
+      {/* ═══════════════ COMMAND PALETTE (Ctrl+K) — saltar a ventanas y secciones ═══════════════ */}
+      {paletteOpen && (() => {
+        const items = paletteItems
+        const safeIdx = paletteIdx >= items.length ? Math.max(0, items.length - 1) : paletteIdx
+        return (
+          <div className="fixed inset-0 z-[75] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[12vh] p-4" onClick={() => setPaletteOpen(false)}>
+            <div className="w-full max-w-lg rounded-2xl border surface-card shadow-2xl overflow-hidden animate-fade-in" onClick={(e) => e.stopPropagation()} style={{ borderColor: 'var(--color-border)' }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                <Search size={15} className="text-[var(--color-text-tertiary)] shrink-0" />
+                <input
+                  autoFocus
+                  value={paletteQuery}
+                  onChange={(e) => { setPaletteQuery(e.target.value); setPaletteIdx(0) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIdx(i => Math.min(items.length - 1, i + 1)) }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setPaletteIdx(i => Math.max(0, i - 1)) }
+                    else if (e.key === 'Enter') { e.preventDefault(); if (items[safeIdx]) handlePaletteSelect(items[safeIdx]) }
+                    else if (e.key === 'Escape') { e.preventDefault(); setPaletteOpen(false) }
+                  }}
+                  placeholder="Buscar ventana o sección… (Inicio, Catálogo, Precios, Footer)"
+                  className="flex-1 bg-transparent outline-none text-sm font-semibold placeholder:font-medium"
+                  style={{ color: 'var(--color-text-primary)' }}
+                />
+                <kbd className="text-[9px] font-mono px-1.5 py-0.5 rounded border text-[var(--color-text-tertiary)]" style={{ borderColor: 'var(--color-border)' }}>ESC</kbd>
+              </div>
+              <div className="max-h-[46vh] overflow-y-auto py-1.5">
+                {items.length === 0 && (
+                  <p className="px-4 py-6 text-center text-xs font-semibold text-[var(--color-text-tertiary)]">Sin resultados para «{paletteQuery}»</p>
+                )}
+                {items.map((item, i) => (
+                  <button
+                    key={`${item.kind}-${item.id}`}
+                    onClick={() => handlePaletteSelect(item)}
+                    onMouseEnter={() => setPaletteIdx(i)}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${i === safeIdx ? 'bg-[var(--color-accent)]/10' : ''}`}
+                  >
+                    <span className="flex items-center justify-center w-6 h-6 rounded-lg text-[var(--color-accent)] shrink-0" style={{ background: 'var(--color-accent-muted)' }}>
+                      {item.kind === 'window' ? <LayoutGrid size={13} /> : <Layers size={13} />}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>{item.label}</span>
+                      <span className="block text-[10px] font-semibold text-[var(--color-text-tertiary)] truncate">{item.sub}</span>
+                    </span>
+                    <span className="text-[9px] font-mono text-[var(--color-text-tertiary)]">{item.kind === 'window' ? 'Ventana' : 'Sección'}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 px-4 py-2 border-t text-[10px] font-bold text-[var(--color-text-tertiary)]" style={{ borderColor: 'var(--color-border)' }}>
+                <span className="flex items-center gap-1"><Command size={10} /> K abrir</span>
+                <span className="flex items-center gap-1">↑↓ navegar</span>
+                <span className="flex items-center gap-1">Enter saltar</span>
+              </div>
             </div>
           </div>
+        )
+      })()}
+
+      {/* ═══════════════ BLOCK PICKER (búsqueda + categorías + modo insertar) ═══════════════ */}
+      {showBlockPicker && (() => {
+        const catIcons: Record<string, any> = {
+          '': Sparkles, layout: LayoutGrid, content: FileText, commerce: ShoppingBag, social: Users, seo: Search,
+        }
+        const q = pickerSearch.trim().toLowerCase()
+        const blocks = pickerAllBlocks.filter(b =>
+          (!pickerCategory || b.category === pickerCategory) &&
+          (!q || b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q) || b.id.toLowerCase().includes(q))
+        )
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl rounded-2xl border p-5 surface-card shadow-2xl flex flex-col max-h-[85vh] space-y-3.5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    {insertTarget ? <><Plus size={15} className="text-[var(--color-accent)]" /> Insertar sección</> : 'Añadir Nueva Sección'}
+                  </h3>
+                  {insertTarget && (
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                      Se colocará justo antes de la sección señalada en el lienzo.
+                    </p>
+                  )}
+                </div>
+                <button onClick={() => setShowBlockPicker(false)} className="p-1 text-gray-400 hover:text-gray-200">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none" />
+                  <input
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Buscar sección… (ej: precios, faq, video)"
+                    className="input-field text-xs pl-8 w-full py-1.5"
+                    autoFocus
+                  />
+                  {pickerSearch && (
+                    <button onClick={() => setPickerSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-200">
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 overflow-x-auto shrink-0">
+                  {([['', 'Todo'], ['layout', 'Estructura'], ['content', 'Contenido'], ['commerce', 'Comercio'], ['social', 'Social'], ['seo', 'SEO']] as Array<[string, string]>).map(([id, label]) => {
+                    const Icon = catIcons[id] || Sparkles
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setPickerCategory(id)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${pickerCategory === id ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                      >
+                        <Icon size={11} /> {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 overflow-y-auto pr-1">
+                {blocks.map(blk => {
+                  const Icon = catIcons[blk.category || ''] || Plus
+                  return (
+                    <button
+                      key={blk.id}
+                      onClick={() => handleAddBlock(blk.id)}
+                      className="p-3 rounded-xl border text-left transition-all group hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)]"
+                      style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-elevated)' }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-accent-muted)' }}>
+                          <Icon size={12} className="text-[var(--color-accent)]" />
+                        </span>
+                        <h4 className="font-bold text-xs capitalize" style={{ color: 'var(--color-text-primary)' }}>{blk.name}</h4>
+                      </div>
+                      <p className="text-[10px] mt-1.5 leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-tertiary)' }}>{blk.description}</p>
+                    </button>
+                  )
+                })}
+                {blocks.length === 0 && (
+                  <p className="text-[11px] col-span-2 text-center py-6" style={{ color: 'var(--color-text-tertiary)' }}>
+                    Sin secciones que coincidan con «{pickerSearch.trim()}».
+                  </p>
+                )}
+              </div>
+
+              <p className="text-[10px] text-center" style={{ color: 'var(--color-text-tertiary)' }}>
+                También puedes <b>arrastrar bloques</b> desde el panel izquierdo o pedirle al <b>Copiloto IA</b> que genere secciones completas.
+              </p>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ═══════════════ CANVAS CONTEXT MENU (clic derecho) ═══════════════ */}
+      {contextMenu && (() => {
+        const cmBlock = blocks.find(b => b.id === contextMenu.blockId)
+        const cmField = contextMenu.field
+        const isTop = !!cmBlock
+        const cmParent = isTop ? null : findNestedParent(contextMenu.blockId)
+        const cmType = cmBlock?.type || (cmParent ? blocks.find(b => b.id === cmParent)?.type : '') || ''
+        const label = BLOCK_LABELS[cmType] || cmType.replace('-', ' ') || 'Bloque'
+        const sameWindow = cmBlock ? blocks.filter(b => (b.windowId || 'home') === (cmBlock.windowId || 'home')) : []
+        const indexInWindow = sameWindow.findIndex(b => b.id === contextMenu.blockId)
+        const x = Math.max(4, Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 232))
+        const menuHeight = contextMenu.imageUrl ? 400 : 300
+        const y = Math.max(4, Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - menuHeight))
+        const menuItem = 'w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-[11px] font-semibold transition-all hover:bg-[var(--color-bg-hover)]'
+        return (
+          <div
+            className="fixed z-[70] w-56 rounded-xl border shadow-2xl overflow-hidden animate-fade-in"
+            style={{ left: x, top: y, background: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-base)' }}>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider capitalize" style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+              <button onClick={closeContextMenu} className="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" title="Cerrar (Esc)"><X size={12} /></button>
+            </div>
+            <div className="p-1.5 space-y-0.5">
+              {cmField && (
+                <button
+                  onClick={() => { handleSelectElement(contextMenu.blockId, cmField); closeContextMenu() }}
+                  className={`${menuItem} text-[var(--color-accent)]`}
+                  title="Seleccionar el bloque y abrir el inspector en este campo"
+                >
+                  <Wand2 size={13} /> <span className="truncate">Editar {fieldLabel(cmField)}</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (isTop) { setSelectedBlockId(contextMenu.blockId); setSelectedField(null) }
+                  else if (cmParent) { setSelectedBlockId(cmParent); setSelectedField(null) }
+                  closeContextMenu()
+                }}
+                className={menuItem}
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                <Edit3 size={13} /> <span>{isTop ? 'Editar bloque' : 'Editar bloque (columns)'}</span>
+              </button>
+              {contextMenu.imageUrl && cmField && (
+                <>
+                  <div className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-extrabold uppercase tracking-wider flex items-center gap-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                    <ImageIcon size={10} /> Imagen
+                  </div>
+                  <button
+                    onClick={() => handleUndoImageReplacement(contextMenu.blockId, cmField)}
+                    disabled={!(lastImageReplacementRef.current && lastImageReplacementRef.current.blockId === contextMenu.blockId && lastImageReplacementRef.current.field === cmField)}
+                    className={`${menuItem} disabled:opacity-40 disabled:cursor-not-allowed`}
+                    style={{ color: 'var(--color-text-primary)' }}
+                    title="Vuelve a la imagen anterior a la última sustitución"
+                  >
+                    <Undo2 size={13} /> Deshacer reemplazo
+                  </button>
+                  <button
+                    onClick={() => { handleSelectElement(contextMenu.blockId, cmField); closeContextMenu() }}
+                    className={menuItem}
+                    style={{ color: 'var(--color-text-primary)' }}
+                    title="Seleccionar el bloque y abrir el inspector en este campo"
+                  >
+                    <Focus size={13} /> Abrir en el inspector
+                  </button>
+                  <button
+                    onClick={() => handleCopyImageUrl(contextMenu.imageUrl || '')}
+                    className={menuItem}
+                    style={{ color: 'var(--color-text-primary)' }}
+                    title="Copiar la URL de la imagen al portapapeles"
+                  >
+                    <Link2 size={13} /> Copiar URL
+                  </button>
+                  <div className="my-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
+                </>
+              )}
+              <div className="my-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
+              {isTop ? (
+                <>
+                  <button onClick={() => { handleMoveBlock(contextMenu.blockId, -1); closeContextMenu() }} disabled={indexInWindow <= 0} className={`${menuItem} disabled:opacity-40 disabled:cursor-not-allowed`} style={{ color: 'var(--color-text-primary)' }}>
+                    <ArrowUp size={13} /> Subir
+                  </button>
+                  <button onClick={() => { handleMoveBlock(contextMenu.blockId, 1); closeContextMenu() }} disabled={indexInWindow < 0 || indexInWindow >= sameWindow.length - 1} className={`${menuItem} disabled:opacity-40 disabled:cursor-not-allowed`} style={{ color: 'var(--color-text-primary)' }}>
+                    <ArrowDown size={13} /> Bajar
+                  </button>
+                  <button onClick={() => { handleDuplicateBlock(contextMenu.blockId); closeContextMenu() }} className={menuItem} style={{ color: 'var(--color-text-primary)' }}>
+                    <Copy size={13} /> Duplicar
+                  </button>
+                  <button onClick={() => { handleDeleteBlock(contextMenu.blockId); closeContextMenu() }} className={`${menuItem} !text-red-500`} style={{ color: 'var(--color-error)' }}>
+                    <Trash2 size={13} /> Eliminar
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => { if (cmParent) handlePromoteNestedBlock(cmParent, contextMenu.blockId); closeContextMenu() }} className={menuItem} style={{ color: 'var(--color-text-primary)' }}>
+                  <CornerUpLeft size={13} /> Promover a la página
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Toast de URL copiada (menú contextual de imágenes) */}
+      {copiedUrl && (
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold shadow-2xl animate-fade-in"
+          style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+        >
+          <Check size={13} className="text-emerald-500" /> URL de la imagen copiada
+        </div>
+      )}
+
+      {/* Toast global (copiar/pegar secciones, paleta de comandos…) */}
+      {toast && (
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold shadow-2xl animate-fade-in"
+          style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+        >
+          <Check size={13} className="text-emerald-500" /> {toast}
         </div>
       )}
     </div>

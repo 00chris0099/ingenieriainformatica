@@ -16,6 +16,7 @@ export const LANDING_TEMPLATES = [
       description: 'Entrenamientos personalizados con coaches certificados. Prueba 7 días gratis y transforma tu cuerpo desde la primera semana.',
     },
     settings: {
+      fontFamily: 'oswald',
       primaryColor: '#16a34a',
       secondaryColor: '#052e16',
       accentColor: '#22c55e',
@@ -152,6 +153,7 @@ export const LANDING_TEMPLATES = [
       description: 'La plataforma todo-en-uno para automatizar ventas, cobros y reportes. Prueba gratis 14 días, sin tarjeta. Usada por 3,000+ empresas.',
     },
     settings: {
+      fontFamily: 'inter',
       primaryColor: '#2563eb',
       secondaryColor: '#0f172a',
       accentColor: '#3b82f6',
@@ -277,6 +279,7 @@ export const LANDING_TEMPLATES = [
       description: 'El método paso a paso para lanzar y vender tu primer producto digital. +12,000 alumnos. Garantía total de 7 días.',
     },
     settings: {
+      fontFamily: 'poppins',
       primaryColor: '#7c3aed',
       secondaryColor: '#1e1b4b',
       accentColor: '#8b5cf6',

@@ -10,11 +10,11 @@ function windowsOf(template: any): Set<string> {
 }
 
 describe('Multi-window templates', () => {
-  it('has 9 templates (3 store, 3 landing, 3 corporate)', () => {
-    expect(BUILTIN_TEMPLATES.length).toBe(9)
-    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'store').length).toBe(3)
-    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'landing').length).toBe(3)
-    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'corporate').length).toBe(3)
+  it('has 15 templates (5 store, 5 landing, 5 corporate)', () => {
+    expect(BUILTIN_TEMPLATES.length).toBe(15)
+    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'store').length).toBe(5)
+    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'landing').length).toBe(5)
+    expect(BUILTIN_TEMPLATES.filter(t => t.type === 'corporate').length).toBe(5)
   })
 
   it('every store template is multi-window: home + catalogo + ofertas', () => {

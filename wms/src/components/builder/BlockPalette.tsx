@@ -89,6 +89,7 @@ export default function BlockPalette({ onAddBlock, industry }: BlockPaletteProps
           <input
             type="text"
             placeholder="Search blocks..."
+            aria-label="Buscar bloques"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-field pl-9 py-1.5 text-sm"
@@ -105,6 +106,8 @@ export default function BlockPalette({ onAddBlock, industry }: BlockPaletteProps
             <div key={category.id}>
               <button
                 onClick={() => setExpandedCategory(isExpanded ? null : category.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`palette-category-${category.id}`}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] rounded-lg transition-colors"
               >
                 <Icon className="w-4 h-4" />
@@ -116,7 +119,7 @@ export default function BlockPalette({ onAddBlock, industry }: BlockPaletteProps
               </button>
 
               {isExpanded && (
-                <div className="ml-4 space-y-1 pb-2">
+                <div id={`palette-category-${category.id}`} className="ml-4 space-y-1 pb-2">
                   {category.blocks.map(block => (
                     <DraggableBlock
                       key={block.id}

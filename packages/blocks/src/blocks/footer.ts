@@ -42,6 +42,8 @@ export const footerBlock: BlockConfig = {
     { key: 'textColor', label: 'Text Color', type: 'color' },
     { key: 'showLogo', label: 'Show Logo', type: 'toggle' },
     { key: 'showSocial', label: 'Show Social Links', type: 'toggle' },
+    { key: 'companyName', label: 'Nombre de la Empresa', type: 'text', group: 'content' },
+    { key: 'tagline', label: 'Frase / Tagline', type: 'textarea', group: 'content' },
     { key: 'copyright', label: 'Copyright Text', type: 'text', group: 'content' },
   ],
 }
