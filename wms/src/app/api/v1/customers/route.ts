@@ -1,10 +1,29 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@repo/prisma';
+import { auth } from '@/lib/auth';
 import { apiSuccess, apiError, apiPaginated, getSearchParam, parsePagination } from '@/lib/api';
+import { isStaffRole } from '@/lib/api/business-access';
 import { SUPER_ADMIN_EMAIL } from '@/lib/super-admin';
+
+/** El registro maestro de clientes/usuarios es de la agencia (staff), no del cliente. */
+async function requireStaff(): Promise<'unauthorized' | 'forbidden' | null> {
+  const session = await auth();
+  if (!session?.user?.id) return 'unauthorized';
+  if (!isStaffRole((session.user as any)?.role)) return 'forbidden';
+  return null;
+}
+
+function staffError(guard: 'unauthorized' | 'forbidden') {
+  return guard === 'unauthorized'
+    ? apiError('No autorizado', 401)
+    : apiError('Forbidden: solo el staff de la agencia puede gestionar clientes', 403);
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireStaff();
+    if (guard) return staffError(guard);
+
     const { searchParams } = new URL(request.url);
     const search = getSearchParam(searchParams, 'q') || '';
     const { page, limit, offset } = parsePagination(searchParams);
@@ -155,6 +174,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireStaff();
+    if (guard) return staffError(guard);
+
     const body = await request.json();
     const { fullName, email, phone, taxId, companyName, customerType, billingAddress, creditLimit, notes, source } = body;
 

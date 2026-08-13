@@ -12,6 +12,7 @@ import {
   buildWhatsappOrderUrl,
   currencySymbol,
 } from '@/lib/payments/checkout';
+import { markCartConverted } from '@/lib/carts';
 
 /**
  * POST /api/v1/store/orders — public checkout for a published page.
@@ -33,14 +34,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null);
     if (!body) return apiError('Body JSON inválido', 400);
 
-    const { pageId, items, customer, paymentMethod, notes } = body;
+    const { pageId, items, customer, paymentMethod, notes, clientId } = body;
 
     if (!pageId || typeof pageId !== 'string') return apiError('pageId es requerido', 400);
     if (!Array.isArray(items) || items.length === 0) return apiError('El carrito está vacío', 400);
 
     // ── Load the published page (source of truth for catalog + prices) ──
+    // Solo matchear `id` si es un UUID válido (si no, Postgres lanza
+    // "Inconsistent column data" y los slugs nunca resuelven).
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId);
     const page = await prisma.page.findFirst({
-      where: { OR: [{ id: pageId }, { slug: pageId }], status: 'published' },
+      where: { ...(isUuid ? { id: pageId } : { slug: pageId }), status: 'published' },
       include: { business: true },
     });
     if (!page) return apiError('Tienda no encontrada', 404);
@@ -143,6 +147,9 @@ export async function POST(request: NextRequest) {
       },
       include: { items: true },
     });
+
+    // ── El carrito abandonado se convirtió en pedido ──
+    markCartConverted({ businessId: page.businessId, clientId: clientId ? String(clientId) : null, orderId: order.id });
 
     // ── GA4 Measurement Protocol: begin_checkout (fire-and-forget) ──
     trackGA4Event({

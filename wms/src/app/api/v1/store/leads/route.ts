@@ -16,8 +16,11 @@ export async function POST(request: NextRequest) {
     const pageId = typeof body?.pageId === 'string' ? body.pageId : '';
     if (!pageId) return apiError('pageId es requerido', 400);
 
+    // Solo matchear `id` si es un UUID válido (si no, Postgres lanza
+    // "Inconsistent column data" y los slugs nunca resuelven).
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId);
     const page = await prisma.page.findFirst({
-      where: { OR: [{ id: pageId }, { slug: pageId }], status: 'published' },
+      where: { ...(isUuid ? { id: pageId } : { slug: pageId }), status: 'published' },
       select: { id: true, slug: true, title: true, businessId: true },
     });
     if (!page) return apiError('Página no encontrada', 404);
