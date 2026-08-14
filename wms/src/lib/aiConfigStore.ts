@@ -30,8 +30,13 @@ if (!global.__aiConfigStore) {
         name: 'Anthropic Claude',
         configured: !!process.env.ANTHROPIC_API_KEY,
         apiKey: process.env.ANTHROPIC_API_KEY || '',
-        models: ['claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
-        selectedModel: 'claude-3-5-sonnet-20241022',
+        baseUrl: process.env.ANTHROPIC_BASE_URL || '',
+        models: (process.env.ANTHROPIC_BASE_URL || '').toLowerCase().includes('openrouter')
+          ? ['anthropic/claude-3-haiku', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-sonnet-4', 'openai/gpt-4o-mini']
+          : ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
+        selectedModel: (process.env.ANTHROPIC_BASE_URL || '').toLowerCase().includes('openrouter')
+          ? 'anthropic/claude-3-haiku'
+          : 'claude-sonnet-4-20250514',
       },
       deepseek: {
         name: 'DeepSeek AI',

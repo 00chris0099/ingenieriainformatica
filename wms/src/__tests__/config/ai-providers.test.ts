@@ -5,6 +5,10 @@ import {
   providerConfigured,
   maskKey,
   createProviderInstance,
+  listOllamaModels,
+  pickOllamaModel,
+  anthropicModelList,
+  anthropicDefaultModel,
   PROVIDER_IDS,
 } from '@/lib/ai-providers'
 
@@ -83,6 +87,74 @@ describe('AI provider status helpers', () => {
 
     it('throws for unknown provider ids', () => {
       expect(() => createProviderInstance('nope', { apiKey: 'k' })).toThrow()
+    })
+
+    it('resolves an OpenRouter-safe Anthropic model when the stored one is invalid', () => {
+      const previous = process.env.ANTHROPIC_BASE_URL
+      process.env.ANTHROPIC_BASE_URL = 'https://openrouter.ai/api/v1'
+      try {
+        const { model } = createProviderInstance('anthropic', {
+          apiKey: 'sk-or-v1-test',
+          model: 'claude-3-5-sonnet-20241022', // dated snapshot: not on OpenRouter
+        })
+        expect(model.startsWith('anthropic/')).toBe(true)
+      } finally {
+        if (previous === undefined) delete process.env.ANTHROPIC_BASE_URL
+        else process.env.ANTHROPIC_BASE_URL = previous
+      }
+    })
+
+    it('keeps a valid Anthropic model unchanged', () => {
+      const previous = process.env.ANTHROPIC_BASE_URL
+      process.env.ANTHROPIC_BASE_URL = 'https://openrouter.ai/api/v1'
+      try {
+        const { model } = createProviderInstance('anthropic', {
+          apiKey: 'sk-or-v1-test',
+          model: 'anthropic/claude-3-haiku',
+        })
+        expect(model).toBe('anthropic/claude-3-haiku')
+      } finally {
+        if (previous === undefined) delete process.env.ANTHROPIC_BASE_URL
+        else process.env.ANTHROPIC_BASE_URL = previous
+      }
+    })
+  })
+
+  describe('anthropicModelList / anthropicDefaultModel', () => {
+    it('returns prefixed vendor models for OpenRouter', () => {
+      const previous = process.env.ANTHROPIC_BASE_URL
+      process.env.ANTHROPIC_BASE_URL = 'https://openrouter.ai/api/v1'
+      try {
+        expect(anthropicModelList()[0]).toBe('anthropic/claude-3-haiku')
+        expect(anthropicDefaultModel()).toBe('anthropic/claude-3-haiku')
+      } finally {
+        if (previous === undefined) delete process.env.ANTHROPIC_BASE_URL
+        else process.env.ANTHROPIC_BASE_URL = previous
+      }
+    })
+
+    it('uses plain model names against the native Anthropic API', () => {
+      const previous = process.env.ANTHROPIC_BASE_URL
+      delete process.env.ANTHROPIC_BASE_URL
+      try {
+        expect(anthropicModelList().some(m => !m.startsWith('anthropic/'))).toBe(true)
+        expect(anthropicDefaultModel()).toBeTruthy()
+      } finally {
+        if (previous !== undefined) process.env.ANTHROPIC_BASE_URL = previous
+      }
+    })
+  })
+
+  describe('Ollama model discovery', () => {
+    it('listOllamaModels returns [] for an unreachable server', async () => {
+      const models = await listOllamaModels('http://127.0.0.1:1') // nothing listens there
+      expect(Array.isArray(models)).toBe(true)
+      expect(models.length).toBe(0)
+    })
+
+    it('pickOllamaModel falls back to the default when nothing is installed', async () => {
+      const model = await pickOllamaModel('http://127.0.0.1:1', 'llama3')
+      expect(model).toBe('llama3')
     })
   })
 })

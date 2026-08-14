@@ -122,7 +122,7 @@ REGLAS DE DISEÑO (obligatorias):
 
     // Fallback: deterministic generator (no AI available)
     const fallbackBlocks = buildFallbackBlocks(bName, bDesc, type, industry);
-    const usable = getUsableProviders();
+    const usable = await getUsableProviders();
 
     return apiSuccess({
       provider: result?.provider || (usable[0] || 'none'),

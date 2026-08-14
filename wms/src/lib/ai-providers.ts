@@ -27,6 +27,25 @@ export const DEFAULT_MODELS: Record<string, string> = {
   ollama: 'llama3',
 }
 
+/**
+ * Models offered for Anthropic. When ANTHROPIC_BASE_URL points to an
+ * OpenAI-compatible proxy (OpenRouter, Together, etc.), model names carry the
+ * vendor prefix (anthropic/…) and dated snapshots usually do not exist.
+ */
+export function anthropicModelList(): string[] {
+  const base = (process.env.ANTHROPIC_BASE_URL || '').toLowerCase()
+  if (base.includes('openrouter')) {
+    return ['anthropic/claude-3-haiku', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-sonnet-4', 'openai/gpt-4o-mini']
+  }
+  return ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307']
+}
+
+/** Default model for Anthropic, aware of the base URL (OpenRouter → prefixed). */
+export function anthropicDefaultModel(): string {
+  const list = anthropicModelList()
+  return list[0] || DEFAULT_MODELS.anthropic || 'claude-3-haiku'
+}
+
 export const PROVIDER_BASE_URLS: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1',
   deepseek: 'https://api.deepseek.com/v1',
@@ -69,6 +88,47 @@ export function providerConfigured(id: string, stored?: any): boolean {
   return isUsableKey(getEffectiveKey(id, stored))
 }
 
+/**
+ * Lists the models actually installed on an Ollama server (GET /api/tags).
+ * Returns an empty array when the server is unreachable or misconfigured, so
+ * callers can fall back to the DEFAULT_MODELS list.
+ */
+export async function listOllamaModels(baseUrl?: string): Promise<string[]> {
+  const url = cleanKey(baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434')
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 4000)
+    const res = await fetch(`${url.replace(/\/$/, '')}/api/tags`, {
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) return []
+    const data = await res.json()
+    const models = (data?.models || [])
+      .map((m: any) => m?.name)
+      .filter((n: any): n is string => typeof n === 'string' && n.length > 0)
+    return models
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Picks the best model for Ollama: the configured selection if it is actually
+ * installed, otherwise the first installed model, otherwise the default list.
+ */
+export async function pickOllamaModel(
+  baseUrl: string | undefined,
+  preferred?: string | null
+): Promise<string> {
+  const installed = await listOllamaModels(baseUrl)
+  if (preferred && installed.includes(preferred)) return preferred
+  const first = installed[0]
+  if (first) return first
+  return DEFAULT_MODELS.ollama || 'llama3'
+}
+
 export function maskKey(key?: string): string {
   const k = cleanKey(key)
   if (!k) return ''
@@ -91,7 +151,25 @@ export function createProviderInstance(
     case 'openai':
       return { provider: new OpenAIProvider({ apiKey: cfg.apiKey, model }), model }
     case 'anthropic':
-      return { provider: new AnthropicProvider({ apiKey: cfg.apiKey, model }), model }
+      // Respeta ANTHROPIC_BASE_URL (p. ej. OpenRouter: https://openrouter.ai/api/v1),
+      // que es compatible con la API de Messages de Anthropic.
+      {
+        const base = cfg.baseUrl || process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1'
+        const isOpenRouter = base.toLowerCase().includes('openrouter')
+        // Con OpenRouter los nombres de modelo llevan prefijo vendor y las fechas
+        // no existen: si el modelo guardado no es válido para la base, usar el
+        // default correcto en vez de fallar con 404.
+        const finalModel = (() => {
+          const list = anthropicModelList()
+          if (!model) return anthropicDefaultModel()
+          if (isOpenRouter && !list.includes(model)) return anthropicDefaultModel()
+          return model
+        })()
+        return {
+          provider: new AnthropicProvider({ apiKey: cfg.apiKey, model: finalModel, baseUrl: base }),
+          model: finalModel,
+        }
+      }
     case 'groq':
       return {
         provider: new OpenAICompatibleProvider('groq', 'Groq Cloud', {

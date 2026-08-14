@@ -27,7 +27,7 @@ interface BusinessData {
 interface AIProviderConfig {
   name: string
   configured: boolean
-  apiKey?: string
+  apiKey?: string | null
   maskedKey?: string
   baseUrl?: string
   models: string[]
@@ -347,6 +347,22 @@ function AIMultiProviderTab({ config, setConfig, onSave, saving, saved }: {
                         placeholder={provider.configured ? 'Dejar vacío para conservar la clave actual' : `API Key ${provider.name}...`}
                         className="input-field text-xs flex-1 font-mono"
                       />
+                      {provider.configured && !provider.apiKey && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newProv = { ...config.providers }
+                            if (newProv[key]) newProv[key] = { ...newProv[key], apiKey: null }
+                            setConfig({ ...config, providers: newProv })
+                            onSave()
+                          }}
+                          title="Quitar la clave guardada de este proveedor"
+                          className="px-2.5 text-[11px] font-bold rounded-xl border transition-all hover:bg-rose-500/10 text-rose-500"
+                          style={{ borderColor: 'var(--color-border)' }}
+                        >
+                          Quitar clave
+                        </button>
+                      )}
                     </div>
                     {provider.configured && !provider.apiKey && provider.maskedKey && (
                       <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
