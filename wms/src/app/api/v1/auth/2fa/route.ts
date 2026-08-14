@@ -1,32 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/prisma';
 import { auth } from '@/lib/auth';
-import crypto from 'crypto';
+import { generateBase32Secret, verifyTotp, otpauthUri } from '@/lib/totp';
 
 /**
- * RF-68: Two-Factor Authentication API
- * Simple TOTP implementation for WMS admin
+ * Two-Factor Authentication (TOTP — RFC 6238).
+ * Secreto Base32 compatible con Google Authenticator, Authy, 1Password…
+ * El secreto se guarda en el usuario y el login (lib/auth.ts) exige el código
+ * del autenticador en el servidor cuando twoFactorEnabled es true.
  */
 
-// Generate a random secret
-function generateSecret(): string {
-  return crypto.randomBytes(20).toString('hex');
-}
-
-// Simple TOTP generation (6 digits, 30s window)
-function generateTOTP(secret: string, epochOffset = 0): string {
-  const epoch = Math.floor(Date.now() / 30000) + epochOffset;
-  const hash = crypto.createHmac('sha1', secret).update(epoch.toString()).digest();
-  const offset = (hash[hash.length - 1] ?? 0) & 0x0f;
-  const b0 = hash[offset] ?? 0;
-  const b1 = hash[offset + 1] ?? 0;
-  const b2 = hash[offset + 2] ?? 0;
-  const b3 = hash[offset + 3] ?? 0;
-  const code = ((b0 & 0x7f) << 24) | ((b1 & 0xff) << 16) | ((b2 & 0xff) << 8) | (b3 & 0xff);
-  return (code % 1000000).toString().padStart(6, '0');
-}
-
-// POST - Setup 2FA (generate secret)
+// POST — setup / verify / disable
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -35,80 +19,76 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action } = body;
+    const { action } = body || {};
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true, twoFactorSecret: true, twoFactorEnabled: true },
+    });
+    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
     if (action === 'setup') {
-      // Generate new secret
-      const secret = generateSecret();
-
-      // Store secret (not enabled yet)
+      // Generar secreto Base32 nuevo (aún NO activado)
+      const secret = generateBase32Secret();
       await prisma.user.update({
         where: { id: session.user.id },
-        data: { twoFactorSecret: secret },
+        data: { twoFactorSecret: secret, twoFactorEnabled: false },
       });
-
-      // Generate current code for verification
-      const currentCode = generateTOTP(secret);
 
       return NextResponse.json({
         data: {
           secret,
-          message: 'Scan the secret with your authenticator app',
+          otpauthUrl: otpauthUri(secret, user.email),
+          digits: 6,
+          period: 30,
         },
       });
     }
 
     if (action === 'verify') {
-      const { code, secret } = body;
-
-      if (!code || !secret) {
-        return NextResponse.json({ error: 'code and secret required' }, { status: 400 });
+      // Confirmar el secreto con un código del autenticador y activar 2FA
+      const code = String(body?.code || '').trim();
+      if (!code) return NextResponse.json({ error: 'Ingresa el código de 6 dígitos' }, { status: 400 });
+      if (!user.twoFactorSecret) return NextResponse.json({ error: 'Primero genera un secreto (setup)' }, { status: 400 });
+      if (!verifyTotp(user.twoFactorSecret, code)) {
+        return NextResponse.json({ error: 'Código incorrecto. Verifica la hora de tu dispositivo.' }, { status: 400 });
       }
 
-      // Verify the code
-      const expectedCode = generateTOTP(secret);
-
-      // Allow 1 window before and after (±30s)
-      const prevCode = generateTOTP(secret, -1);
-      const nextCode = generateTOTP(secret, 1);
-
-      if (code === expectedCode || code === prevCode || code === nextCode) {
-        // Enable 2FA
-        await prisma.user.update({
-          where: { id: session.user.id },
-          data: {
-            twoFactorSecret: secret,
-            twoFactorEnabled: true,
-          },
-        });
-
-        return NextResponse.json({ data: { enabled: true, message: '2FA enabled successfully' } });
-      }
-
-      return NextResponse.json({ error: 'Invalid code' }, { status: 400 });
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: { twoFactorEnabled: true },
+      });
+      return NextResponse.json({ data: { enabled: true, message: '2FA activado correctamente' } });
     }
 
     if (action === 'disable') {
+      // Desactivar requiere el código actual (evita desactivación por robo de sesión)
+      const code = String(body?.code || '').trim();
+      if (!user.twoFactorSecret) {
+        await prisma.user.update({ where: { id: session.user.id }, data: { twoFactorSecret: null, twoFactorEnabled: false } });
+        return NextResponse.json({ data: { disabled: true } });
+      }
+      if (!code) return NextResponse.json({ error: 'Ingresa tu código actual del autenticador' }, { status: 400 });
+      if (!verifyTotp(user.twoFactorSecret, code)) {
+        return NextResponse.json({ error: 'Código incorrecto' }, { status: 400 });
+      }
+
       await prisma.user.update({
         where: { id: session.user.id },
-        data: {
-          twoFactorSecret: null,
-          twoFactorEnabled: false,
-        },
+        data: { twoFactorSecret: null, twoFactorEnabled: false },
       });
-
-      return NextResponse.json({ data: { disabled: true } });
+      return NextResponse.json({ data: { disabled: true, message: '2FA desactivado' } });
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });
   } catch (error) {
     console.error('2FA error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
-// GET - Check 2FA status
-export async function GET(request: NextRequest) {
+// GET — estado de 2FA del usuario autenticado
+export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -117,11 +97,11 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { twoFactorEnabled: true },
+      select: { twoFactorEnabled: true, email: true },
     });
 
     return NextResponse.json({ data: { enabled: user?.twoFactorEnabled || false } });
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

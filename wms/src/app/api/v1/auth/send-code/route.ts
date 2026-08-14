@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. PRE-VALIDATE CREDENTIALS (EMAIL & PASSWORD) BEFORE SENDING OTP CODE
+    let validUser: any = null;
     if (password) {
       const inputPass = (password as string).trim();
       let isValidUser = false;
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
 
         if (user && user.isActive && user.passwordHash) {
           isValidUser = await compare(inputPass, user.passwordHash);
+          validUser = user;
         }
       } catch (e) {
         console.warn('[USER AUTH DB WARNING]', e);
@@ -75,6 +77,15 @@ export async function POST(request: NextRequest) {
 
       if (!isValidUser) {
         return NextResponse.json({ success: false, error: 'Correo o contraseña incorrectos.' }, { status: 401 });
+      }
+
+      // 3b. 2FA TOTP: la cuenta exige el código del autenticador (no un OTP por email)
+      if (validUser?.twoFactorEnabled) {
+        return NextResponse.json({
+          success: true,
+          twoFactorRequired: true,
+          message: 'Tu cuenta tiene verificación en dos pasos (autenticador). Ingresa el código de 6 dígitos de tu app.',
+        });
       }
     }
 
@@ -87,6 +98,31 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(`[VERIFICATION CODE SENT TO EMAIL] Email: ${emailStr} | Code: ${generatedCode} | EmailSent: ${emailSent}`);
+
+    // Dev-mode fallback: si el correo no se pudo entregar (p. ej. Resend en
+    // sandbox solo envía a la cuenta del owner), el código se devuelve en la
+    // respuesta para que el login sea usable en desarrollo/localhost.
+    // NUNCA se expone en producción.
+    const isDev =
+      process.env.NODE_ENV !== 'production' &&
+      (process.env.ALLOW_DEV_OTP_FALLBACK === 'true' || process.env.NODE_ENV === 'development');
+
+    if (!emailSent && isDev) {
+      return NextResponse.json({
+        success: true,
+        emailSent: false,
+        devCode: generatedCode,
+        message: `[MODO DESARROLLO] Email no entregado (${emailStr}); usa el código ${generatedCode} para ingresar.`,
+      });
+    }
+
+    if (!emailSent) {
+      return NextResponse.json({
+        success: true,
+        emailSent: false,
+        message: `No se pudo enviar el correo a ${emailStr}. Verifica SMTP_HOST/SMTP_USER/SMTP_PASS o RESEND_API_KEY (Resend requiere verificar un dominio).`,
+      });
+    }
 
     return NextResponse.json({
       success: true,

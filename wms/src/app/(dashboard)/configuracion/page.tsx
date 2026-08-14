@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck, Zap, CheckCircle2, XCircle, KeyRound, Monitor, Smartphone, Ban } from 'lucide-react'
+import { Settings, Building2, Sparkles, Palette, Globe, Save, Loader2, Check, Bot, Cpu, Key, Server, RefreshCw, ShieldCheck, Zap, CheckCircle2, XCircle, KeyRound, Monitor, Smartphone, Ban, QrCode, Copy, Smartphone as SmartphoneIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { generateQrMatrix, qrToSvg } from '@/lib/qr'
 
 type Tab = 'general' | 'ai' | 'appearance' | 'domain' | 'security'
 
@@ -661,6 +662,112 @@ function SecurityTab() {
   const [revokingAll, setRevokingAll] = useState(false)
   const [sessionMsg, setSessionMsg] = useState<string | null>(null)
 
+  // ═══════════ 2FA (TOTP) state ═══════════
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+  const [twoFactorLoading, setTwoFactorLoading] = useState(true)
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null)
+  const [totpInput, setTotpInput] = useState('')
+  const [totpBusy, setTotpBusy] = useState(false)
+  const [totpMsg, setTotpMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const fetchTwoFactor = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/auth/2fa')
+      if (res.ok) {
+        const json = await res.json()
+        setTwoFactorEnabled(!!json.data?.enabled)
+      }
+    } catch { /* fallback */ } finally {
+      setTwoFactorLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTwoFactor()
+  }, [fetchTwoFactor])
+
+  const startTwoFactorSetup = async () => {
+    setTotpMsg(null)
+    setTotpBusy(true)
+    try {
+      const res = await fetch('/api/v1/auth/2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setup' }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.data) {
+        setTotpMsg({ ok: false, text: json?.error || 'No se pudo generar el secreto' })
+      } else {
+        setTwoFactorSetup({ secret: json.data.secret, otpauthUrl: json.data.otpauthUrl })
+        setTotpInput('')
+      }
+    } catch {
+      setTotpMsg({ ok: false, text: 'Error de red al iniciar la configuración 2FA' })
+    } finally {
+      setTotpBusy(false)
+    }
+  }
+
+  const confirmTwoFactor = async () => {
+    setTotpMsg(null)
+    if (totpInput.trim().length !== 6) {
+      setTotpMsg({ ok: false, text: 'Ingresa el código de 6 dígitos de tu app de autenticación' })
+      return
+    }
+    setTotpBusy(true)
+    try {
+      const res = await fetch('/api/v1/auth/2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', code: totpInput.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setTotpMsg({ ok: false, text: json?.error || 'Código incorrecto' })
+      } else {
+        setTwoFactorEnabled(true)
+        setTwoFactorSetup(null)
+        setTotpInput('')
+        setTotpMsg({ ok: true, text: '2FA activado correctamente. En el próximo inicio de sesión se pedirá el código del autenticador.' })
+      }
+    } catch {
+      setTotpMsg({ ok: false, text: 'Error de red al confirmar el código' })
+    } finally {
+      setTotpBusy(false)
+    }
+  }
+
+  const disableTwoFactor = async () => {
+    if (!window.confirm('¿Desactivar la verificación en dos pasos? Se requerirá el código actual del autenticador para confirmar.')) return
+    setTotpMsg(null)
+    if (totpInput.trim().length !== 6) {
+      setTotpMsg({ ok: false, text: 'Ingresa tu código actual del autenticador para desactivar 2FA' })
+      return
+    }
+    setTotpBusy(true)
+    try {
+      const res = await fetch('/api/v1/auth/2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', code: totpInput.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setTotpMsg({ ok: false, text: json?.error || 'Código incorrecto' })
+      } else {
+        setTwoFactorEnabled(false)
+        setTwoFactorSetup(null)
+        setTotpInput('')
+        setTotpMsg({ ok: true, text: '2FA desactivado. El acceso vuelve a requerir solo correo y contraseña.' })
+      }
+    } catch {
+      setTotpMsg({ ok: false, text: 'Error de red al desactivar 2FA' })
+    } finally {
+      setTotpBusy(false)
+    }
+  }
+
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true)
     try {
@@ -876,6 +983,137 @@ function SecurityTab() {
         <p className="text-[10px] text-[var(--color-text-tertiary)] mt-2">
           Revocar un dispositivo expulsa la sesión al instante (las APIs responden 401 y el panel redirige a /login). Si ves un dispositivo que no reconoces, revócalo y cambia tu contraseña.
         </p>
+      </Section>
+
+      {/* ═══════════════ Verificación en dos pasos (2FA / TOTP) ═══════════════ */}
+      <Section
+        title="Verificación en dos pasos (2FA)"
+        description="Añade una capa extra de seguridad con Google Authenticator, Authy o 1Password. En cada inicio de sesión se pedirá un código de 6 dígitos generado por tu app."
+      >
+        {twoFactorLoading ? (
+          <div className="flex items-center justify-center p-6"><Loader2 size={20} className="animate-spin text-[var(--color-accent)]" /></div>
+        ) : twoFactorEnabled ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'rgba(16,185,129,.3)', background: 'rgba(16,185,129,.08)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(16,185,129,.18)', color: '#10b981' }}>
+                <ShieldCheck size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-extrabold text-emerald-500">2FA activado</p>
+                <p className="text-[10px] text-[var(--color-text-tertiary)]">
+                  Tu cuenta requiere el código de tu app de autenticación además de la contraseña.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+              <div>
+                <label className="form-label text-xs font-bold">Código actual del autenticador</label>
+                <Input
+                  value={totpInput}
+                  onChange={(e) => setTotpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="font-mono tracking-widest"
+                  inputMode="numeric"
+                />
+              </div>
+              <Button onClick={disableTwoFactor} loading={totpBusy} variant="danger" icon={!totpBusy ? <Ban size={14} /> : undefined}>
+                Desactivar 2FA
+              </Button>
+            </div>
+            {totpMsg && (
+              <span className={`text-xs font-bold flex items-center gap-1 ${totpMsg.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {totpMsg.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                {totpMsg.text}
+              </span>
+            )}
+          </div>
+        ) : twoFactorSetup ? (
+          <div className="space-y-4">
+            <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+              <span className="font-extrabold text-[var(--color-text-primary)]">Paso 1:</span> escanea el código QR con tu app de
+              autenticación (Google Authenticator, Authy, 1Password…). También puedes escribir el secreto manualmente.
+            </p>
+            <div className="flex flex-col md:flex-row gap-5 items-start">
+              <div
+                className="p-4 rounded-2xl border shrink-0"
+                style={{ borderColor: 'var(--color-border)', background: '#ffffff' }}
+                dangerouslySetInnerHTML={{ __html: qrToSvg(generateQrMatrix(twoFactorSetup.otpauthUrl), { size: 220, fg: '#000000', bg: '#ffffff' }) }}
+              />
+              <div className="min-w-0 flex-1 space-y-3">
+                <div>
+                  <label className="form-label text-xs font-bold">Secreto (Base32)</label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-3 py-2 rounded-lg border font-mono text-xs break-all" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-muted)' }}>
+                      {twoFactorSetup.secret}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(twoFactorSetup.secret)}
+                      className="p-2 rounded-lg border hover:bg-[var(--color-bg-hover)] transition-all shrink-0"
+                      style={{ borderColor: 'var(--color-border)' }}
+                      title="Copiar secreto"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                  <span className="font-extrabold text-[var(--color-text-primary)]">Paso 2:</span> ingresa el código de 6 dígitos que
+                  muestra tu app para confirmar y activar la verificación en dos pasos.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                  <div>
+                    <label className="form-label text-xs font-bold">Código de confirmación</label>
+                    <Input
+                      value={totpInput}
+                      onChange={(e) => setTotpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="000000"
+                      className="font-mono tracking-widest"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={confirmTwoFactor} loading={totpBusy} icon={!totpBusy ? <Check size={14} /> : undefined}>
+                      Activar 2FA
+                    </Button>
+                    <Button onClick={() => setTwoFactorSetup(null)} variant="ghost" disabled={totpBusy}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+                {totpMsg && (
+                  <span className={`text-xs font-bold flex items-center gap-1 ${totpMsg.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {totpMsg.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                    {totpMsg.text}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-muted)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(99,102,241,.12)', color: '#818cf8' }}>
+                <SmartphoneIcon size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-extrabold text-[var(--color-text-primary)]">Aún no tienes 2FA activado</p>
+                <p className="text-[10px] text-[var(--color-text-tertiary)]">
+                  Protege tu cuenta contra accesos no autorizados incluso si tu contraseña se filtra.
+                </p>
+              </div>
+            </div>
+            <Button onClick={startTwoFactorSetup} loading={totpBusy} icon={!totpBusy ? <QrCode size={14} /> : undefined}>
+              Activar verificación en dos pasos
+            </Button>
+            {totpMsg && (
+              <span className={`text-xs font-bold flex items-center gap-1 ${totpMsg.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {totpMsg.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                {totpMsg.text}
+              </span>
+            )}
+          </div>
+        )}
       </Section>
     </div>
   )

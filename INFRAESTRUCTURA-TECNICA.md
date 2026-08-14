@@ -247,6 +247,32 @@ Stage 3: runner   → Copiar build output, exponer puerto
 | `store_db_data` | store_db | Datos PostgreSQL Tienda |
 | `redis_data` | redis | caché y sesiones |
 
+### 5.4 Bootstrap del Super Admin (EasyPanel / docker-compose)
+
+El WMS arranca sin cuentas. El super admin se crea (o se actualiza) con el
+endpoint `GET /api/v1/auth/seed-admin`, que **solo** funciona si el entorno define
+`SUPER_ADMIN_PASSWORD` (mínimo 8 caracteres; si está vacía, el bootstrap queda
+desactivado por seguridad).
+
+Variables de entorno (configurarlas en **EasyPanel → Variables** o en el `.env`
+del docker-compose):
+
+```
+SUPER_ADMIN_EMAIL=anchillo00@gmail.com   # correo del super admin
+SUPER_ADMIN_PASSWORD=<contraseña-fuerte> # contraseña de arranque
+```
+
+Flujo de despliegue recomendado:
+1. Configurar las variables en EasyPanel antes del primer arranque.
+2. Tras levantar el WMS, ejecutar una vez:
+   `curl https://<dominio>/api/v1/auth/seed-admin`
+3. Entrar con `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` y cambiar la
+   contraseña desde **Configuración → Seguridad & Sesiones**.
+
+> Nota: `SUPER_ADMIN_EMAIL` también determina el rol `super_admin` en el login
+> (el JWT asigna ese rol cuando el email coincide), tanto con credenciales como
+> con Google OAuth.
+
 ---
 
 ## 6. Integraciones Externas (APIs de Terceros)

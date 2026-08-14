@@ -5,6 +5,7 @@ import { compare, hash } from 'bcryptjs';
 import { SUPER_ADMIN_EMAIL } from '@/lib/super-admin';
 import { isImpersonationActive, IMPERSONATION_MAX_RENEWALS } from '@/lib/impersonation';
 import { createSessionRecord, isSessionActive } from '@/lib/sessions';
+import { verifyTotp } from '@/lib/totp';
 
 let prismaClient: any = null;
 async function getPrisma() {
@@ -35,15 +36,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
-        otpVerified: { label: 'OTP Verified', type: 'text' },
+        code: { label: 'Código 2FA (autenticador)', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email) return null;
         const emailStr = (credentials.email as string).toLowerCase().trim();
         const inputPass = (credentials.password as string || '').trim();
-        const isOtpVerified = credentials.otpVerified === 'true';
+        const code = (credentials.code as string || '').trim();
 
         // ═══════════════ STANDARD AUTHENTICATION (all users, including Super Admin) ═══════════════
+        // La contraseña SIEMPRE se valida en el servidor (bcrypt). No existe ningún
+        // bypass tipo otpVerified: si la cuenta tiene 2FA (TOTP), el código del
+        // autenticador también se verifica aquí contra el secreto almacenado.
         try {
           const prisma = await getPrisma();
           const user = await prisma.user.findUnique({
@@ -52,8 +56,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           if (!user || !user.isActive) return null;
 
-          const isValid = isOtpVerified || (inputPass && (await compare(inputPass, user.passwordHash)));
-          if (!isValid) return null;
+          // Primer factor: contraseña (siempre, sin excepciones)
+          if (!inputPass || !(await compare(inputPass, user.passwordHash))) return null;
+
+          // Segundo factor: TOTP obligatorio cuando la cuenta tiene 2FA activado
+          if (user.twoFactorEnabled) {
+            if (!user.twoFactorSecret || !code || !verifyTotp(user.twoFactorSecret, code)) return null;
+          }
 
           try {
             await prisma.user.update({

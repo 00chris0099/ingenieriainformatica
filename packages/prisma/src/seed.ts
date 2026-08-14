@@ -6,19 +6,25 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // ─── Admin user ───────────────────────────────────────────────────────
-  const adminPassword = await hash('admin123', 12);
+  // ─── Super Admin (env-driven, igual que el endpoint seed-admin) ───────
+  // NO se crean cuentas con dominios de ejemplo: solo existe el super admin
+  // definido por SUPER_ADMIN_EMAIL/SUPER_ADMIN_PASSWORD (por defecto
+  // anchillo00@gmail.com). El correo admin@adriskids.com fue eliminado por
+  // no ser una cuenta real.
+  const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'anchillo00@gmail.com').toLowerCase().trim();
+  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'Mineria99*';
+  const adminPassword = await hash(superAdminPassword, 12);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@adriskids.com' },
-    update: {},
+    where: { email: superAdminEmail },
+    update: { role: 'super_admin', isActive: true, passwordHash: adminPassword },
     create: {
-      email: 'admin@adriskids.com',
+      email: superAdminEmail,
       passwordHash: adminPassword,
-      fullName: 'Administrador',
+      fullName: 'Super Admin',
       role: 'super_admin',
     },
   });
-  console.log('Admin: admin@adriskids.com / admin123');
+  console.log(`Super Admin: ${superAdminEmail} (password desde SUPER_ADMIN_PASSWORD)`);
 
   // ─── Demo users ──────────────────────────────────────────────────────
   const demoPass = await hash('demo123', 12);

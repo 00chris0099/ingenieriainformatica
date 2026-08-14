@@ -14,7 +14,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState<'login' | 'otp'>('login');
+  const [step, setStep] = useState<'login' | 'otp' | 'totp'>('login');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const otpCode = otpDigits.join('');
@@ -82,8 +82,22 @@ function LoginForm() {
       if (!res.ok || !data.success) {
         setError(data.error || 'Correo o contraseña incorrectos.');
         generateCaptcha();
+      } else if (data.twoFactorRequired) {
+        // 2FA TOTP activada: pide el código del autenticador (server-verified)
+        setInfoMsg(data.message || 'Ingresa el código de 6 dígitos de tu app de autenticación.');
+        setStep('totp');
+      } else if (!data.emailSent && data.devCode) {
+        // MODO DESARROLLO: el email no se pudo entregar (p. ej. Resend sandbox) y
+        // el servidor devolvió el código directamente para poder ingresar.
+        setOtpDigits(data.devCode.padStart(6, '0').split('').slice(0, 6));
+        setInfoMsg(data.message || `[MODO DESARROLLO] El email no se entregó. Usa el código ${data.devCode}.`);
+        setStep('otp');
+      } else if (!data.emailSent) {
+        // El email no se entregó y no hay fallback: error claro para el usuario.
+        setError(data.message || 'No se pudo enviar el correo de verificación. Contacta al administrador.');
+        generateCaptcha();
       } else {
-        // Credentials are valid -> move to OTP verification step
+        // Credentials are valid -> move to email OTP verification step
         setInfoMsg(data.message || `Se ha enviado un código de verificación de 6 dígitos a ${emailClean}`);
         setStep('otp');
       }
@@ -95,13 +109,15 @@ function LoginForm() {
     }
   };
 
-  const executeSignIn = async () => {
+  const executeSignIn = async (extra: Record<string, string> = {}) => {
     setLoading(true);
     try {
+      // La contraseña SIEMPRE se valida en el servidor. Si la cuenta tiene 2FA,
+      // el código del autenticador se verifica en el authorize (RFC 6238).
       const result = await signIn('credentials', {
         email: email.trim().toLowerCase(),
         password: password.trim(),
-        otpVerified: 'true',
+        ...extra,
         redirect: false,
       });
 
@@ -116,6 +132,16 @@ function LoginForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVerifyTotp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (otpCode.length !== 6) {
+      setError('Ingresa el código de 6 dígitos de tu app de autenticación.');
+      return;
+    }
+    await executeSignIn({ code: otpCode.trim() });
   };
 
   const handleOtpChange = (idx: number, value: string) => {
@@ -398,17 +424,25 @@ function LoginForm() {
             </form>
           )}
 
-          {/* PASO 2: CÓDIGO DE VERIFICACIÓN POR CORREO (TRANSICIÓN ANIMADA) */}
-          {step === 'otp' && (
-            <form onSubmit={handleVerifyOtp} className="space-y-5 animate-slide-in">
+          {/* PASO 2: CÓDIGO DE VERIFICACIÓN — OTP por email o TOTP del autenticador */}
+          {(step === 'otp' || step === 'totp') && (
+            <form onSubmit={step === 'totp' ? handleVerifyTotp : handleVerifyOtp} className="space-y-5 animate-slide-in">
               <div className="p-4 rounded-2xl bg-red-600/10 border border-red-600/30 space-y-2">
                 <div className="flex items-center gap-2 text-red-400 font-bold text-sm">
                   <KeyRound size={16} />
-                  <span>Verificación de Seguridad requerida</span>
+                  <span>{step === 'totp' ? 'Verificación en dos pasos (Autenticador)' : 'Verificación de Seguridad requerida'}</span>
                 </div>
-                <p className="text-xs text-gray-300 leading-relaxed">
-                  Se ha enviado un código de verificación de 6 dígitos al correo <span className="font-bold text-white">{email}</span>. Revisa tu bandeja de entrada o SPAM.
-                </p>
+                {step === 'totp' ? (
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Tu cuenta tiene <span className="font-bold text-white">2FA (TOTP)</span> activado. Abre tu app de
+                    autenticación (Google Authenticator, Authy…) y escribe el código de 6 dígitos para{' '}
+                    <span className="font-bold text-white">{email}</span>. El código se verifica en el servidor.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Se ha enviado un código de verificación de 6 dígitos al correo <span className="font-bold text-white">{email}</span>. Revisa tu bandeja de entrada o SPAM.
+                  </p>
+                )}
               </div>
 
               <div>
