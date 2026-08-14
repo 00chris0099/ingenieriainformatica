@@ -249,25 +249,34 @@ Stage 3: runner   → Copiar build output, exponer puerto
 
 ### 5.4 Bootstrap del Super Admin (EasyPanel / docker-compose)
 
-El WMS arranca sin cuentas. El super admin se crea (o se actualiza) con el
-endpoint `GET /api/v1/auth/seed-admin`, que **solo** funciona si el entorno define
-`SUPER_ADMIN_PASSWORD` (mínimo 8 caracteres; si está vacía, el bootstrap queda
-desactivado por seguridad).
+El WMS arranca sin cuentas. El super admin se crea **automáticamente** de tres
+formas (todas con la misma fuente de verdad: `SUPER_ADMIN_EMAIL` y
+`SUPER_ADMIN_PASSWORD`):
+
+1. **Seed en `db-init`** (`scripts/init-db.sh`): tras `prisma db push` corre
+   `tsx src/seed.ts`, que crea/actualiza el super admin con la contraseña del
+   entorno (default `Mineria99*`).
+2. **Login auto-curativo**: en cada intento de login con `SUPER_ADMIN_EMAIL`,
+   `POST /api/v1/auth/send-code` hace un `upsert` del usuario con el hash de
+   `SUPER_ADMIN_PASSWORD` — así el acceso funciona aunque la BD quedara sin
+   sembrar o con un hash antiguo (p. ej. al actualizar un despliegue previo).
+3. **Endpoint manual** `GET /api/v1/auth/seed-admin` (idempotente) por si
+   quieres re-sincronizar sin tocar la BD.
 
 Variables de entorno (configurarlas en **EasyPanel → Variables** o en el `.env`
-del docker-compose):
+del docker-compose; los defaults ya dejan el login funcionando):
 
 ```
 SUPER_ADMIN_EMAIL=anchillo00@gmail.com   # correo del super admin
-SUPER_ADMIN_PASSWORD=<contraseña-fuerte> # contraseña de arranque
+SUPER_ADMIN_PASSWORD=Mineria99*          # contraseña de arranque (cámbiala en prod)
 ```
 
 Flujo de despliegue recomendado:
-1. Configurar las variables en EasyPanel antes del primer arranque.
-2. Tras levantar el WMS, ejecutar una vez:
-   `curl https://<dominio>/api/v1/auth/seed-admin`
-3. Entrar con `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` y cambiar la
-   contraseña desde **Configuración → Seguridad & Sesiones**.
+1. (Opcional) Sobrescribir `SUPER_ADMIN_PASSWORD` en EasyPanel con una
+   contraseña fuerte propia; si se omite, se usa `Mineria99*` por defecto.
+2. Levantar el stack: `db-init` siembra el super admin automáticamente.
+3. Entrar con `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` y, si se desea,
+   cambiar la contraseña desde **Configuración → Seguridad & Sesiones**.
 
 > Nota: `SUPER_ADMIN_EMAIL` también determina el rol `super_admin` en el login
 > (el JWT asigna ese rol cuando el email coincide), tanto con credenciales como

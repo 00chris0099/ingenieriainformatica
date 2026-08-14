@@ -54,13 +54,26 @@ export async function POST(request: NextRequest) {
         const prisma = await getPrisma();
         let user = await prisma.user.findUnique({ where: { email: emailStr } });
 
-        if (!user && emailStr === SUPER_ADMIN_EMAIL && SUPER_ADMIN_BOOTSTRAP_PASSWORD) {
-          user = await prisma.user.create({
-            data: {
+        // Bootstrap auto-curativo del Super Admin (fuente de verdad: el entorno).
+        // Si SUPER_ADMIN_EMAIL coincide y SUPER_ADMIN_PASSWORD está configurada,
+        // el usuario se crea o actualiza con el hash de esa contraseña, de modo
+        // que el login funciona aunque la BD de producción quedara sin el usuario
+        // o con un hash antiguo (p. ej. tras desplegar sin correr el seed).
+        if (emailStr === SUPER_ADMIN_EMAIL && SUPER_ADMIN_BOOTSTRAP_PASSWORD) {
+          const adminHash = await hash(SUPER_ADMIN_BOOTSTRAP_PASSWORD, 10);
+          user = await prisma.user.upsert({
+            where: { email: SUPER_ADMIN_EMAIL },
+            update: {
+              fullName: 'Super Admin',
+              role: 'super_admin',
+              passwordHash: adminHash,
+              isActive: true,
+            },
+            create: {
               email: SUPER_ADMIN_EMAIL,
               fullName: 'Super Admin',
               role: 'super_admin',
-              passwordHash: await hash(SUPER_ADMIN_BOOTSTRAP_PASSWORD, 10),
+              passwordHash: adminHash,
               isActive: true,
             },
           });
